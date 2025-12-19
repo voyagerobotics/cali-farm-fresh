@@ -38,7 +38,7 @@ const ContactSection = () => {
 
             <div className="space-y-6">
               <a
-                href="tel:+919876543210"
+                href="tel:+918149712801"
                 className="flex items-center gap-4 p-4 bg-card rounded-xl border border-border hover:border-primary/30 hover:shadow-soft transition-all group"
               >
                 <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center group-hover:bg-primary/20 transition-colors">
@@ -46,12 +46,12 @@ const ContactSection = () => {
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">Call or WhatsApp</p>
-                  <p className="font-medium text-foreground">+91 98765 43210</p>
+                  <p className="font-medium text-foreground">+91 8149712801, +91 7559421334</p>
                 </div>
               </a>
 
               <a
-                href="mailto:hello@californiafarmsindia.com"
+                href="mailto:californiafarmsindia@gmail.com"
                 className="flex items-center gap-4 p-4 bg-card rounded-xl border border-border hover:border-primary/30 hover:shadow-soft transition-all group"
               >
                 <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center group-hover:bg-primary/20 transition-colors">
@@ -59,7 +59,7 @@ const ContactSection = () => {
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">Email Us</p>
-                  <p className="font-medium text-foreground">hello@californiafarmsindia.com</p>
+                  <p className="font-medium text-foreground">californiafarmsindia@gmail.com</p>
                 </div>
               </a>
 
@@ -69,7 +69,7 @@ const ContactSection = () => {
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">Farm Location</p>
-                  <p className="font-medium text-foreground">Farm pickup available by appointment</p>
+                  <p className="font-medium text-foreground">Ramgiri, Nagpur, Maharashtra</p>
                 </div>
               </div>
 
@@ -78,8 +78,8 @@ const ContactSection = () => {
                   <Clock className="w-5 h-5 text-secondary" />
                 </div>
                 <div>
-                  <p className="text-sm text-muted-foreground">Order Timing</p>
-                  <p className="font-medium text-foreground">Daily 7 AM – 8 PM</p>
+                  <p className="text-sm text-muted-foreground">Delivery Time</p>
+                  <p className="font-medium text-foreground">Mon & Thu • 12 PM – 3 PM</p>
                 </div>
               </div>
             </div>

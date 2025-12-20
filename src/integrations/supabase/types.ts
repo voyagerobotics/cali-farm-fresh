@@ -14,6 +14,36 @@ export type Database = {
   }
   public: {
     Tables: {
+      delivery_zones: {
+        Row: {
+          created_at: string
+          delivery_charge: number
+          id: string
+          is_active: boolean
+          max_distance_km: number
+          min_distance_km: number
+          zone_name: string
+        }
+        Insert: {
+          created_at?: string
+          delivery_charge: number
+          id?: string
+          is_active?: boolean
+          max_distance_km: number
+          min_distance_km?: number
+          zone_name: string
+        }
+        Update: {
+          created_at?: string
+          delivery_charge?: number
+          id?: string
+          is_active?: boolean
+          max_distance_km?: number
+          min_distance_km?: number
+          zone_name?: string
+        }
+        Relationships: []
+      }
       order_items: {
         Row: {
           created_at: string
@@ -62,6 +92,36 @@ export type Database = {
           },
         ]
       }
+      order_otp_verifications: {
+        Row: {
+          created_at: string
+          email: string
+          expires_at: string
+          id: string
+          otp_code: string
+          user_id: string
+          verified: boolean
+        }
+        Insert: {
+          created_at?: string
+          email: string
+          expires_at: string
+          id?: string
+          otp_code: string
+          user_id: string
+          verified?: boolean
+        }
+        Update: {
+          created_at?: string
+          email?: string
+          expires_at?: string
+          id?: string
+          otp_code?: string
+          user_id?: string
+          verified?: boolean
+        }
+        Relationships: []
+      }
       orders: {
         Row: {
           created_at: string
@@ -75,11 +135,14 @@ export type Database = {
           order_date: string
           order_number: string
           payment_method: Database["public"]["Enums"]["payment_method"]
+          payment_screenshot_url: string | null
           payment_status: Database["public"]["Enums"]["payment_status"]
+          payment_verified_at: string | null
           status: Database["public"]["Enums"]["order_status"]
           subtotal: number
           total: number
           updated_at: string
+          upi_reference: string | null
           user_id: string | null
         }
         Insert: {
@@ -94,11 +157,14 @@ export type Database = {
           order_date: string
           order_number: string
           payment_method?: Database["public"]["Enums"]["payment_method"]
+          payment_screenshot_url?: string | null
           payment_status?: Database["public"]["Enums"]["payment_status"]
+          payment_verified_at?: string | null
           status?: Database["public"]["Enums"]["order_status"]
           subtotal: number
           total: number
           updated_at?: string
+          upi_reference?: string | null
           user_id?: string | null
         }
         Update: {
@@ -113,11 +179,14 @@ export type Database = {
           order_date?: string
           order_number?: string
           payment_method?: Database["public"]["Enums"]["payment_method"]
+          payment_screenshot_url?: string | null
           payment_status?: Database["public"]["Enums"]["payment_status"]
+          payment_verified_at?: string | null
           status?: Database["public"]["Enums"]["order_status"]
           subtotal?: number
           total?: number
           updated_at?: string
+          upi_reference?: string | null
           user_id?: string | null
         }
         Relationships: []
@@ -234,6 +303,48 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      user_addresses: {
+        Row: {
+          address: string
+          city: string
+          created_at: string
+          full_name: string
+          id: string
+          is_default: boolean
+          label: string
+          phone: string
+          pincode: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          address: string
+          city?: string
+          created_at?: string
+          full_name: string
+          id?: string
+          is_default?: boolean
+          label?: string
+          phone: string
+          pincode: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          address?: string
+          city?: string
+          created_at?: string
+          full_name?: string
+          id?: string
+          is_default?: boolean
+          label?: string
+          phone?: string
+          pincode?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
       }
       user_notification_preferences: {
         Row: {

@@ -21,8 +21,6 @@ interface CartContextType {
 
 const CartContext = createContext<CartContextType | undefined>(undefined);
 
-const MINIMUM_ORDER_VALUE = 200; // ₹200 minimum order
-
 export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [items, setItems] = useState<CartItem[]>(() => {
     const saved = localStorage.getItem("cart");
@@ -90,5 +88,3 @@ export const useCart = () => {
   }
   return context;
 };
-
-export const MINIMUM_ORDER = MINIMUM_ORDER_VALUE;

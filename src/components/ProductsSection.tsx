@@ -1,4 +1,5 @@
-import { ShoppingCart, AlertCircle, Loader2 } from "lucide-react";
+import { ShoppingCart, AlertCircle, Loader2, Package } from "lucide-react";
+import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { useProducts } from "@/hooks/useProducts";
 import { useCart } from "@/contexts/CartContext";
@@ -138,44 +139,66 @@ const ProductsSection = () => {
                 return (
                   <div
                     key={product.id}
-                    className={`bg-card rounded-xl p-5 border border-border hover:shadow-elevated transition-all duration-300 hover:-translate-y-1 ${isOutOfStock ? 'opacity-70' : ''}`}
+                    className={`bg-card rounded-xl border border-border hover:shadow-elevated transition-all duration-300 hover:-translate-y-1 ${isOutOfStock ? 'opacity-70' : ''}`}
                   >
-                    <div className="flex items-center justify-between mb-3">
-                      <span className="inline-block text-xs font-medium text-secondary bg-secondary/10 px-2 py-1 rounded-full">
-                        {getCategoryLabel(product.category)}
-                      </span>
-                      {stockStatus && (
-                        <span className={`text-xs font-medium px-2 py-1 rounded-full ${
-                          stockStatus.color === 'destructive' ? 'bg-destructive/10 text-destructive' :
-                          stockStatus.color === 'warning' ? 'bg-yellow-500/10 text-yellow-600' :
-                          'bg-green-500/10 text-green-600'
-                        }`}>
-                          {stockStatus.label}
-                        </span>
+                    <Link to={`/product/${product.id}`} className="block">
+                      {product.image_url ? (
+                        <div className="aspect-square bg-muted/50 rounded-t-xl overflow-hidden">
+                          <img 
+                            src={product.image_url} 
+                            alt={product.name}
+                            className="w-full h-full object-cover"
+                          />
+                        </div>
+                      ) : (
+                        <div className="aspect-square bg-muted/50 rounded-t-xl flex items-center justify-center">
+                          <Package className="w-16 h-16 text-muted-foreground/30" />
+                        </div>
                       )}
+                    </Link>
+                    <div className="p-5">
+                      <div className="flex items-center justify-between mb-3">
+                        <span className="inline-block text-xs font-medium text-secondary bg-secondary/10 px-2 py-1 rounded-full">
+                          {getCategoryLabel(product.category)}
+                        </span>
+                        {stockStatus && (
+                          <span className={`text-xs font-medium px-2 py-1 rounded-full ${
+                            stockStatus.color === 'destructive' ? 'bg-destructive/10 text-destructive' :
+                            stockStatus.color === 'warning' ? 'bg-yellow-500/10 text-yellow-600' :
+                            'bg-green-500/10 text-green-600'
+                          }`}>
+                            {stockStatus.label}
+                          </span>
+                        )}
+                      </div>
+                      <Link to={`/product/${product.id}`}>
+                        <h3 className="font-heading font-semibold text-lg text-foreground mb-1 hover:text-primary transition-colors">
+                          {product.name}
+                        </h3>
+                      </Link>
+                      {product.description && (
+                        <p className="text-sm text-muted-foreground mb-2 line-clamp-2">
+                          {product.description}
+                        </p>
+                      )}
+                      <div className="flex items-baseline gap-2 mb-4">
+                        <span className="text-xl font-bold text-primary">₹{product.price}</span>
+                        <span className="text-sm text-muted-foreground">per {product.unit}</span>
+                      </div>
+                      <Button 
+                        variant={isOutOfStock ? "outline" : "default"} 
+                        size="sm" 
+                        className="w-full" 
+                        onClick={(e) => {
+                          e.preventDefault();
+                          handleAddToCart(product);
+                        }}
+                        disabled={isOutOfStock}
+                      >
+                        <ShoppingCart className="w-4 h-4 mr-2" />
+                        {isOutOfStock ? "Out of Stock" : "Add to Cart"}
+                      </Button>
                     </div>
-                    <h3 className="font-heading font-semibold text-lg text-foreground mb-1">
-                      {product.name}
-                    </h3>
-                    {product.description && (
-                      <p className="text-sm text-muted-foreground mb-2 line-clamp-2">
-                        {product.description}
-                      </p>
-                    )}
-                    <div className="flex items-baseline gap-2 mb-4">
-                      <span className="text-xl font-bold text-primary">₹{product.price}</span>
-                      <span className="text-sm text-muted-foreground">per {product.unit}</span>
-                    </div>
-                    <Button 
-                      variant={isOutOfStock ? "outline" : "default"} 
-                      size="sm" 
-                      className="w-full" 
-                      onClick={() => handleAddToCart(product)}
-                      disabled={isOutOfStock}
-                    >
-                      <ShoppingCart className="w-4 h-4 mr-2" />
-                      {isOutOfStock ? "Out of Stock" : "Add to Cart"}
-                    </Button>
                   </div>
                 );
               })

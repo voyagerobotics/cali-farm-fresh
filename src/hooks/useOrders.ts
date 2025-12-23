@@ -1,0 +1,132 @@
+import { useState, useEffect } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
+
+export interface OrderItem {
+  id: string;
+  product_name: string;
+  quantity: number;
+  unit_price: number;
+  total_price: number;
+}
+
+export interface Order {
+  id: string;
+  order_number: string;
+  user_id: string | null;
+  status: "pending" | "confirmed" | "preparing" | "out_for_delivery" | "delivered" | "cancelled";
+  payment_method: "cod" | "online";
+  payment_status: "pending" | "paid" | "failed" | "refunded";
+  subtotal: number;
+  delivery_charge: number | null;
+  total: number;
+  delivery_name: string;
+  delivery_phone: string;
+  delivery_address: string;
+  delivery_slot: string | null;
+  notes: string | null;
+  upi_reference: string | null;
+  order_date: string;
+  created_at: string;
+  updated_at: string;
+  order_items?: OrderItem[];
+}
+
+export const useOrders = (isAdmin: boolean = false) => {
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const { toast } = useToast();
+
+  const fetchOrders = async () => {
+    setIsLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from("orders")
+        .select(`
+          *,
+          order_items (
+            id,
+            product_name,
+            quantity,
+            unit_price,
+            total_price
+          )
+        `)
+        .order("created_at", { ascending: false });
+
+      if (error) throw error;
+      setOrders(data || []);
+    } catch (error: any) {
+      console.error("Error fetching orders:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const updateOrderStatus = async (orderId: string, status: Order["status"]) => {
+    try {
+      const { error } = await supabase
+        .from("orders")
+        .update({ status })
+        .eq("id", orderId);
+
+      if (error) throw error;
+      
+      toast({ title: "Order status updated" });
+      fetchOrders();
+      return true;
+    } catch (error: any) {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+      return false;
+    }
+  };
+
+  const updatePaymentStatus = async (orderId: string, paymentStatus: Order["payment_status"]) => {
+    try {
+      const updates: any = { payment_status: paymentStatus };
+      if (paymentStatus === "paid") {
+        updates.payment_verified_at = new Date().toISOString();
+      }
+
+      const { error } = await supabase
+        .from("orders")
+        .update(updates)
+        .eq("id", orderId);
+
+      if (error) throw error;
+      
+      toast({ title: "Payment status updated" });
+      fetchOrders();
+      return true;
+    } catch (error: any) {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+      return false;
+    }
+  };
+
+  useEffect(() => {
+    fetchOrders();
+
+    // Subscribe to realtime updates
+    const channel = supabase
+      .channel("orders-updates")
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "orders",
+        },
+        () => {
+          fetchOrders();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [isAdmin]);
+
+  return { orders, isLoading, refetch: fetchOrders, updateOrderStatus, updatePaymentStatus };
+};

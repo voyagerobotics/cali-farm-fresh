@@ -5,3 +5,12 @@ verify_jwt = false
 
 [functions.verify-order-otp]
 verify_jwt = false
+
+[functions.send-order-confirmation]
+verify_jwt = false
+
+[functions.send-order-otp]
+verify_jwt = false
+
+[functions.verify-order-otp]
+verify_jwt = false

@@ -72,7 +72,18 @@ export const useProducts = (includeHidden: boolean = false) => {
 };
 
 export const useProductMutations = () => {
-  const createProduct = async (product: { name: string; price: number; unit: string; description?: string; image_url?: string; category?: string; stock_quantity?: number; is_available?: boolean; is_hidden?: boolean }) => {
+  const createProduct = async (product: { 
+    name: string; 
+    price: number; 
+    unit: string; 
+    description?: string; 
+    image_url?: string; 
+    image_urls?: string[];
+    category?: string; 
+    stock_quantity?: number; 
+    is_available?: boolean; 
+    is_hidden?: boolean 
+  }) => {
     const { data, error } = await supabase
       .from("products")
       .insert([product])

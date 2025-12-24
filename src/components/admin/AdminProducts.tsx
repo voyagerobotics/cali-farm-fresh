@@ -1,9 +1,11 @@
 import { useState, useRef } from "react";
-import { Plus, Edit, Trash2, Eye, EyeOff, Upload, X, Image as ImageIcon } from "lucide-react";
+import { Plus, Edit, Trash2, Eye, EyeOff, X, Image as ImageIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useProducts, useProductMutations, Product } from "@/hooks/useProducts";
 import { useImageUpload } from "@/hooks/useImageUpload";
 import { useToast } from "@/hooks/use-toast";
+
+const MAX_IMAGES = 4;
 
 const AdminProducts = () => {
   const { products, isLoading, refetch } = useProducts(true);
@@ -14,8 +16,9 @@ const AdminProducts = () => {
 
   const [showForm, setShowForm] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
-  const [imagePreview, setImagePreview] = useState<string | null>(null);
-  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imagePreviews, setImagePreviews] = useState<string[]>([]);
+  const [imageFiles, setImageFiles] = useState<File[]>([]);
+  const [existingImages, setExistingImages] = useState<string[]>([]);
   const [formData, setFormData] = useState({
     name: "",
     price: "",
@@ -24,7 +27,6 @@ const AdminProducts = () => {
     category: "vegetables",
     stock_quantity: "",
     is_available: true,
-    image_url: "",
   });
 
   const resetForm = () => {
@@ -36,50 +38,81 @@ const AdminProducts = () => {
       category: "vegetables",
       stock_quantity: "",
       is_available: true,
-      image_url: "",
     });
-    setImagePreview(null);
-    setImageFile(null);
+    setImagePreviews([]);
+    setImageFiles([]);
+    setExistingImages([]);
     setEditingProduct(null);
     setShowForm(false);
   };
 
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const files = Array.from(e.target.files || []);
+    if (!files.length) return;
 
-    setImageFile(file);
-    
-    // Create preview
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      setImagePreview(reader.result as string);
-    };
-    reader.readAsDataURL(file);
-  };
+    const totalImages = existingImages.length + imageFiles.length + files.length;
+    if (totalImages > MAX_IMAGES) {
+      toast({
+        title: "Too many images",
+        description: `Maximum ${MAX_IMAGES} images allowed per product`,
+        variant: "destructive",
+      });
+      return;
+    }
 
-  const removeImage = () => {
-    setImageFile(null);
-    setImagePreview(null);
-    setFormData({ ...formData, image_url: "" });
+    const newFiles = [...imageFiles, ...files];
+    setImageFiles(newFiles);
+
+    // Create previews for new files
+    files.forEach((file) => {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setImagePreviews((prev) => [...prev, reader.result as string]);
+      };
+      reader.readAsDataURL(file);
+    });
+
+    // Reset input
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
     }
   };
 
+  const removeNewImage = (index: number) => {
+    setImageFiles((prev) => prev.filter((_, i) => i !== index));
+    setImagePreviews((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const removeExistingImage = (index: number) => {
+    setExistingImages((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const getTotalImages = () => existingImages.length + imageFiles.length;
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    try {
-      let imageUrl = formData.image_url;
 
-      // Upload new image if selected
-      if (imageFile) {
-        const uploadedUrl = await uploadImage(imageFile);
-        if (uploadedUrl) {
-          imageUrl = uploadedUrl;
+    if (getTotalImages() === 0) {
+      toast({
+        title: "Image required",
+        description: "Please upload at least one product image",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      // Upload new images
+      const uploadedUrls: string[] = [];
+      for (const file of imageFiles) {
+        const url = await uploadImage(file);
+        if (url) {
+          uploadedUrls.push(url);
         }
       }
+
+      // Combine existing and new images
+      const allImageUrls = [...existingImages, ...uploadedUrls];
 
       const productData = {
         name: formData.name,
@@ -89,7 +122,8 @@ const AdminProducts = () => {
         category: formData.category,
         stock_quantity: parseInt(formData.stock_quantity) || 0,
         is_available: formData.is_available,
-        image_url: imageUrl || null,
+        image_url: allImageUrls[0] || null, // Keep first image as primary for backward compatibility
+        image_urls: allImageUrls,
       };
 
       if (editingProduct) {
@@ -109,6 +143,18 @@ const AdminProducts = () => {
 
   const handleEdit = (product: Product) => {
     setEditingProduct(product);
+    
+    // Get existing images from image_urls array or fallback to image_url
+    const existingImageUrls = (product as any).image_urls?.length > 0 
+      ? (product as any).image_urls 
+      : product.image_url 
+        ? [product.image_url] 
+        : [];
+    
+    setExistingImages(existingImageUrls);
+    setImagePreviews([]);
+    setImageFiles([]);
+    
     setFormData({
       name: product.name,
       price: product.price.toString(),
@@ -117,9 +163,7 @@ const AdminProducts = () => {
       category: product.category || "vegetables",
       stock_quantity: product.stock_quantity?.toString() || "0",
       is_available: product.is_available ?? true,
-      image_url: product.image_url || "",
     });
-    setImagePreview(product.image_url || null);
     setShowForm(true);
   };
 
@@ -142,6 +186,12 @@ const AdminProducts = () => {
     } catch (error: any) {
       toast({ title: "Error", description: error.message, variant: "destructive" });
     }
+  };
+
+  const getProductImageCount = (product: Product) => {
+    const urls = (product as any).image_urls;
+    if (urls && urls.length > 0) return urls.length;
+    return product.image_url ? 1 : 0;
   };
 
   if (isLoading) {
@@ -168,75 +218,106 @@ const AdminProducts = () => {
             {editingProduct ? "Edit Product" : "Add New Product"}
           </h3>
           <form onSubmit={handleSubmit} className="space-y-4">
-            {/* Image Upload */}
+            {/* Multiple Image Upload */}
             <div>
-              <label className="block text-sm font-medium mb-2">Product Image</label>
-              <div className="flex items-start gap-4">
-                <div 
-                  className="w-32 h-32 rounded-lg border-2 border-dashed border-border bg-muted/50 flex items-center justify-center overflow-hidden cursor-pointer hover:border-primary transition-colors relative"
-                  onClick={() => fileInputRef.current?.click()}
-                >
-                  {imagePreview ? (
-                    <>
-                      <img src={imagePreview} alt="Preview" className="w-full h-full object-cover" />
-                      <button
-                        type="button"
-                        onClick={(e) => { e.stopPropagation(); removeImage(); }}
-                        className="absolute top-1 right-1 w-6 h-6 bg-destructive text-destructive-foreground rounded-full flex items-center justify-center"
-                      >
-                        <X className="w-4 h-4" />
-                      </button>
-                    </>
-                  ) : (
-                    <div className="text-center">
-                      <ImageIcon className="w-8 h-8 mx-auto text-muted-foreground mb-1" />
-                      <span className="text-xs text-muted-foreground">Click to upload</span>
-                    </div>
-                  )}
-                </div>
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept="image/jpeg,image/png,image/webp,image/gif"
-                  onChange={handleImageSelect}
-                  className="hidden"
-                />
-                <div className="text-sm text-muted-foreground">
-                  <p>Recommended: Square image</p>
-                  <p>Max size: 5MB</p>
-                  <p>Formats: JPEG, PNG, WebP, GIF</p>
-                </div>
+              <label className="block text-sm font-medium mb-2">
+                Product Images <span className="text-muted-foreground">({getTotalImages()}/{MAX_IMAGES})</span>
+              </label>
+              <div className="flex flex-wrap gap-3">
+                {/* Existing Images */}
+                {existingImages.map((url, index) => (
+                  <div
+                    key={`existing-${index}`}
+                    className="w-24 h-24 rounded-lg border-2 border-border overflow-hidden relative group"
+                  >
+                    <img src={url} alt={`Product ${index + 1}`} className="w-full h-full object-cover" />
+                    <button
+                      type="button"
+                      onClick={() => removeExistingImage(index)}
+                      className="absolute top-1 right-1 w-6 h-6 bg-destructive text-destructive-foreground rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                    {index === 0 && (
+                      <span className="absolute bottom-1 left-1 text-[10px] bg-primary text-primary-foreground px-1 rounded">
+                        Primary
+                      </span>
+                    )}
+                  </div>
+                ))}
+
+                {/* New Image Previews */}
+                {imagePreviews.map((preview, index) => (
+                  <div
+                    key={`new-${index}`}
+                    className="w-24 h-24 rounded-lg border-2 border-dashed border-primary overflow-hidden relative group"
+                  >
+                    <img src={preview} alt={`New ${index + 1}`} className="w-full h-full object-cover" />
+                    <button
+                      type="button"
+                      onClick={() => removeNewImage(index)}
+                      className="absolute top-1 right-1 w-6 h-6 bg-destructive text-destructive-foreground rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                    <span className="absolute bottom-1 left-1 text-[10px] bg-secondary text-secondary-foreground px-1 rounded">
+                      New
+                    </span>
+                  </div>
+                ))}
+
+                {/* Add Image Button */}
+                {getTotalImages() < MAX_IMAGES && (
+                  <div
+                    className="w-24 h-24 rounded-lg border-2 border-dashed border-border bg-muted/50 flex flex-col items-center justify-center cursor-pointer hover:border-primary transition-colors"
+                    onClick={() => fileInputRef.current?.click()}
+                  >
+                    <Plus className="w-6 h-6 text-muted-foreground mb-1" />
+                    <span className="text-xs text-muted-foreground">Add</span>
+                  </div>
+                )}
               </div>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/jpeg,image/png,image/webp,image/gif"
+                onChange={handleImageSelect}
+                multiple
+                className="hidden"
+              />
+              <p className="text-xs text-muted-foreground mt-2">
+                Upload 1-4 images. First image will be the primary display image. Max 5MB each.
+              </p>
             </div>
 
             <div className="grid md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium mb-1">Product Name *</label>
-                <input 
-                  type="text" 
-                  required 
-                  value={formData.name} 
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })} 
+                <input
+                  type="text"
+                  required
+                  value={formData.name}
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                   className="w-full px-4 py-3 rounded-lg border border-input bg-background"
                   placeholder="e.g., Fresh Tomatoes"
                 />
               </div>
               <div>
                 <label className="block text-sm font-medium mb-1">Price (₹) *</label>
-                <input 
-                  type="number" 
-                  required 
-                  value={formData.price} 
-                  onChange={(e) => setFormData({ ...formData, price: e.target.value })} 
+                <input
+                  type="number"
+                  required
+                  value={formData.price}
+                  onChange={(e) => setFormData({ ...formData, price: e.target.value })}
                   className="w-full px-4 py-3 rounded-lg border border-input bg-background"
                   placeholder="e.g., 40"
                 />
               </div>
               <div>
                 <label className="block text-sm font-medium mb-1">Unit</label>
-                <select 
-                  value={formData.unit} 
-                  onChange={(e) => setFormData({ ...formData, unit: e.target.value })} 
+                <select
+                  value={formData.unit}
+                  onChange={(e) => setFormData({ ...formData, unit: e.target.value })}
                   className="w-full px-4 py-3 rounded-lg border border-input bg-background"
                 >
                   <option value="kg">per kg</option>
@@ -249,19 +330,19 @@ const AdminProducts = () => {
               </div>
               <div>
                 <label className="block text-sm font-medium mb-1">Stock Quantity</label>
-                <input 
-                  type="number" 
-                  value={formData.stock_quantity} 
-                  onChange={(e) => setFormData({ ...formData, stock_quantity: e.target.value })} 
+                <input
+                  type="number"
+                  value={formData.stock_quantity}
+                  onChange={(e) => setFormData({ ...formData, stock_quantity: e.target.value })}
                   className="w-full px-4 py-3 rounded-lg border border-input bg-background"
                   placeholder="e.g., 50"
                 />
               </div>
               <div>
                 <label className="block text-sm font-medium mb-1">Category</label>
-                <select 
-                  value={formData.category} 
-                  onChange={(e) => setFormData({ ...formData, category: e.target.value })} 
+                <select
+                  value={formData.category}
+                  onChange={(e) => setFormData({ ...formData, category: e.target.value })}
                   className="w-full px-4 py-3 rounded-lg border border-input bg-background"
                 >
                   <option value="vegetables">Vegetables</option>
@@ -272,9 +353,9 @@ const AdminProducts = () => {
               </div>
               <div className="flex items-center">
                 <label className="flex items-center gap-2 cursor-pointer">
-                  <input 
-                    type="checkbox" 
-                    checked={formData.is_available} 
+                  <input
+                    type="checkbox"
+                    checked={formData.is_available}
                     onChange={(e) => setFormData({ ...formData, is_available: e.target.checked })}
                     className="w-4 h-4"
                   />
@@ -285,9 +366,9 @@ const AdminProducts = () => {
 
             <div>
               <label className="block text-sm font-medium mb-1">Description</label>
-              <textarea 
-                value={formData.description} 
-                onChange={(e) => setFormData({ ...formData, description: e.target.value })} 
+              <textarea
+                value={formData.description}
+                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                 className="w-full px-4 py-3 rounded-lg border border-input bg-background resize-none"
                 rows={3}
                 placeholder="Describe your product..."
@@ -309,20 +390,25 @@ const AdminProducts = () => {
       {/* Products List */}
       <div className="grid gap-4">
         {products.map((product) => (
-          <div 
-            key={product.id} 
+          <div
+            key={product.id}
             className={`bg-card rounded-xl border p-4 flex items-center gap-4 ${
               product.is_hidden ? "opacity-50 border-dashed" : "border-border"
             }`}
           >
             {/* Product Image */}
-            <div className="w-16 h-16 rounded-lg bg-muted/50 flex-shrink-0 overflow-hidden">
+            <div className="w-16 h-16 rounded-lg bg-muted/50 flex-shrink-0 overflow-hidden relative">
               {product.image_url ? (
                 <img src={product.image_url} alt={product.name} className="w-full h-full object-cover" />
               ) : (
                 <div className="w-full h-full flex items-center justify-center">
                   <ImageIcon className="w-6 h-6 text-muted-foreground/50" />
                 </div>
+              )}
+              {getProductImageCount(product) > 1 && (
+                <span className="absolute bottom-0 right-0 text-[10px] bg-black/70 text-white px-1 rounded-tl">
+                  +{getProductImageCount(product) - 1}
+                </span>
               )}
             </div>
 
@@ -338,7 +424,7 @@ const AdminProducts = () => {
                 )}
               </div>
               <p className="text-sm text-muted-foreground">
-                ₹{product.price} / {product.unit} • Stock: {product.stock_quantity ?? 0}
+                ₹{product.price} / {product.unit} • Stock: {product.stock_quantity ?? 0} • {getProductImageCount(product)} image(s)
               </p>
             </div>
 

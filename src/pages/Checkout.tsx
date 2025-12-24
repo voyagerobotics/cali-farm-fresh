@@ -210,11 +210,44 @@ const Checkout = () => {
         });
       }
 
+      // Send order confirmation email
+      const customerName = selectedAddress?.full_name || formData.name;
+      const deliveryDate = getOrderDate().toLocaleDateString("en-IN", { 
+        weekday: "long", 
+        month: "short", 
+        day: "numeric" 
+      });
+
+      try {
+        await supabase.functions.invoke("send-order-confirmation", {
+          body: {
+            email: user?.email,
+            orderNumber: pendingOrderNumber,
+            customerName: customerName,
+            items: items.map((item) => ({
+              product_name: item.name,
+              quantity: item.quantity,
+              unit_price: item.price,
+              total_price: item.price * item.quantity,
+            })),
+            subtotal: total,
+            deliveryCharge: deliveryCharge,
+            total: grandTotal,
+            deliveryAddress: pendingOrderData.delivery_address,
+            deliveryDate: deliveryDate,
+          },
+        });
+        console.log("Order confirmation email sent");
+      } catch (emailError) {
+        console.error("Failed to send order confirmation email:", emailError);
+        // Don't fail the order if email fails
+      }
+
       clearCart();
       
       toast({
         title: "Order Placed Successfully!",
-        description: `Order #${pendingOrderNumber} will be delivered on ${getOrderDate().toLocaleDateString("en-IN", { weekday: "long", month: "short", day: "numeric" })}`,
+        description: `Order #${pendingOrderNumber} will be delivered on ${deliveryDate}`,
       });
 
       navigate("/orders");

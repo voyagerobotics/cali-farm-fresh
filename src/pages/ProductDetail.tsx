@@ -8,6 +8,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Product } from "@/hooks/useProducts";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
+import ProductImageGallery from "@/components/ProductImageGallery";
 
 const ProductDetail = () => {
   const { id } = useParams<{ id: string }>();
@@ -168,20 +169,12 @@ const ProductDetail = () => {
 
         {/* Product Details */}
         <div className="grid lg:grid-cols-2 gap-12 mb-16">
-          {/* Product Image */}
-          <div className="aspect-square bg-muted/50 rounded-2xl overflow-hidden border border-border">
-            {product.image_url ? (
-              <img 
-                src={product.image_url} 
-                alt={product.name}
-                className="w-full h-full object-cover"
-              />
-            ) : (
-              <div className="w-full h-full flex items-center justify-center">
-                <Package className="w-24 h-24 text-muted-foreground/30" />
-              </div>
-            )}
-          </div>
+          {/* Product Image Gallery */}
+          <ProductImageGallery
+            imageUrl={product.image_url}
+            imageUrls={product.image_urls}
+            productName={product.name}
+          />
 
           {/* Product Info */}
           <div className="flex flex-col">

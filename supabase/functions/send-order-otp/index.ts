@@ -14,6 +14,9 @@ interface OTPRequest {
   userId: string;
 }
 
+// Rate limit: 60 seconds between OTP requests
+const RATE_LIMIT_SECONDS = 60;
+
 const generateOTP = (): string => {
   return Math.floor(100000 + Math.random() * 900000).toString();
 };
@@ -27,6 +30,7 @@ const handler = async (req: Request): Promise<Response> => {
   try {
     const { email, userId }: OTPRequest = await req.json();
 
+    // Input validation
     if (!email || !userId) {
       return new Response(
         JSON.stringify({ error: "Email and userId are required" }),
@@ -34,20 +38,61 @@ const handler = async (req: Request): Promise<Response> => {
       );
     }
 
-    // Generate 6-digit OTP
-    const otpCode = generateOTP();
-    const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes from now
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email) || email.length > 255) {
+      return new Response(
+        JSON.stringify({ error: "Invalid email format" }),
+        { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      );
+    }
+
+    // Validate userId format (UUID)
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!uuidRegex.test(userId)) {
+      return new Response(
+        JSON.stringify({ error: "Invalid userId format" }),
+        { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      );
+    }
 
     // Create Supabase client
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Delete any existing OTPs for this user
+    // SERVER-SIDE RATE LIMITING: Check for recent OTP requests
+    const rateLimitTime = new Date(Date.now() - RATE_LIMIT_SECONDS * 1000).toISOString();
+    const { data: recentOTPs, error: rateError } = await supabase
+      .from("order_otp_verifications")
+      .select("created_at")
+      .eq("user_id", userId)
+      .gte("created_at", rateLimitTime);
+
+    if (rateError) {
+      console.error("Error checking rate limit:", rateError);
+    }
+
+    if (recentOTPs && recentOTPs.length > 0) {
+      console.log(`Rate limit hit for user ${userId}`);
+      return new Response(
+        JSON.stringify({ 
+          error: "Please wait 60 seconds before requesting a new code",
+          rateLimited: true 
+        }),
+        { status: 429, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      );
+    }
+
+    // Delete any existing OTPs for this user (cleanup old ones)
     await supabase
       .from("order_otp_verifications")
       .delete()
       .eq("user_id", userId);
+
+    // Generate 6-digit OTP
+    const otpCode = generateOTP();
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes from now
 
     // Store OTP in database
     const { error: insertError } = await supabase

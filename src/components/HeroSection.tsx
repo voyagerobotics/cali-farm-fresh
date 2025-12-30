@@ -37,6 +37,8 @@ const HeroSection = () => {
             Fresh from Our Farm,
             <br />
             <span className="text-secondary">Pure to Your Table</span>
+            <br />
+            in Just 3 Hours
           </h1>
 
           {/* Description */}

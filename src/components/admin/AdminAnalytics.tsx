@@ -3,6 +3,7 @@ import { TrendingUp, ShoppingBag, DollarSign, Users, Package, Calendar, Download
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface AnalyticsData {
   totalUsers: number;
@@ -34,12 +35,28 @@ interface AnalyticsData {
 }
 
 const AdminAnalytics = () => {
+  const { user } = useAuth();
   const [analytics, setAnalytics] = useState<AnalyticsData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
 
   useEffect(() => {
     const fetchAnalytics = async () => {
+      // Secondary server-side check: verify admin role before fetching data
+      if (!user) return;
+      
+      const { data: roleCheck } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", user.id)
+        .eq("role", "admin")
+        .maybeSingle();
+      
+      if (!roleCheck) {
+        setIsLoading(false);
+        return;
+      }
+
       setIsLoading(true);
       try {
         // Fetch user count from profiles table
@@ -132,7 +149,7 @@ const AdminAnalytics = () => {
     };
 
     fetchAnalytics();
-  }, []);
+  }, [user]);
 
   const exportToCSV = (data: any[], filename: string) => {
     if (data.length === 0) {

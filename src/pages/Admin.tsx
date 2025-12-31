@@ -1,8 +1,9 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Package, ShoppingBag, BarChart3, LogOut, ArrowLeft, Bell } from "lucide-react";
+import { Package, ShoppingBag, BarChart3, LogOut, ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
+import { useAdminVerification } from "@/hooks/useAdminVerification";
 import AdminProducts from "@/components/admin/AdminProducts";
 import AdminOrders from "@/components/admin/AdminOrders";
 import AdminAnalytics from "@/components/admin/AdminAnalytics";
@@ -11,21 +12,23 @@ type TabType = "analytics" | "orders" | "products";
 
 const Admin = () => {
   const navigate = useNavigate();
-  const { user, isAdmin, isLoading: authLoading, signOut } = useAuth();
+  const { signOut } = useAuth();
+  // Server-side admin role verification for defense-in-depth
+  const { isVerified, isVerifying } = useAdminVerification();
   const [activeTab, setActiveTab] = useState<TabType>("analytics");
 
-  useEffect(() => {
-    if (!authLoading && (!user || !isAdmin)) {
-      navigate("/auth?type=admin");
-    }
-  }, [user, isAdmin, authLoading, navigate]);
-
-  if (authLoading) {
+  // Show loading while verifying admin role server-side
+  if (isVerifying) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="animate-spin w-8 h-8 border-4 border-primary border-t-transparent rounded-full" />
       </div>
     );
+  }
+
+  // Don't render admin content if not verified
+  if (!isVerified) {
+    return null;
   }
 
   const tabs = [

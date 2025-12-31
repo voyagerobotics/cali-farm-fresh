@@ -142,9 +142,16 @@ const handler = async (req: Request): Promise<Response> => {
       { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
     );
   } catch (error: any) {
-    console.error("Error in verify-order-otp function:", error);
+    // Log full error details server-side for debugging
+    console.error("Error in verify-order-otp function:", {
+      message: error.message,
+      name: error.name,
+      stack: error.stack,
+      timestamp: new Date().toISOString()
+    });
+    // Return generic message to client to prevent information leakage
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ error: "An error occurred while verifying the code. Please try again." }),
       { status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } }
     );
   }

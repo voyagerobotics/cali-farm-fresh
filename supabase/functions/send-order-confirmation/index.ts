@@ -9,6 +9,18 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+// HTML escape function to prevent XSS attacks in email templates
+function escapeHtml(text: string | number | undefined | null): string {
+  if (text === null || text === undefined) return '';
+  if (typeof text === 'number') return text.toString();
+  return String(text)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
 interface OrderItem {
   product_name: string;
   quantity: number;
@@ -88,20 +100,20 @@ const handler = async (req: Request): Promise<Response> => {
       );
     }
 
-    // Generate items HTML
+    // Generate items HTML with escaped values to prevent XSS
     const itemsHtml = items.map(item => `
       <tr>
-        <td style="padding: 12px; border-bottom: 1px solid #e0e0e0;">${item.product_name}</td>
-        <td style="padding: 12px; border-bottom: 1px solid #e0e0e0; text-align: center;">${item.quantity}</td>
-        <td style="padding: 12px; border-bottom: 1px solid #e0e0e0; text-align: right;">₹${item.unit_price}</td>
-        <td style="padding: 12px; border-bottom: 1px solid #e0e0e0; text-align: right;">₹${item.total_price}</td>
+        <td style="padding: 12px; border-bottom: 1px solid #e0e0e0;">${escapeHtml(item.product_name)}</td>
+        <td style="padding: 12px; border-bottom: 1px solid #e0e0e0; text-align: center;">${escapeHtml(item.quantity)}</td>
+        <td style="padding: 12px; border-bottom: 1px solid #e0e0e0; text-align: right;">₹${escapeHtml(item.unit_price)}</td>
+        <td style="padding: 12px; border-bottom: 1px solid #e0e0e0; text-align: right;">₹${escapeHtml(item.total_price)}</td>
       </tr>
     `).join("");
 
     const emailResponse = await resend.emails.send({
       from: "California Farms <onboarding@resend.dev>",
       to: [email],
-      subject: `Order Confirmed! #${orderNumber} - California Farms India`,
+      subject: `Order Confirmed! #${escapeHtml(orderNumber)} - California Farms India`,
       html: `
         <!DOCTYPE html>
         <html>
@@ -142,12 +154,12 @@ const handler = async (req: Request): Promise<Response> => {
                 <div class="success-badge">✓ Order Confirmed!</div>
               </div>
               
-              <p>Dear <strong>${customerName}</strong>,</p>
+              <p>Dear <strong>${escapeHtml(customerName)}</strong>,</p>
               <p>Thank you for your order! We've received your order and it's being prepared with care.</p>
               
               <div class="order-info">
-                <p><strong>Order Number:</strong> ${orderNumber}</p>
-                <p><strong>Expected Delivery:</strong> ${deliveryDate}</p>
+                <p><strong>Order Number:</strong> ${escapeHtml(orderNumber)}</p>
+                <p><strong>Expected Delivery:</strong> ${escapeHtml(deliveryDate)}</p>
                 <p><strong>Delivery Time:</strong> 12:00 PM - 3:00 PM</p>
               </div>
               
@@ -169,21 +181,21 @@ const handler = async (req: Request): Promise<Response> => {
               <div class="totals">
                 <div class="totals-row">
                   <span>Subtotal</span>
-                  <span>₹${subtotal}</span>
+                  <span>₹${escapeHtml(subtotal)}</span>
                 </div>
                 <div class="totals-row">
                   <span>Delivery Charge</span>
-                  <span>${deliveryCharge === 0 ? 'FREE' : `₹${deliveryCharge}`}</span>
+                  <span>${deliveryCharge === 0 ? 'FREE' : `₹${escapeHtml(deliveryCharge)}`}</span>
                 </div>
                 <div class="totals-row total">
                   <span>Total Amount</span>
-                  <span>₹${total}</span>
+                  <span>₹${escapeHtml(total)}</span>
                 </div>
               </div>
               
               <div class="delivery-info">
                 <h4 style="margin: 0 0 10px; color: #2d5a3d;">📍 Delivery Address</h4>
-                <p style="margin: 0; color: #555;">${deliveryAddress}</p>
+                <p style="margin: 0; color: #555;">${escapeHtml(deliveryAddress)}</p>
               </div>
               
               <p style="margin-top: 30px; color: #666; font-size: 14px;">

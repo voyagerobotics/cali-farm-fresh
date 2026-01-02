@@ -1,14 +1,15 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Package, ShoppingBag, BarChart3, LogOut, ArrowLeft } from "lucide-react";
+import { Package, ShoppingBag, BarChart3, LogOut, ArrowLeft, FolderTree } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
 import { useAdminVerification } from "@/hooks/useAdminVerification";
 import AdminProducts from "@/components/admin/AdminProducts";
 import AdminOrders from "@/components/admin/AdminOrders";
 import AdminAnalytics from "@/components/admin/AdminAnalytics";
+import AdminCategories from "@/components/admin/AdminCategories";
 
-type TabType = "analytics" | "orders" | "products";
+type TabType = "analytics" | "orders" | "products" | "categories";
 
 const Admin = () => {
   const navigate = useNavigate();
@@ -35,6 +36,7 @@ const Admin = () => {
     { id: "analytics" as const, label: "Analytics", icon: BarChart3 },
     { id: "orders" as const, label: "Orders", icon: ShoppingBag },
     { id: "products" as const, label: "Products", icon: Package },
+    { id: "categories" as const, label: "Categories", icon: FolderTree },
   ];
 
   return (
@@ -84,6 +86,7 @@ const Admin = () => {
         {activeTab === "analytics" && <AdminAnalytics />}
         {activeTab === "orders" && <AdminOrders />}
         {activeTab === "products" && <AdminProducts />}
+        {activeTab === "categories" && <AdminCategories />}
       </div>
     </div>
   );

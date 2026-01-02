@@ -97,6 +97,7 @@ export type Database = {
           created_at: string
           email: string
           expires_at: string
+          failed_attempts: number
           id: string
           otp_code: string
           user_id: string
@@ -106,6 +107,7 @@ export type Database = {
           created_at?: string
           email: string
           expires_at: string
+          failed_attempts?: number
           id?: string
           otp_code: string
           user_id: string
@@ -115,6 +117,7 @@ export type Database = {
           created_at?: string
           email?: string
           expires_at?: string
+          failed_attempts?: number
           id?: string
           otp_code?: string
           user_id?: string

@@ -28,7 +28,48 @@ const handler = async (req: Request): Promise<Response> => {
   }
 
   try {
+    // AUTHENTICATION CHECK: Verify JWT token
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader) {
+      console.log("Missing Authorization header");
+      return new Response(
+        JSON.stringify({ error: "Authentication required" }),
+        { status: 401, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      );
+    }
+
+    const token = authHeader.replace("Bearer ", "");
+    
+    // Create Supabase client with user's token to verify authentication
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
+    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    
+    const supabaseAuth = createClient(supabaseUrl, supabaseAnonKey, {
+      global: { headers: { Authorization: authHeader } }
+    });
+
+    // Verify the user is authenticated
+    const { data: { user }, error: authError } = await supabaseAuth.auth.getUser(token);
+    
+    if (authError || !user) {
+      console.log("Invalid authentication:", authError?.message);
+      return new Response(
+        JSON.stringify({ error: "Invalid authentication" }),
+        { status: 401, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      );
+    }
+
     const { email, userId }: OTPRequest = await req.json();
+
+    // Verify the userId matches the authenticated user
+    if (userId !== user.id) {
+      console.log(`User ID mismatch: requested ${userId}, authenticated ${user.id}`);
+      return new Response(
+        JSON.stringify({ error: "Unauthorized - user ID mismatch" }),
+        { status: 403, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      );
+    }
 
     // Input validation
     if (!email || !userId) {
@@ -56,9 +97,7 @@ const handler = async (req: Request): Promise<Response> => {
       );
     }
 
-    // Create Supabase client
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    // Create Supabase client with service role for database operations
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     // SERVER-SIDE RATE LIMITING: Check for recent OTP requests
@@ -103,6 +142,7 @@ const handler = async (req: Request): Promise<Response> => {
         otp_code: otpCode,
         expires_at: expiresAt.toISOString(),
         verified: false,
+        failed_attempts: 0,
       });
 
     if (insertError) {

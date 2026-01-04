@@ -3,7 +3,7 @@ import { Leaf, Truck, Clock, BadgeCheck, Recycle, Heart } from "lucide-react";
 const benefits = [
   {
     icon: Leaf,
-    title: "100% Organic",
+    title: "100% Chemical Free",
     description: "No synthetic pesticides, herbicides, or fertilizers. Pure, natural goodness.",
   },
   {

@@ -524,7 +524,7 @@ const Checkout = () => {
               </div>
               <ul className="text-sm text-muted-foreground space-y-1">
                 <li>• Harvested fresh on delivery day</li>
-                <li>• 100% organic, zero chemicals</li>
+                <li>• 100% chemical free, zero chemicals</li>
                 <li>• Delivery within 3 hours</li>
               </ul>
             </div>

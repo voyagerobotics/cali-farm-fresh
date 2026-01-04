@@ -357,7 +357,7 @@ const AdminProducts = () => {
                   <option value="leafy">Leafy Greens</option>
                   <option value="fruits">Fruits</option>
                   <option value="herbs">Herbs</option>
-                  <option value="combos">Organic Combos</option>
+                  <option value="combos">Chemical Free Combos</option>
                 </select>
               </div>
               <div className="flex flex-col gap-2">

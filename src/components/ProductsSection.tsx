@@ -96,7 +96,7 @@ const ProductsSection = () => {
             Fresh From the Farm
           </h2>
           <p className="text-muted-foreground text-lg">
-            Browse our selection of certified organic produce, harvested fresh daily from our farm in Ramgiri, Nagpur.
+            Browse our selection of certified chemical free produce, harvested fresh daily from our farm in Ramgiri, Nagpur.
           </p>
         </div>
 
@@ -243,7 +243,7 @@ const ProductsSection = () => {
         <div className="mt-16 relative rounded-3xl overflow-hidden shadow-elevated">
           <img
             src={vegetablesImage}
-            alt="Fresh organic vegetables from California Farms India"
+            alt="Fresh chemical free vegetables from California Farms India"
             className="w-full h-[300px] md:h-[350px] object-cover"
           />
           <div className="absolute inset-0 bg-gradient-to-r from-foreground/80 via-foreground/60 to-transparent" />

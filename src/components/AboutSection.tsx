@@ -7,7 +7,7 @@ const AboutSection = () => {
           {/* Image */}
           <div className="relative">
             <div className="relative rounded-2xl overflow-hidden shadow-elevated">
-              <img src={organicFarmingImage} alt="Organic farming at California Farms India" className="w-full h-[400px] object-cover" />
+              <img src={organicFarmingImage} alt="Chemical free farming at California Farms India" className="w-full h-[400px] object-cover" />
             </div>
             {/* Floating Card */}
             <div className="absolute -bottom-6 -right-6 bg-card p-6 rounded-xl shadow-elevated border border-border max-w-[200px]">
@@ -32,7 +32,7 @@ const AboutSection = () => {
             <p className="text-muted-foreground mb-6 leading-relaxed">
               California Farms India was born from a simple belief: food should be as pure as nature 
               created it. Located in the heart of India, our farm spans acres of rich, fertile land 
-              where we cultivate vegetables using traditional organic methods passed down through generations.
+              where we cultivate vegetables using traditional chemical free methods passed down through generations.
             </p>
             <p className="text-muted-foreground mb-8 leading-relaxed">
               We don't use any synthetic pesticides, herbicides, or chemical fertilizers. Instead, 

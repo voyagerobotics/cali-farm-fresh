@@ -1,19 +1,13 @@
 import { Leaf, Heart, Shield } from "lucide-react";
 import organicFarmingImage from "@/assets/organic-farming.jpg";
-
 const AboutSection = () => {
-  return (
-    <section id="about" className="py-20 bg-background">
+  return <section id="about" className="py-20 bg-background">
       <div className="container mx-auto px-4">
         <div className="grid lg:grid-cols-2 gap-12 items-center">
           {/* Image */}
           <div className="relative">
             <div className="relative rounded-2xl overflow-hidden shadow-elevated">
-              <img
-                src={organicFarmingImage}
-                alt="Organic farming at California Farms India"
-                className="w-full h-[400px] object-cover"
-              />
+              <img src={organicFarmingImage} alt="Organic farming at California Farms India" className="w-full h-[400px] object-cover" />
             </div>
             {/* Floating Card */}
             <div className="absolute -bottom-6 -right-6 bg-card p-6 rounded-xl shadow-elevated border border-border max-w-[200px]">
@@ -54,7 +48,7 @@ const AboutSection = () => {
                   <Shield className="w-5 h-5 text-primary" />
                 </div>
                 <div>
-                  <h4 className="font-medium text-foreground mb-1">100% Organic</h4>
+                  <h4 className="font-medium text-foreground mb-1">100% Chemical Fr</h4>
                   <p className="text-sm text-muted-foreground">No chemicals, ever</p>
                 </div>
               </div>
@@ -71,8 +65,6 @@ const AboutSection = () => {
           </div>
         </div>
       </div>
-    </section>
-  );
+    </section>;
 };
-
 export default AboutSection;

@@ -174,7 +174,7 @@ const Auth = () => {
             {isAdminLogin 
               ? "Access your admin dashboard" 
               : isLogin 
-                ? "Login to order fresh organic vegetables" 
+                ? "Login to order fresh chemical free vegetables" 
                 : "Join us to get farm-fresh vegetables"}
           </p>
 

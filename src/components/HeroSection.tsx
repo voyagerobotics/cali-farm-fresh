@@ -47,7 +47,7 @@ const HeroSection = () => {
           animationDelay: "0.2s"
         }}>
             At California Farms India, we grow vegetables the way nature intended — with zero chemicals, 
-            pure organic methods, and a commitment to your health and wellbeing.
+            pure chemical free methods, and a commitment to your health and wellbeing.
           </p>
 
           {/* CTA Buttons */}

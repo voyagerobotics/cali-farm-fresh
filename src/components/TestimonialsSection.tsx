@@ -13,7 +13,7 @@ const testimonials = [
     name: "Rajesh Patel",
     location: "Sadar, Nagpur",
     rating: 5,
-    text: "Being a restaurant owner, quality matters most. California Farms delivers the freshest organic vegetables every single time. My customers love the taste!",
+    text: "Being a restaurant owner, quality matters most. California Farms delivers the freshest chemical free vegetables every single time. My customers love the taste!",
     highlight: "Restaurant Owner",
   },
   {
@@ -27,7 +27,7 @@ const testimonials = [
     name: "Vikram Singh",
     location: "Civil Lines, Nagpur",
     rating: 5,
-    text: "My kids finally enjoy eating vegetables! The organic produce from California Farms tastes so much better. Worth every rupee.",
+    text: "My kids finally enjoy eating vegetables! The chemical free produce from California Farms tastes so much better. Worth every rupee.",
     highlight: "Family Favorite",
   },
   {
@@ -59,7 +59,7 @@ const TestimonialsSection = () => {
             What Our Customers Say
           </h2>
           <p className="text-muted-foreground text-lg max-w-2xl mx-auto">
-            Don't just take our word for it — hear from families across Nagpur who've made the switch to fresh, organic produce.
+            Don't just take our word for it — hear from families across Nagpur who've made the switch to fresh, chemical free produce.
           </p>
         </div>
 

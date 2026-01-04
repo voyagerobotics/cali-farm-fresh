@@ -26,7 +26,7 @@ const Footer = () => {
               </div>
             </div>
             <p className="text-background/70 text-sm leading-relaxed">
-              Growing fresh, organic vegetables with zero chemicals. From our farm to your table, 
+              Growing fresh, chemical free vegetables with zero chemicals. From our farm to your table, 
               pure and natural goodness.
             </p>
           </div>

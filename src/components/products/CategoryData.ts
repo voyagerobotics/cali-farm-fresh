@@ -59,7 +59,7 @@ export const CATEGORIES: Category[] = [
   },
   {
     id: "combos",
-    name: "Organic Combos",
+    name: "Chemical Free Combos",
     icon: Package,
     subcategories: [
       { id: "weekly-basket", name: "Weekly Veggie Basket", parentCategory: "combos" },

@@ -260,7 +260,7 @@ const ProductDetail = () => {
               <div className="flex items-center gap-3 p-4 bg-primary/5 rounded-xl">
                 <Leaf className="w-6 h-6 text-primary" />
                 <div>
-                  <p className="font-medium text-sm">100% Organic</p>
+                  <p className="font-medium text-sm">100% Chemical Free</p>
                   <p className="text-xs text-muted-foreground">No chemicals</p>
                 </div>
               </div>

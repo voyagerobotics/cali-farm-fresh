@@ -48,7 +48,7 @@ const AboutSection = () => {
                   <Shield className="w-5 h-5 text-primary" />
                 </div>
                 <div>
-                  <h4 className="font-medium text-foreground mb-1">100% Chemical Fr</h4>
+                  <h4 className="font-medium text-foreground mb-1">100% Chemical Free</h4>
                   <p className="text-sm text-muted-foreground">No chemicals, ever</p>
                 </div>
               </div>

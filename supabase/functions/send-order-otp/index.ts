@@ -154,8 +154,10 @@ const handler = async (req: Request): Promise<Response> => {
     }
 
     // Send OTP via email
+    console.log(`Attempting to send OTP email to: ${email}`);
+    
     const emailResponse = await resend.emails.send({
-      from: "California Farms <onboarding@resend.dev>",
+      from: "California Farms <onboarding@resend.dev>", // Note: onboarding@resend.dev only sends to account owner's email. Verify your own domain at resend.com/domains for production use.
       to: [email],
       subject: "Your Order Verification Code - California Farms India",
       html: `

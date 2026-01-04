@@ -1,5 +1,5 @@
 import { Leaf, Heart, Shield } from "lucide-react";
-import organicFarmingImage from "@/assets/organic-farming.jpg";
+import chemicalFreeFarmingImage from "@/assets/chemical-free-farming.jpg";
 const AboutSection = () => {
   return <section id="about" className="py-20 bg-background">
       <div className="container mx-auto px-4">
@@ -7,7 +7,7 @@ const AboutSection = () => {
           {/* Image */}
           <div className="relative">
             <div className="relative rounded-2xl overflow-hidden shadow-elevated">
-              <img src={organicFarmingImage} alt="Chemical free farming at California Farms India" className="w-full h-[400px] object-cover" />
+              <img src={chemicalFreeFarmingImage} alt="Chemical free farming at California Farms India" className="w-full h-[400px] object-cover" />
             </div>
             {/* Floating Card */}
             <div className="absolute -bottom-6 -right-6 bg-card p-6 rounded-xl shadow-elevated border border-border max-w-[200px]">

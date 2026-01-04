@@ -50,7 +50,7 @@ const ProductCard = ({
           {/* Organic badge - always shown */}
           <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-primary text-primary-foreground text-xs font-semibold rounded-full shadow-sm">
             <Leaf className="w-3 h-3" />
-            0% Chemical
+            {product.id.charCodeAt(0) % 2 === 0 ? "0% Chemical" : "Zero Chemicals"}
           </span>
 
           {/* Fresh Today badge */}

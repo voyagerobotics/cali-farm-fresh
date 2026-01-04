@@ -48,8 +48,9 @@ const ProductCard = ({
         {/* Badges */}
         <div className="absolute top-3 left-3 flex flex-col gap-2">
           {/* Organic badge - always shown */}
-          <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-primary text-primary-foreground text-xs font-semibold rounded-full shadow-sm">0% Chemical<Leaf className="w-3 h-3" />
-            Organic
+          <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-primary text-primary-foreground text-xs font-semibold rounded-full shadow-sm">
+            <Leaf className="w-3 h-3" />
+            0% Chemical
           </span>
 
           {/* Fresh Today badge */}

@@ -229,19 +229,28 @@ const Auth = () => {
           formData.phone
         );
         if (error) {
+          const errorMsg = error.message.toLowerCase();
+          
           // Check if account already exists - switch to login mode with email prefilled
-          if (error.message.toLowerCase().includes("already") || 
-              error.message.toLowerCase().includes("exists") ||
-              error.message.toLowerCase().includes("registered")) {
+          if (errorMsg.includes("already") || 
+              errorMsg.includes("exists") ||
+              errorMsg.includes("registered")) {
             toast({
               title: "Account Already Exists",
               description: "Switching to login. Please enter your password.",
             });
-            // Switch to login mode - email stays prefilled
             setIsLogin(true);
-            // Clear password so they enter the correct one
             setFormData(prev => ({ ...prev, password: "" }));
-          } else {
+          } 
+          // Handle weak/pwned password errors with friendly message
+          else if (errorMsg.includes("weak") || errorMsg.includes("pwned") || errorMsg.includes("easy to guess")) {
+            toast({
+              title: "Please Choose a Stronger Password",
+              description: "This password is too common or has been exposed in data breaches. Try a unique password with at least 6 characters.",
+              variant: "destructive",
+            });
+          }
+          else {
             toast({
               title: "Registration Failed",
               description: error.message,

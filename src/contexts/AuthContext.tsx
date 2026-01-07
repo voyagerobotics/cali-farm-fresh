@@ -81,7 +81,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       });
 
       if (error) {
-        console.error("Sign in failed:", { message: error.message });
+        console.error("Sign in failed:", { 
+          message: error.message, 
+          code: (error as any).code,
+          status: (error as any).status 
+        });
         return { error: new Error(error.message) };
       }
 
@@ -113,7 +117,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       });
 
       if (error) {
-        console.error("Sign up failed:", { message: error.message });
+        // Log detailed error for debugging
+        console.error("Sign up failed:", { 
+          message: error.message, 
+          code: (error as any).code,
+          status: (error as any).status 
+        });
+        
+        // Handle pwned/weak password with clearer message
+        if ((error as any).code === "weak_password" || error.message.includes("weak") || error.message.includes("pwned")) {
+          return { error: new Error("Password is too common. Please choose a unique password.") };
+        }
+        
         return { error: new Error(error.message) };
       }
 

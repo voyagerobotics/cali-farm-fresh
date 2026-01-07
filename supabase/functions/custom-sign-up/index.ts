@@ -1,6 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import * as bcrypt from "https://deno.land/x/bcrypt@v0.4.1/mod.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -14,7 +13,16 @@ interface SignUpRequest {
   phone: string;
 }
 
-// Generate a random strong password for Supabase (we don't use it, but Supabase needs something)
+// Hash password using Web Crypto API
+async function hashPassword(password: string): Promise<string> {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(password);
+  const hashBuffer = await crypto.subtle.digest("SHA-256", data);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map(b => b.toString(16).padStart(2, "0")).join("");
+}
+
+// Generate a random strong password for Supabase
 function generateRandomPassword(): string {
   const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*";
   let password = "";
@@ -25,7 +33,6 @@ function generateRandomPassword(): string {
 }
 
 serve(async (req) => {
-  // Handle CORS preflight
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
@@ -47,7 +54,6 @@ serve(async (req) => {
       { auth: { autoRefreshToken: false, persistSession: false } }
     );
 
-    // Check if user already exists
     const { data: existingUsers } = await supabaseAdmin.auth.admin.listUsers();
     const existingUser = existingUsers?.users.find(u => u.email?.toLowerCase() === email.toLowerCase());
     
@@ -58,13 +64,12 @@ serve(async (req) => {
       );
     }
 
-    // Create user with a random strong password (to satisfy Supabase)
     const randomPassword = generateRandomPassword();
     
     const { data: newUser, error: createError } = await supabaseAdmin.auth.admin.createUser({
       email,
       password: randomPassword,
-      email_confirm: true, // Auto-confirm email
+      email_confirm: true,
       user_metadata: {
         full_name: fullName,
         phone: phone,
@@ -81,9 +86,7 @@ serve(async (req) => {
 
     console.log("User created:", newUser.user.id);
 
-    // Hash the user's actual password and store it
-    const salt = await bcrypt.genSalt(10);
-    const passwordHash = await bcrypt.hash(password, salt);
+    const passwordHash = await hashPassword(password);
 
     const { error: passwordError } = await supabaseAdmin
       .from("user_passwords")
@@ -94,7 +97,6 @@ serve(async (req) => {
 
     if (passwordError) {
       console.error("Error storing password:", passwordError);
-      // Delete the user we just created since we couldn't store their password
       await supabaseAdmin.auth.admin.deleteUser(newUser.user.id);
       return new Response(
         JSON.stringify({ error: "Failed to create account" }),
@@ -104,7 +106,6 @@ serve(async (req) => {
 
     console.log("Custom password stored for user:", newUser.user.id);
 
-    // Generate a magic link to sign them in immediately
     const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
       type: "magiclink",
       email: email,
@@ -122,16 +123,14 @@ serve(async (req) => {
       );
     }
 
-    // Extract the token from the link
     const url = new URL(linkData.properties.action_link);
     const token = url.searchParams.get("token");
-    const type = url.searchParams.get("type");
 
     return new Response(
       JSON.stringify({ 
         success: true, 
         token,
-        type,
+        type: "magiclink",
         email
       }),
       { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }

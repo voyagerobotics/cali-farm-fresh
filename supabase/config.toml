@@ -9,8 +9,8 @@ verify_jwt = false
 [functions.send-order-confirmation]
 verify_jwt = false
 
-[functions.send-order-otp]
+[functions.send-password-reset-otp]
 verify_jwt = false
 
-[functions.verify-order-otp]
+[functions.verify-password-reset-otp]
 verify_jwt = false

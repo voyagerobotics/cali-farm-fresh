@@ -6,9 +6,12 @@ import { supabase } from "@/integrations/supabase/client";
 import { useCart } from "@/contexts/CartContext";
 import { useToast } from "@/hooks/use-toast";
 import { Product } from "@/hooks/useProducts";
+import { useProductVariants, ProductVariant, calculateDiscountedPrice } from "@/hooks/useProductVariants";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import ProductImageGallery from "@/components/ProductImageGallery";
+import VariantSelector from "@/components/products/VariantSelector";
+import DiscountBadge from "@/components/products/DiscountBadge";
 
 const ProductDetail = () => {
   const { id } = useParams<{ id: string }>();
@@ -19,9 +22,27 @@ const ProductDetail = () => {
   const [product, setProduct] = useState<Product | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [relatedProducts, setRelatedProducts] = useState<Product[]>([]);
+  const [selectedVariant, setSelectedVariant] = useState<ProductVariant | null>(null);
 
-  // Get current quantity in cart
-  const cartItem = items.find(item => item.id === id);
+  const { variants } = useProductVariants(id);
+
+  // Auto-select first available variant
+  useEffect(() => {
+    if (variants.length > 0 && !selectedVariant) {
+      const firstAvailable = variants.find((v) => v.is_available && (v.stock_quantity === null || v.stock_quantity > 0));
+      if (firstAvailable) {
+        setSelectedVariant(firstAvailable);
+      }
+    }
+  }, [variants]);
+
+  // Get current quantity in cart (considering variant)
+  const cartItem = items.find(item => {
+    if (selectedVariant) {
+      return item.id === id && item.variantId === selectedVariant.id;
+    }
+    return item.id === id && !item.variantId;
+  });
   const quantityInCart = cartItem?.quantity || 0;
 
   useEffect(() => {
@@ -41,7 +62,6 @@ const ProductDetail = () => {
       } else {
         setProduct(data);
         
-        // Fetch related products from same category
         const { data: related } = await supabase
           .from("products")
           .select("*")
@@ -59,10 +79,20 @@ const ProductDetail = () => {
     fetchProduct();
   }, [id]);
 
+  const hasVariants = variants.length > 0;
+  const basePrice = selectedVariant ? selectedVariant.price : (product?.price || 0);
+  
+  const { finalPrice, savings, discountLabel } = product 
+    ? calculateDiscountedPrice(basePrice, product.discount_type, product.discount_value, product.discount_enabled)
+    : { finalPrice: basePrice, savings: 0, discountLabel: null };
+
   const handleAddToCart = () => {
     if (!product) return;
     
-    if (!product.is_available || (product.stock_quantity !== null && product.stock_quantity <= 0)) {
+    const stockQuantity = selectedVariant ? selectedVariant.stock_quantity : product.stock_quantity;
+    const isAvailable = selectedVariant ? selectedVariant.is_available : product.is_available;
+    
+    if (!isAvailable || (stockQuantity !== null && stockQuantity <= 0)) {
       toast({
         title: "Out of Stock",
         description: `${product.name} is currently unavailable.`,
@@ -74,49 +104,39 @@ const ProductDetail = () => {
     addItem({
       id: product.id,
       name: product.name,
-      price: product.price,
-      unit: `per ${product.unit}`,
-      image_url: product.image_url,
+      price: finalPrice,
+      originalPrice: savings > 0 ? basePrice : undefined,
+      unit: selectedVariant ? selectedVariant.name : `per ${product.unit}`,
+      image_url: product.image_url ?? undefined,
+      variantId: selectedVariant?.id,
+      variantName: selectedVariant?.name,
     });
 
     toast({
       title: "Added to Cart",
-      description: `${product.name} has been added to your cart.`,
+      description: `${product.name}${selectedVariant ? ` (${selectedVariant.name})` : ""} has been added to your cart.`,
     });
   };
 
   const handleUpdateQuantity = (newQuantity: number) => {
     if (!product) return;
-    
-    if (newQuantity <= 0) {
-      updateQuantity(product.id, 0);
-    } else {
-      updateQuantity(product.id, newQuantity);
-    }
+    updateQuantity(product.id, newQuantity, selectedVariant?.id);
   };
 
-  const isOutOfStock = product && (!product.is_available || (product.stock_quantity !== null && product.stock_quantity <= 0));
+  const stockQuantity = selectedVariant ? selectedVariant.stock_quantity : product?.stock_quantity;
+  const isAvailable = selectedVariant ? selectedVariant.is_available : product?.is_available;
+  const isOutOfStock = !isAvailable || (stockQuantity !== null && stockQuantity !== undefined && stockQuantity <= 0);
 
   const getStockStatus = () => {
     if (!product) return null;
-    if (!product.is_available) return { label: "Out of Stock", color: "destructive" };
-    if (product.stock_quantity === null) return { label: "In Stock", color: "success" };
-    if (product.stock_quantity <= 0) return { label: "Out of Stock", color: "destructive" };
-    if (product.stock_quantity <= 5) return { label: `Only ${product.stock_quantity} left`, color: "warning" };
+    if (!isAvailable) return { label: "Out of Stock", color: "destructive" };
+    if (stockQuantity === null || stockQuantity === undefined) return { label: "In Stock", color: "success" };
+    if (stockQuantity <= 0) return { label: "Out of Stock", color: "destructive" };
+    if (stockQuantity <= 5) return { label: `Only ${stockQuantity} left`, color: "warning" };
     return { label: "In Stock", color: "success" };
   };
 
   const stockStatus = getStockStatus();
-
-  const getCategoryLabel = (category: string | null) => {
-    const labels: Record<string, string> = {
-      vegetables: "Vegetables",
-      leafy: "Leafy Greens",
-      fruits: "Fruits",
-      herbs: "Herbs",
-    };
-    return labels[category || "vegetables"] || "Vegetables";
-  };
 
   if (isLoading) {
     return (
@@ -147,7 +167,6 @@ const ProductDetail = () => {
     <div className="min-h-screen bg-background">
       <Navbar />
       
-      {/* Breadcrumb */}
       <div className="bg-muted/30 border-b border-border">
         <div className="container mx-auto px-4 py-3">
           <div className="flex items-center gap-2 text-sm">
@@ -161,28 +180,17 @@ const ProductDetail = () => {
       </div>
 
       <main className="container mx-auto px-4 py-8">
-        {/* Back Button */}
         <Button variant="ghost" onClick={() => navigate(-1)} className="mb-6">
           <ArrowLeft className="w-4 h-4 mr-2" />
           Back
         </Button>
 
-        {/* Product Details */}
         <div className="grid lg:grid-cols-2 gap-12 mb-16">
-          {/* Product Image Gallery */}
-          <ProductImageGallery
-            imageUrl={product.image_url}
-            imageUrls={product.image_urls}
-            productName={product.name}
-          />
+          <ProductImageGallery imageUrl={product.image_url} imageUrls={product.image_urls} productName={product.name} />
 
-          {/* Product Info */}
           <div className="flex flex-col">
-            {/* Category & Stock */}
-            <div className="flex items-center gap-3 mb-4">
-              <span className="text-sm font-medium text-secondary bg-secondary/10 px-3 py-1 rounded-full">
-                {getCategoryLabel(product.category)}
-              </span>
+            <div className="flex items-center gap-3 mb-4 flex-wrap">
+              {discountLabel && <DiscountBadge label={discountLabel} size="md" />}
               {stockStatus && (
                 <span className={`text-sm font-medium px-3 py-1 rounded-full ${
                   stockStatus.color === 'destructive' ? 'bg-destructive/10 text-destructive' :
@@ -194,22 +202,22 @@ const ProductDetail = () => {
               )}
             </div>
 
-            {/* Title */}
-            <h1 className="font-heading text-3xl md:text-4xl font-bold text-foreground mb-4">
-              {product.name}
-            </h1>
+            <h1 className="font-heading text-3xl md:text-4xl font-bold text-foreground mb-4">{product.name}</h1>
 
             {/* Price */}
             <div className="flex items-baseline gap-2 mb-6">
-              <span className="text-4xl font-bold text-primary">₹{product.price}</span>
-              <span className="text-lg text-muted-foreground">per {product.unit}</span>
+              <span className="text-4xl font-bold text-primary">₹{finalPrice}</span>
+              {savings > 0 && <span className="text-xl text-muted-foreground line-through">₹{basePrice}</span>}
+              <span className="text-lg text-muted-foreground">{selectedVariant ? selectedVariant.name : `per ${product.unit}`}</span>
             </div>
 
-            {/* Description */}
-            {product.description && (
-              <p className="text-muted-foreground text-lg leading-relaxed mb-8">
-                {product.description}
-              </p>
+            {product.description && <p className="text-muted-foreground text-lg leading-relaxed mb-6">{product.description}</p>}
+
+            {/* Variant Selector */}
+            {hasVariants && (
+              <div className="mb-6">
+                <VariantSelector variants={variants} selectedVariant={selectedVariant} onSelect={setSelectedVariant} basePrice={product.price} />
+              </div>
             )}
 
             {/* Add to Cart Section */}
@@ -219,36 +227,22 @@ const ProductDetail = () => {
                   <p className="text-sm text-muted-foreground">Already in cart</p>
                   <div className="flex items-center gap-4">
                     <div className="flex items-center gap-3">
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        onClick={() => handleUpdateQuantity(quantityInCart - 1)}
-                      >
+                      <Button variant="outline" size="icon" onClick={() => handleUpdateQuantity(quantityInCart - 1)}>
                         <Minus className="w-4 h-4" />
                       </Button>
                       <span className="w-12 text-center text-xl font-bold">{quantityInCart}</span>
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        onClick={() => handleUpdateQuantity(quantityInCart + 1)}
-                        disabled={isOutOfStock}
-                      >
+                      <Button variant="outline" size="icon" onClick={() => handleUpdateQuantity(quantityInCart + 1)} disabled={isOutOfStock}>
                         <Plus className="w-4 h-4" />
                       </Button>
                     </div>
                     <div className="flex-1">
-                      <p className="font-semibold text-lg">₹{product.price * quantityInCart}</p>
+                      <p className="font-semibold text-lg">₹{finalPrice * quantityInCart}</p>
                       <p className="text-sm text-muted-foreground">Total in cart</p>
                     </div>
                   </div>
                 </div>
               ) : (
-                <Button
-                  size="lg"
-                  className="w-full"
-                  onClick={handleAddToCart}
-                  disabled={isOutOfStock}
-                >
+                <Button size="lg" className="w-full" onClick={handleAddToCart} disabled={isOutOfStock || (hasVariants && !selectedVariant)}>
                   <ShoppingCart className="w-5 h-5 mr-2" />
                   {isOutOfStock ? "Out of Stock" : "Add to Cart"}
                 </Button>
@@ -259,35 +253,22 @@ const ProductDetail = () => {
             <div className="grid grid-cols-2 gap-4">
               <div className="flex items-center gap-3 p-4 bg-primary/5 rounded-xl">
                 <Leaf className="w-6 h-6 text-primary" />
-                <div>
-                  <p className="font-medium text-sm">100% Chemical Free</p>
-                  <p className="text-xs text-muted-foreground">No chemicals</p>
-                </div>
+                <div><p className="font-medium text-sm">100% Chemical Free</p><p className="text-xs text-muted-foreground">No chemicals</p></div>
               </div>
               <div className="flex items-center gap-3 p-4 bg-primary/5 rounded-xl">
                 <Clock className="w-6 h-6 text-primary" />
-                <div>
-                  <p className="font-medium text-sm">Farm Fresh</p>
-                  <p className="text-xs text-muted-foreground">Harvested daily</p>
-                </div>
+                <div><p className="font-medium text-sm">Farm Fresh</p><p className="text-xs text-muted-foreground">Harvested daily</p></div>
               </div>
               <div className="flex items-center gap-3 p-4 bg-primary/5 rounded-xl">
                 <Truck className="w-6 h-6 text-primary" />
-                <div>
-                  <p className="font-medium text-sm">Fast Delivery</p>
-                  <p className="text-xs text-muted-foreground">Within 3 hours</p>
-                </div>
+                <div><p className="font-medium text-sm">Fast Delivery</p><p className="text-xs text-muted-foreground">Within 3 hours</p></div>
               </div>
               <div className="flex items-center gap-3 p-4 bg-primary/5 rounded-xl">
                 <CheckCircle className="w-6 h-6 text-primary" />
-                <div>
-                  <p className="font-medium text-sm">Quality Guaranteed</p>
-                  <p className="text-xs text-muted-foreground">Fresh or refund</p>
-                </div>
+                <div><p className="font-medium text-sm">Quality Guaranteed</p><p className="text-xs text-muted-foreground">Fresh or refund</p></div>
               </div>
             </div>
 
-            {/* Order Notice */}
             <div className="mt-8 p-4 bg-secondary/10 rounded-xl flex items-start gap-3">
               <AlertCircle className="w-5 h-5 text-secondary flex-shrink-0 mt-0.5" />
               <div>
@@ -298,33 +279,22 @@ const ProductDetail = () => {
           </div>
         </div>
 
-        {/* Related Products */}
         {relatedProducts.length > 0 && (
           <section>
             <h2 className="font-heading text-2xl font-bold mb-6">Related Products</h2>
             <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
               {relatedProducts.map((relatedProduct) => (
-                <Link
-                  key={relatedProduct.id}
-                  to={`/product/${relatedProduct.id}`}
-                  className="bg-card rounded-xl p-5 border border-border hover:shadow-elevated transition-all duration-300 hover:-translate-y-1"
-                >
+                <Link key={relatedProduct.id} to={`/product/${relatedProduct.id}`} className="bg-card rounded-xl p-5 border border-border hover:shadow-elevated transition-all duration-300 hover:-translate-y-1">
                   {relatedProduct.image_url ? (
                     <div className="aspect-square bg-muted/50 rounded-lg overflow-hidden mb-4">
-                      <img 
-                        src={relatedProduct.image_url} 
-                        alt={relatedProduct.name}
-                        className="w-full h-full object-cover"
-                      />
+                      <img src={relatedProduct.image_url} alt={relatedProduct.name} className="w-full h-full object-cover" />
                     </div>
                   ) : (
                     <div className="aspect-square bg-muted/50 rounded-lg flex items-center justify-center mb-4">
                       <Package className="w-12 h-12 text-muted-foreground/30" />
                     </div>
                   )}
-                  <h3 className="font-heading font-semibold text-lg text-foreground mb-1">
-                    {relatedProduct.name}
-                  </h3>
+                  <h3 className="font-heading font-semibold text-lg text-foreground mb-1">{relatedProduct.name}</h3>
                   <div className="flex items-baseline gap-2">
                     <span className="text-xl font-bold text-primary">₹{relatedProduct.price}</span>
                     <span className="text-sm text-muted-foreground">per {relatedProduct.unit}</span>

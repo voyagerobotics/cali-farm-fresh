@@ -14,3 +14,9 @@ verify_jwt = false
 
 [functions.verify-password-reset-otp]
 verify_jwt = false
+
+[functions.custom-sign-in]
+verify_jwt = false
+
+[functions.custom-sign-up]
+verify_jwt = false

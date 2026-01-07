@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import * as bcrypt from "https://deno.land/x/bcrypt@v0.4.1/mod.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -27,9 +28,10 @@ const handler = async (req: Request): Promise<Response> => {
       );
     }
 
-    if (newPassword.length < 4) {
+    // Accept any password (minimum 1 character)
+    if (newPassword.length < 1) {
       return new Response(
-        JSON.stringify({ error: "Password must be at least 4 characters" }),
+        JSON.stringify({ error: "Password cannot be empty" }),
         { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
       );
     }
@@ -96,7 +98,7 @@ const handler = async (req: Request): Promise<Response> => {
       );
     }
 
-    // Get user first (before marking OTP as verified)
+    // Get user
     const { data: userData, error: userError } = await supabase.auth.admin.listUsers();
     
     if (userError) {
@@ -116,28 +118,34 @@ const handler = async (req: Request): Promise<Response> => {
       );
     }
 
-    // Update password using admin API FIRST
-    const { error: updateError } = await supabase.auth.admin.updateUserById(
-      user.id,
-      { password: newPassword }
-    );
+    // Hash the password using bcrypt and store in our custom table
+    console.log("Hashing password for user:", user.id);
+    const salt = await bcrypt.genSalt(10);
+    const passwordHash = await bcrypt.hash(newPassword, salt);
 
-    if (updateError) {
-      console.error("Error updating password:", updateError);
-      // Check for weak password error (common passwords found in data breaches)
-      if (updateError.message?.includes("weak") || updateError.code === "weak_password" || updateError.message?.includes("pwned")) {
-        return new Response(
-          JSON.stringify({ error: "This password is too common. Please try a unique password like 'Farm2025' or add some numbers." }),
-          { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
-        );
-      }
+    // Store/update the custom password hash (bypasses Supabase password validation)
+    const { error: upsertError } = await supabase
+      .from("user_passwords")
+      .upsert(
+        {
+          user_id: user.id,
+          password_hash: passwordHash,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "user_id" }
+      );
+
+    if (upsertError) {
+      console.error("Error storing password hash:", upsertError);
       return new Response(
         JSON.stringify({ error: "Failed to update password. Please try again." }),
         { status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } }
       );
     }
 
-    // Only mark OTP as verified AFTER password update succeeds
+    console.log("Custom password stored successfully for user:", user.id);
+
+    // Mark OTP as verified
     await supabase
       .from("password_reset_otps")
       .update({ verified: true })

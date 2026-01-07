@@ -73,28 +73,84 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   const signIn = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
-    return { error: error ? new Error(error.message) : null };
+    try {
+      // Use custom sign-in edge function
+      const { data, error } = await supabase.functions.invoke("custom-sign-in", {
+        body: { email, password },
+      });
+
+      if (error) {
+        return { error: new Error(error.message || "Sign in failed") };
+      }
+
+      if (data?.error) {
+        return { error: new Error(data.error) };
+      }
+
+      // If we got a session directly (fallback to Supabase auth)
+      if (data?.session) {
+        await supabase.auth.setSession({
+          access_token: data.session.access_token,
+          refresh_token: data.session.refresh_token,
+        });
+        return { error: null };
+      }
+
+      // If we got a magic link token (custom password auth)
+      if (data?.token && data?.email) {
+        const { error: verifyError } = await supabase.auth.verifyOtp({
+          email: data.email,
+          token: data.token,
+          type: "magiclink",
+        });
+
+        if (verifyError) {
+          return { error: new Error(verifyError.message) };
+        }
+        return { error: null };
+      }
+
+      return { error: new Error("Sign in failed") };
+    } catch (err) {
+      console.error("Sign in error:", err);
+      return { error: err instanceof Error ? err : new Error("Sign in failed") };
+    }
   };
 
   const signUp = async (email: string, password: string, fullName: string, phone: string) => {
-    const redirectUrl = `${window.location.origin}/`;
-    
-    const { error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        emailRedirectTo: redirectUrl,
-        data: {
-          full_name: fullName,
-          phone: phone,
-        },
-      },
-    });
-    return { error: error ? new Error(error.message) : null };
+    try {
+      // Use custom sign-up edge function
+      const { data, error } = await supabase.functions.invoke("custom-sign-up", {
+        body: { email, password, fullName, phone },
+      });
+
+      if (error) {
+        return { error: new Error(error.message || "Sign up failed") };
+      }
+
+      if (data?.error) {
+        return { error: new Error(data.error) };
+      }
+
+      // If we got a magic link token, verify it to sign in
+      if (data?.token && data?.email) {
+        const { error: verifyError } = await supabase.auth.verifyOtp({
+          email: data.email,
+          token: data.token,
+          type: "magiclink",
+        });
+
+        if (verifyError) {
+          // Account created but couldn't auto-sign-in
+          console.log("Account created, but couldn't auto-sign-in:", verifyError);
+        }
+      }
+
+      return { error: null };
+    } catch (err) {
+      console.error("Sign up error:", err);
+      return { error: err instanceof Error ? err : new Error("Sign up failed") };
+    }
   };
 
   const signOut = async () => {

@@ -25,6 +25,34 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [role, setRole] = useState<UserRole | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
+  const getFunctionsErrorMessage = async (err: unknown, fallback: string) => {
+    const anyErr = err as any;
+
+    // Supabase FunctionsHttpError often carries the real response on err.context.response
+    const res: Response | undefined = anyErr?.context?.response;
+    if (res) {
+      try {
+        const text = await res.text();
+        try {
+          const parsed = JSON.parse(text);
+          if (typeof parsed?.error === "string") return parsed.error;
+          if (typeof parsed?.message === "string") return parsed.message;
+        } catch {
+          // not json
+        }
+        if (text) return text;
+      } catch {
+        // ignore
+      }
+    }
+
+    const message = (anyErr?.message as string | undefined) ?? fallback;
+
+    // Back-compat: sometimes our JSON error is embedded inside err.message
+    const match = message.match(/\{"error":"([^"]+)"\}/);
+    return match?.[1] ?? message;
+  };
+
   const fetchUserRole = async (userId: string) => {
     const { data, error } = await supabase
       .from("user_roles")
@@ -79,22 +107,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         body: { email, password },
       });
 
-      // Handle edge function errors - parse the error message from the response
+      // Handle edge function errors - extract message from response body when possible
       if (error) {
-        // Try to extract the actual error message from the error context
-        const errorMessage = error.message || "Sign in failed";
-        
-        // Check if the error contains JSON with our custom error
-        try {
-          const match = errorMessage.match(/\{"error":"([^"]+)"\}/);
-          if (match) {
-            return { error: new Error(match[1]) };
-          }
-        } catch {
-          // Ignore parsing errors
-        }
-        
-        return { error: new Error(errorMessage) };
+        const msg = await getFunctionsErrorMessage(error, "Sign in failed");
+        return { error: new Error(msg) };
       }
 
       if (data?.error) {
@@ -139,21 +155,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         body: { email, password, fullName, phone },
       });
 
-      // Handle edge function errors - parse the error message from the response
+      // Handle edge function errors - extract message from response body when possible
       if (error) {
-        const errorMessage = error.message || "Sign up failed";
-        
-        // Check if the error contains JSON with our custom error
-        try {
-          const match = errorMessage.match(/\{"error":"([^"]+)"\}/);
-          if (match) {
-            return { error: new Error(match[1]) };
-          }
-        } catch {
-          // Ignore parsing errors
-        }
-        
-        return { error: new Error(errorMessage) };
+        const msg = await getFunctionsErrorMessage(error, "Sign up failed");
+        return { error: new Error(msg) };
       }
 
       if (data?.error) {

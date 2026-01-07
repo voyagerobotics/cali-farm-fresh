@@ -55,8 +55,8 @@ serve(async (req) => {
     if (!user) {
       console.log("User not found:", email);
       return new Response(
-        JSON.stringify({ error: "Invalid email or password" }),
-        { status: 401, headers: { "Content-Type": "application/json", ...corsHeaders } }
+        JSON.stringify({ error: "No account found with this email. Please sign up first." }),
+        { status: 404, headers: { "Content-Type": "application/json", ...corsHeaders } }
       );
     }
 

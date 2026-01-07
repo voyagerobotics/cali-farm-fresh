@@ -115,34 +115,45 @@ const AddressManager = ({ onSelect, selectedId, showSelectMode = false }: Addres
                   </p>
                 </div>
                 
-                {!showSelectMode && (
-                  <div className="flex items-center gap-1">
-                    {!address.is_default && (
+                <div className="flex items-center gap-1">
+                  {!showSelectMode && (
+                    <>
+                      {!address.is_default && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setDefaultAddress(address.id);
+                          }}
+                          className="text-xs"
+                        >
+                          Set Default
+                        </Button>
+                      )}
                       <Button
                         variant="ghost"
-                        size="sm"
-                        onClick={() => setDefaultAddress(address.id)}
-                        className="text-xs"
+                        size="icon"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleEdit(address);
+                        }}
                       >
-                        Set Default
+                        <Edit2 className="w-4 h-4" />
                       </Button>
-                    )}
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => handleEdit(address)}
-                    >
-                      <Edit2 className="w-4 h-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => handleDelete(address.id)}
-                    >
-                      <Trash2 className="w-4 h-4 text-destructive" />
-                    </Button>
-                  </div>
-                )}
+                    </>
+                  )}
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDelete(address.id);
+                    }}
+                  >
+                    <Trash2 className="w-4 h-4 text-destructive" />
+                  </Button>
+                </div>
               </div>
             </div>
           ))}

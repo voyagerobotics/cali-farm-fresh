@@ -73,6 +73,22 @@ export const PasswordStrengthIndicator = ({ password }: PasswordStrengthIndicato
           </div>
         ))}
       </div>
+
+      {/* Pwned password warning */}
+      <div className="mt-3 p-2 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-md">
+        <p className="text-xs text-amber-800 dark:text-amber-200 font-medium mb-1">
+          ⚠️ Avoid common passwords
+        </p>
+        <p className="text-xs text-amber-700 dark:text-amber-300">
+          Passwords found in data breaches will be rejected. Avoid passwords like:
+        </p>
+        <p className="text-xs text-amber-600 dark:text-amber-400 mt-1 font-mono">
+          Password123, Qwerty@123, Admin@123, Welcome1
+        </p>
+        <p className="text-xs text-amber-700 dark:text-amber-300 mt-1">
+          Tip: Use a unique phrase like <span className="font-mono">MyFarm2026$Fresh</span>
+        </p>
+      </div>
     </div>
   );
 };

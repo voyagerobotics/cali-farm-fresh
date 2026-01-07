@@ -7,7 +7,7 @@ import { useToast } from "@/hooks/use-toast";
 import { z } from "zod";
 
 const emailSchema = z.string().email("Please enter a valid email address");
-const passwordSchema = z.string().min(6, "Password must be at least 6 characters");
+const passwordSchema = z.string().min(4, "Password must be at least 4 characters");
 const phoneSchema = z.string().min(10, "Please enter a valid phone number").max(15);
 const nameSchema = z.string().min(2, "Name must be at least 2 characters").max(100);
 

@@ -9,7 +9,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useAddresses, UserAddress } from "@/hooks/useAddresses";
 import { useDeliveryZones } from "@/hooks/useDeliveryZones";
 import AddressManager from "@/components/AddressManager";
-import OTPVerification from "@/components/OTPVerification";
+
 import UPIPayment from "@/components/UPIPayment";
 
 const Checkout = () => {
@@ -26,8 +26,7 @@ const Checkout = () => {
   const [showAddressManager, setShowAddressManager] = useState(false);
   const [deliveryCharge, setDeliveryCharge] = useState(0);
   
-  // OTP and UPI states
-  const [showOTPVerification, setShowOTPVerification] = useState(false);
+  // UPI payment state
   const [showUPIPayment, setShowUPIPayment] = useState(false);
   const [pendingOrderData, setPendingOrderData] = useState<any>(null);
   const [pendingOrderNumber, setPendingOrderNumber] = useState("");
@@ -147,12 +146,7 @@ const Checkout = () => {
       order_date: getOrderDate().toISOString().split("T")[0],
     });
 
-    // Show OTP verification
-    setShowOTPVerification(true);
-  };
-
-  const handleOTPVerified = () => {
-    setShowOTPVerification(false);
+    // Show UPI payment directly (no OTP verification)
     setShowUPIPayment(true);
   };
 
@@ -292,16 +286,6 @@ const Checkout = () => {
 
   return (
     <div className="min-h-screen bg-muted/30">
-      {/* OTP Verification Modal */}
-      {showOTPVerification && user && (
-        <OTPVerification
-          email={user.email || ""}
-          userId={user.id}
-          onVerified={handleOTPVerified}
-          onCancel={() => setShowOTPVerification(false)}
-        />
-      )}
-
       {/* UPI Payment Modal */}
       {showUPIPayment && (
         <UPIPayment

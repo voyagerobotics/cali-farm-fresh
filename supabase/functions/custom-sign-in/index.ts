@@ -1,6 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import * as bcrypt from "https://deno.land/x/bcrypt@v0.4.1/mod.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -12,8 +11,16 @@ interface SignInRequest {
   password: string;
 }
 
+// Hash password using Web Crypto API
+async function hashPassword(password: string): Promise<string> {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(password);
+  const hashBuffer = await crypto.subtle.digest("SHA-256", data);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map(b => b.toString(16).padStart(2, "0")).join("");
+}
+
 serve(async (req) => {
-  // Handle CORS preflight
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
@@ -35,7 +42,6 @@ serve(async (req) => {
       { auth: { autoRefreshToken: false, persistSession: false } }
     );
 
-    // Get user by email
     const { data: userData, error: userError } = await supabaseAdmin.auth.admin.listUsers();
     if (userError) {
       console.error("Error listing users:", userError);
@@ -54,7 +60,6 @@ serve(async (req) => {
       );
     }
 
-    // Check if user has a custom password stored
     const { data: customPassword, error: passwordError } = await supabaseAdmin
       .from("user_passwords")
       .select("password_hash")
@@ -66,11 +71,10 @@ serve(async (req) => {
     }
 
     if (customPassword) {
-      // Verify against custom password hash
       console.log("Verifying custom password for user:", user.id);
-      const isValid = await bcrypt.compare(password, customPassword.password_hash);
+      const inputHash = await hashPassword(password);
       
-      if (!isValid) {
+      if (inputHash !== customPassword.password_hash) {
         console.log("Custom password verification failed");
         return new Response(
           JSON.stringify({ error: "Invalid email or password" }),
@@ -80,7 +84,6 @@ serve(async (req) => {
 
       console.log("Custom password verified, generating magic link");
       
-      // Generate a magic link for the user to sign in
       const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
         type: "magiclink",
         email: user.email!,
@@ -94,16 +97,14 @@ serve(async (req) => {
         );
       }
 
-      // Extract the token from the link
       const url = new URL(linkData.properties.action_link);
       const token = url.searchParams.get("token");
-      const type = url.searchParams.get("type");
 
       return new Response(
         JSON.stringify({ 
           success: true, 
           token,
-          type,
+          type: "magiclink",
           email: user.email
         }),
         { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }

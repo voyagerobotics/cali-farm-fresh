@@ -1,6 +1,5 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import * as bcrypt from "https://deno.land/x/bcrypt@v0.4.1/mod.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -11,6 +10,15 @@ interface VerifyOTPRequest {
   email: string;
   otp: string;
   newPassword: string;
+}
+
+// Hash password using Web Crypto API (available in edge functions)
+async function hashPassword(password: string): Promise<string> {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(password);
+  const hashBuffer = await crypto.subtle.digest("SHA-256", data);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map(b => b.toString(16).padStart(2, "0")).join("");
 }
 
 const handler = async (req: Request): Promise<Response> => {
@@ -28,7 +36,6 @@ const handler = async (req: Request): Promise<Response> => {
       );
     }
 
-    // Accept any password (minimum 1 character)
     if (newPassword.length < 1) {
       return new Response(
         JSON.stringify({ error: "Password cannot be empty" }),
@@ -42,7 +49,6 @@ const handler = async (req: Request): Promise<Response> => {
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Get OTP record
     const { data: otpRecord, error: fetchError } = await supabase
       .from("password_reset_otps")
       .select("*")
@@ -57,7 +63,6 @@ const handler = async (req: Request): Promise<Response> => {
       );
     }
 
-    // Check if already verified
     if (otpRecord.verified) {
       return new Response(
         JSON.stringify({ error: "This OTP has already been used. Please request a new one." }),
@@ -65,7 +70,6 @@ const handler = async (req: Request): Promise<Response> => {
       );
     }
 
-    // Check expiry
     if (new Date(otpRecord.expires_at) < new Date()) {
       console.log("OTP expired");
       return new Response(
@@ -74,7 +78,6 @@ const handler = async (req: Request): Promise<Response> => {
       );
     }
 
-    // Check failed attempts
     if (otpRecord.failed_attempts >= 5) {
       console.log("Too many failed attempts");
       return new Response(
@@ -83,9 +86,7 @@ const handler = async (req: Request): Promise<Response> => {
       );
     }
 
-    // Verify OTP
     if (otpRecord.otp_code !== otp) {
-      // Increment failed attempts
       await supabase
         .from("password_reset_otps")
         .update({ failed_attempts: otpRecord.failed_attempts + 1 })
@@ -98,7 +99,6 @@ const handler = async (req: Request): Promise<Response> => {
       );
     }
 
-    // Get user
     const { data: userData, error: userError } = await supabase.auth.admin.listUsers();
     
     if (userError) {
@@ -118,12 +118,10 @@ const handler = async (req: Request): Promise<Response> => {
       );
     }
 
-    // Hash the password using bcrypt and store in our custom table
+    // Hash password using Web Crypto API
     console.log("Hashing password for user:", user.id);
-    const salt = await bcrypt.genSalt(10);
-    const passwordHash = await bcrypt.hash(newPassword, salt);
+    const passwordHash = await hashPassword(newPassword);
 
-    // Store/update the custom password hash (bypasses Supabase password validation)
     const { error: upsertError } = await supabase
       .from("user_passwords")
       .upsert(
@@ -145,13 +143,11 @@ const handler = async (req: Request): Promise<Response> => {
 
     console.log("Custom password stored successfully for user:", user.id);
 
-    // Mark OTP as verified
     await supabase
       .from("password_reset_otps")
       .update({ verified: true })
       .eq("email", email.toLowerCase());
 
-    // Delete the OTP record
     await supabase
       .from("password_reset_otps")
       .delete()

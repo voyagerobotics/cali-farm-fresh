@@ -4,19 +4,23 @@ export interface CartItem {
   id: string;
   name: string;
   price: number;
+  originalPrice?: number;
   unit: string;
   quantity: number;
   image_url?: string;
+  variantId?: string;
+  variantName?: string;
 }
 
 interface CartContextType {
   items: CartItem[];
   addItem: (item: Omit<CartItem, "quantity">) => void;
-  removeItem: (id: string) => void;
-  updateQuantity: (id: string, quantity: number) => void;
+  removeItem: (id: string, variantId?: string) => void;
+  updateQuantity: (id: string, quantity: number, variantId?: string) => void;
   clearCart: () => void;
   total: number;
   itemCount: number;
+  totalSavings: number;
 }
 
 const CartContext = createContext<CartContextType | undefined>(undefined);
@@ -33,27 +37,44 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const addItem = (item: Omit<CartItem, "quantity">) => {
     setItems((prev) => {
-      const existing = prev.find((i) => i.id === item.id);
+      // Use combination of product id and variant id as unique key
+      const cartKey = item.variantId ? `${item.id}-${item.variantId}` : item.id;
+      const existing = prev.find((i) => {
+        const existingKey = i.variantId ? `${i.id}-${i.variantId}` : i.id;
+        return existingKey === cartKey;
+      });
+      
       if (existing) {
-        return prev.map((i) =>
-          i.id === item.id ? { ...i, quantity: i.quantity + 1 } : i
-        );
+        return prev.map((i) => {
+          const iKey = i.variantId ? `${i.id}-${i.variantId}` : i.id;
+          return iKey === cartKey ? { ...i, quantity: i.quantity + 1 } : i;
+        });
       }
       return [...prev, { ...item, quantity: 1 }];
     });
   };
 
-  const removeItem = (id: string) => {
-    setItems((prev) => prev.filter((i) => i.id !== id));
+  const removeItem = (id: string, variantId?: string) => {
+    setItems((prev) => prev.filter((i) => {
+      if (variantId) {
+        return !(i.id === id && i.variantId === variantId);
+      }
+      return i.id !== id;
+    }));
   };
 
-  const updateQuantity = (id: string, quantity: number) => {
+  const updateQuantity = (id: string, quantity: number, variantId?: string) => {
     if (quantity <= 0) {
-      removeItem(id);
+      removeItem(id, variantId);
       return;
     }
     setItems((prev) =>
-      prev.map((i) => (i.id === id ? { ...i, quantity } : i))
+      prev.map((i) => {
+        if (variantId) {
+          return (i.id === id && i.variantId === variantId) ? { ...i, quantity } : i;
+        }
+        return i.id === id && !i.variantId ? { ...i, quantity } : i;
+      })
     );
   };
 
@@ -63,6 +84,12 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const total = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
   const itemCount = items.reduce((sum, item) => sum + item.quantity, 0);
+  const totalSavings = items.reduce((sum, item) => {
+    if (item.originalPrice && item.originalPrice > item.price) {
+      return sum + (item.originalPrice - item.price) * item.quantity;
+    }
+    return sum;
+  }, 0);
 
   return (
     <CartContext.Provider
@@ -74,6 +101,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
         clearCart,
         total,
         itemCount,
+        totalSavings,
       }}
     >
       {children}

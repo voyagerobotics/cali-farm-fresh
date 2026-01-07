@@ -1,9 +1,10 @@
 import { useState, useRef } from "react";
-import { Plus, Edit, Trash2, Eye, EyeOff, X, Image as ImageIcon } from "lucide-react";
+import { Plus, Edit, Trash2, Eye, EyeOff, X, Image as ImageIcon, Settings2, Percent, Tag } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useProducts, useProductMutations, Product } from "@/hooks/useProducts";
 import { useImageUpload } from "@/hooks/useImageUpload";
 import { useToast } from "@/hooks/use-toast";
+import ProductVariantsManager from "./ProductVariantsManager";
 
 const MAX_IMAGES = 4;
 
@@ -19,6 +20,8 @@ const AdminProducts = () => {
   const [imagePreviews, setImagePreviews] = useState<string[]>([]);
   const [imageFiles, setImageFiles] = useState<File[]>([]);
   const [existingImages, setExistingImages] = useState<string[]>([]);
+  const [managingVariantsFor, setManagingVariantsFor] = useState<Product | null>(null);
+  
   const [formData, setFormData] = useState({
     name: "",
     price: "",
@@ -29,6 +32,9 @@ const AdminProducts = () => {
     is_available: true,
     is_bestseller: false,
     is_fresh_today: false,
+    discount_enabled: false,
+    discount_type: "percentage" as "percentage" | "flat",
+    discount_value: "",
   });
 
   const resetForm = () => {
@@ -42,6 +48,9 @@ const AdminProducts = () => {
       is_available: true,
       is_bestseller: false,
       is_fresh_today: false,
+      discount_enabled: false,
+      discount_type: "percentage",
+      discount_value: "",
     });
     setImagePreviews([]);
     setImageFiles([]);
@@ -67,7 +76,6 @@ const AdminProducts = () => {
     const newFiles = [...imageFiles, ...files];
     setImageFiles(newFiles);
 
-    // Create previews for new files
     files.forEach((file) => {
       const reader = new FileReader();
       reader.onloadend = () => {
@@ -76,7 +84,6 @@ const AdminProducts = () => {
       reader.readAsDataURL(file);
     });
 
-    // Reset input
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
     }
@@ -106,7 +113,6 @@ const AdminProducts = () => {
     }
 
     try {
-      // Upload new images
       const uploadedUrls: string[] = [];
       for (const file of imageFiles) {
         const url = await uploadImage(file);
@@ -115,10 +121,9 @@ const AdminProducts = () => {
         }
       }
 
-      // Combine existing and new images
       const allImageUrls = [...existingImages, ...uploadedUrls];
 
-      const productData = {
+      const productData: any = {
         name: formData.name,
         price: parseFloat(formData.price),
         unit: formData.unit,
@@ -130,6 +135,11 @@ const AdminProducts = () => {
         is_fresh_today: formData.is_fresh_today,
         image_url: allImageUrls[0] || null,
         image_urls: allImageUrls,
+        discount_enabled: formData.discount_enabled,
+        discount_type: formData.discount_enabled ? formData.discount_type : null,
+        discount_value: formData.discount_enabled && formData.discount_value 
+          ? parseFloat(formData.discount_value) 
+          : null,
       };
 
       if (editingProduct) {
@@ -150,7 +160,6 @@ const AdminProducts = () => {
   const handleEdit = (product: Product) => {
     setEditingProduct(product);
     
-    // Get existing images from image_urls array or fallback to image_url
     const existingImageUrls = (product as any).image_urls?.length > 0 
       ? (product as any).image_urls 
       : product.image_url 
@@ -171,6 +180,9 @@ const AdminProducts = () => {
       is_available: product.is_available ?? true,
       is_bestseller: product.is_bestseller ?? false,
       is_fresh_today: product.is_fresh_today ?? false,
+      discount_enabled: product.discount_enabled ?? false,
+      discount_type: (product.discount_type as "percentage" | "flat") || "percentage",
+      discount_value: product.discount_value?.toString() || "",
     });
     setShowForm(true);
   };
@@ -202,6 +214,14 @@ const AdminProducts = () => {
     return product.image_url ? 1 : 0;
   };
 
+  const getDiscountLabel = (product: Product) => {
+    if (!product.discount_enabled || !product.discount_value) return null;
+    if (product.discount_type === "percentage") {
+      return `${product.discount_value}% OFF`;
+    }
+    return `₹${product.discount_value} OFF`;
+  };
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -212,6 +232,15 @@ const AdminProducts = () => {
 
   return (
     <div className="space-y-6">
+      {/* Variants Manager Modal */}
+      {managingVariantsFor && (
+        <ProductVariantsManager
+          productId={managingVariantsFor.id}
+          productName={managingVariantsFor.name}
+          onClose={() => setManagingVariantsFor(null)}
+        />
+      )}
+
       <div className="flex items-center justify-between">
         <h2 className="font-heading text-lg font-semibold">Products ({products.length})</h2>
         <Button onClick={() => { setShowForm(true); setEditingProduct(null); }}>
@@ -232,7 +261,6 @@ const AdminProducts = () => {
                 Product Images <span className="text-muted-foreground">({getTotalImages()}/{MAX_IMAGES})</span>
               </label>
               <div className="flex flex-wrap gap-3">
-                {/* Existing Images */}
                 {existingImages.map((url, index) => (
                   <div
                     key={`existing-${index}`}
@@ -254,7 +282,6 @@ const AdminProducts = () => {
                   </div>
                 ))}
 
-                {/* New Image Previews */}
                 {imagePreviews.map((preview, index) => (
                   <div
                     key={`new-${index}`}
@@ -274,7 +301,6 @@ const AdminProducts = () => {
                   </div>
                 ))}
 
-                {/* Add Image Button */}
                 {getTotalImages() < MAX_IMAGES && (
                   <div
                     className="w-24 h-24 rounded-lg border-2 border-dashed border-border bg-muted/50 flex flex-col items-center justify-center cursor-pointer hover:border-primary transition-colors"
@@ -311,7 +337,7 @@ const AdminProducts = () => {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium mb-1">Price (₹) *</label>
+                <label className="block text-sm font-medium mb-1">Base Price (₹) *</label>
                 <input
                   type="number"
                   required
@@ -391,6 +417,50 @@ const AdminProducts = () => {
               </div>
             </div>
 
+            {/* Discount Section */}
+            <div className="border border-border rounded-lg p-4 bg-muted/30">
+              <label className="flex items-center gap-2 cursor-pointer mb-3">
+                <input
+                  type="checkbox"
+                  checked={formData.discount_enabled}
+                  onChange={(e) => setFormData({ ...formData, discount_enabled: e.target.checked })}
+                  className="w-4 h-4"
+                />
+                <Tag className="w-4 h-4 text-destructive" />
+                <span className="font-medium">Enable Discount</span>
+              </label>
+              
+              {formData.discount_enabled && (
+                <div className="grid md:grid-cols-2 gap-4 mt-3">
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Discount Type</label>
+                    <select
+                      value={formData.discount_type}
+                      onChange={(e) => setFormData({ ...formData, discount_type: e.target.value as "percentage" | "flat" })}
+                      className="w-full px-4 py-3 rounded-lg border border-input bg-background"
+                    >
+                      <option value="percentage">Percentage (%)</option>
+                      <option value="flat">Flat Amount (₹)</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-1">
+                      Discount Value {formData.discount_type === "percentage" ? "(%)" : "(₹)"}
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      max={formData.discount_type === "percentage" ? "100" : undefined}
+                      value={formData.discount_value}
+                      onChange={(e) => setFormData({ ...formData, discount_value: e.target.value })}
+                      className="w-full px-4 py-3 rounded-lg border border-input bg-background"
+                      placeholder={formData.discount_type === "percentage" ? "e.g., 10" : "e.g., 50"}
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+
             <div>
               <label className="block text-sm font-medium mb-1">Description</label>
               <textarea
@@ -449,6 +519,11 @@ const AdminProducts = () => {
                 {!product.is_available && (
                   <span className="text-xs bg-destructive/10 text-destructive px-2 py-0.5 rounded">Out of Stock</span>
                 )}
+                {getDiscountLabel(product) && (
+                  <span className="text-xs bg-destructive text-destructive-foreground px-2 py-0.5 rounded-full font-semibold">
+                    {getDiscountLabel(product)}
+                  </span>
+                )}
               </div>
               <p className="text-sm text-muted-foreground">
                 ₹{product.price} / {product.unit} • Stock: {product.stock_quantity ?? 0} • {getProductImageCount(product)} image(s)
@@ -457,6 +532,14 @@ const AdminProducts = () => {
 
             {/* Actions */}
             <div className="flex items-center gap-1 flex-shrink-0">
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                onClick={() => setManagingVariantsFor(product)}
+                title="Manage Variants"
+              >
+                <Settings2 className="w-4 h-4" />
+              </Button>
               <Button variant="ghost" size="icon" onClick={() => handleToggleVisibility(product)}>
                 {product.is_hidden ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
               </Button>

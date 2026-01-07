@@ -93,26 +93,34 @@ const CartDrawer = ({ isOpen, onClose }: CartDrawerProps) => {
               <div className="space-y-4">
                 {items.map((item) => (
                   <div
-                    key={item.id}
+                    key={item.variantId ? `${item.id}-${item.variantId}` : item.id}
                     className="flex items-center gap-4 p-3 bg-muted/30 rounded-lg"
                   >
                     <div className="flex-1">
                       <h4 className="font-medium text-foreground">{item.name}</h4>
                       <p className="text-sm text-muted-foreground">
-                        ₹{item.price} {item.unit}
+                        {item.originalPrice && item.originalPrice > item.price ? (
+                          <>
+                            <span className="line-through mr-1">₹{item.originalPrice}</span>
+                            <span className="text-primary font-medium">₹{item.price}</span>
+                          </>
+                        ) : (
+                          <>₹{item.price}</>
+                        )}
+                        {" "}{item.variantName || item.unit}
                       </p>
                     </div>
 
                     <div className="flex items-center gap-2">
                       <button
-                        onClick={() => updateQuantity(item.id, item.quantity - 1)}
+                        onClick={() => updateQuantity(item.id, item.quantity - 1, item.variantId)}
                         className="w-8 h-8 rounded-full bg-background border border-border flex items-center justify-center hover:bg-muted transition-colors"
                       >
                         <Minus className="w-4 h-4" />
                       </button>
                       <span className="w-8 text-center font-medium">{item.quantity}</span>
                       <button
-                        onClick={() => updateQuantity(item.id, item.quantity + 1)}
+                        onClick={() => updateQuantity(item.id, item.quantity + 1, item.variantId)}
                         className="w-8 h-8 rounded-full bg-background border border-border flex items-center justify-center hover:bg-muted transition-colors"
                       >
                         <Plus className="w-4 h-4" />
@@ -124,7 +132,7 @@ const CartDrawer = ({ isOpen, onClose }: CartDrawerProps) => {
                         ₹{item.price * item.quantity}
                       </p>
                       <button
-                        onClick={() => removeItem(item.id)}
+                        onClick={() => removeItem(item.id, item.variantId)}
                         className="text-destructive hover:text-destructive/80 transition-colors"
                       >
                         <Trash2 className="w-4 h-4" />

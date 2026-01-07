@@ -6,6 +6,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { ProductVariant, calculateDiscountedPrice } from "@/hooks/useProductVariants";
 
 import CategorySidebar from "./products/CategorySidebar";
 import MobileCategoryScroll from "./products/MobileCategoryScroll";
@@ -48,8 +49,11 @@ const ProductsSection = () => {
     return filtered;
   }, [products, selectedCategory, searchQuery]);
 
-  const handleAddToCart = (product: Product, quantity: number) => {
-    if (!product.is_available || (product.stock_quantity !== null && product.stock_quantity <= 0)) {
+  const handleAddToCart = (product: Product, quantity: number, variant?: ProductVariant) => {
+    const stockQuantity = variant ? variant.stock_quantity : product.stock_quantity;
+    const isAvailable = variant ? variant.is_available : product.is_available;
+    
+    if (!isAvailable || (stockQuantity !== null && stockQuantity <= 0)) {
       toast({
         title: "Out of Stock",
         description: `${product.name} is currently unavailable.`,
@@ -58,20 +62,32 @@ const ProductsSection = () => {
       return;
     }
 
+    // Calculate the price with discount
+    const basePrice = variant ? variant.price : product.price;
+    const { finalPrice } = calculateDiscountedPrice(
+      basePrice,
+      product.discount_type,
+      product.discount_value,
+      product.discount_enabled
+    );
+
     // Add item multiple times based on quantity
     for (let i = 0; i < quantity; i++) {
       addItem({
         id: product.id,
         name: product.name,
-        price: parseFloat(String(product.price)),
-        unit: `per ${product.unit}`,
-        image_url: product.image_url,
+        price: finalPrice,
+        originalPrice: finalPrice < basePrice ? basePrice : undefined,
+        unit: variant ? variant.name : `per ${product.unit}`,
+        image_url: product.image_url ?? undefined,
+        variantId: variant?.id,
+        variantName: variant?.name,
       });
     }
 
     toast({
       title: "Added to Cart",
-      description: `${quantity}x ${product.name} added to your cart.`,
+      description: `${quantity}x ${product.name}${variant ? ` (${variant.name})` : ""} added to your cart.`,
     });
   };
 

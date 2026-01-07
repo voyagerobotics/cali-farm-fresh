@@ -16,6 +16,9 @@ export interface Product {
   is_hidden: boolean | null;
   is_bestseller: boolean | null;
   is_fresh_today: boolean | null;
+  discount_type: string | null;
+  discount_value: number | null;
+  discount_enabled: boolean | null;
   created_at: string;
   updated_at: string;
 }

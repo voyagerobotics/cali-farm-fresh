@@ -124,10 +124,10 @@ const handler = async (req: Request): Promise<Response> => {
 
     if (updateError) {
       console.error("Error updating password:", updateError);
-      // Check for weak password error
-      if (updateError.message?.includes("weak") || updateError.code === "weak_password") {
+      // Check for weak password error (common passwords found in data breaches)
+      if (updateError.message?.includes("weak") || updateError.code === "weak_password" || updateError.message?.includes("pwned")) {
         return new Response(
-          JSON.stringify({ error: "Password is too weak. Please choose a stronger password with at least 8 characters, including numbers and special characters." }),
+          JSON.stringify({ error: "This password is too common. Please try a unique password like 'Farm2025' or add some numbers." }),
           { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
         );
       }

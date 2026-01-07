@@ -126,39 +126,46 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const signUp = async (email: string, password: string, fullName: string, phone: string) => {
     try {
-      const redirectUrl = `${window.location.origin}/`;
-
-      const { data, error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          emailRedirectTo: redirectUrl,
-          data: {
-            full_name: fullName,
-            phone,
-          },
+      // Use custom sign-up edge function to bypass pwned password checks
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const response = await fetch(`${supabaseUrl}/functions/v1/custom-sign-up`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
         },
+        body: JSON.stringify({ email, password, fullName, phone }),
       });
 
-      if (error) {
-        // Log detailed error for debugging
-        console.error("Sign up failed:", { 
-          message: error.message, 
-          code: (error as any).code,
-          status: (error as any).status 
-        });
-        
-        // Handle pwned/weak password with clearer message
-        if ((error as any).code === "weak_password" || error.message.includes("weak") || error.message.includes("pwned")) {
-          return { error: new Error("Password is too common. Please choose a unique password.") };
-        }
-        
-        return { error: new Error(error.message) };
+      const result = await response.json();
+
+      if (!response.ok) {
+        console.error("Custom sign up failed:", result);
+        return { error: new Error(result.error || "Registration failed") };
       }
 
-      // If email confirmation is enabled, session can be null. The account is still created.
-      setSession(data.session);
-      setUser(data.session?.user ?? null);
+      // If custom auth returned a magic link token, verify it to log the user in
+      if (result.token_hash && result.type === "magiclink") {
+        const { data, error } = await supabase.auth.verifyOtp({
+          token_hash: result.token_hash,
+          type: "magiclink",
+        });
+
+        if (error) {
+          console.error("Token verification failed:", error);
+          // Account was created, but auto-login failed - user can log in manually
+          return { error: null };
+        }
+
+        setSession(data.session);
+        setUser(data.session?.user ?? null);
+        return { error: null };
+      }
+
+      // If requiresSignIn is true, account was created but needs manual login
+      if (result.requiresSignIn) {
+        return { error: null };
+      }
 
       return { error: null };
     } catch (err) {

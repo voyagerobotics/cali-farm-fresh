@@ -89,7 +89,7 @@ const handler = async (req: Request): Promise<Response> => {
         "Authorization": `Bearer ${RESEND_API_KEY}`,
       },
       body: JSON.stringify({
-        from: "California Farms India <noreply@californiafarmsindia.com>",
+        from: "California Farms India <noreply@zomical.com>",
         to: [email],
         subject: "Password Reset OTP - California Farms India",
         html: `

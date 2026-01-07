@@ -96,13 +96,7 @@ const handler = async (req: Request): Promise<Response> => {
       );
     }
 
-    // Mark OTP as verified
-    await supabase
-      .from("password_reset_otps")
-      .update({ verified: true })
-      .eq("email", email.toLowerCase());
-
-    // Get user and update password
+    // Get user first (before marking OTP as verified)
     const { data: userData, error: userError } = await supabase.auth.admin.listUsers();
     
     if (userError) {
@@ -122,7 +116,7 @@ const handler = async (req: Request): Promise<Response> => {
       );
     }
 
-    // Update password using admin API
+    // Update password using admin API FIRST
     const { error: updateError } = await supabase.auth.admin.updateUserById(
       user.id,
       { password: newPassword }
@@ -130,11 +124,24 @@ const handler = async (req: Request): Promise<Response> => {
 
     if (updateError) {
       console.error("Error updating password:", updateError);
+      // Check for weak password error
+      if (updateError.message?.includes("weak") || updateError.code === "weak_password") {
+        return new Response(
+          JSON.stringify({ error: "Password is too weak. Please choose a stronger password with at least 8 characters, including numbers and special characters." }),
+          { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
+        );
+      }
       return new Response(
-        JSON.stringify({ error: "Failed to update password" }),
+        JSON.stringify({ error: "Failed to update password. Please try again." }),
         { status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } }
       );
     }
+
+    // Only mark OTP as verified AFTER password update succeeds
+    await supabase
+      .from("password_reset_otps")
+      .update({ verified: true })
+      .eq("email", email.toLowerCase());
 
     // Delete the OTP record
     await supabase

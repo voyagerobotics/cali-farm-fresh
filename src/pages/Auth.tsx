@@ -7,6 +7,7 @@ import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { z } from "zod";
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
+import { PasswordStrengthIndicator } from "@/components/PasswordStrengthIndicator";
 
 const emailSchema = z.string().email("Please enter a valid email address");
 const passwordSchema = z.string().min(4, "Password must be at least 4 characters");
@@ -550,9 +551,7 @@ const Auth = () => {
                   {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                 </button>
               </div>
-              {!isLogin && (
-                <p className="text-xs text-muted-foreground mt-1">Minimum 4 characters</p>
-              )}
+              {!isLogin && <PasswordStrengthIndicator password={formData.password} />}
               {errors.password && (
                 <p className="text-sm text-destructive mt-1">{errors.password}</p>
               )}

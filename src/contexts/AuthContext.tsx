@@ -75,25 +75,49 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const signIn = async (email: string, password: string) => {
     try {
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
+      // First try the custom sign-in edge function (handles custom passwords)
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const response = await fetch(`${supabaseUrl}/functions/v1/custom-sign-in`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+        },
+        body: JSON.stringify({ email, password }),
       });
 
-      if (error) {
-        console.error("Sign in failed:", { 
-          message: error.message, 
-          code: (error as any).code,
-          status: (error as any).status 
-        });
-        return { error: new Error(error.message) };
+      const result = await response.json();
+
+      if (!response.ok) {
+        console.error("Custom sign in failed:", result);
+        return { error: new Error(result.error || "Invalid email or password") };
       }
 
-      // Ensure session is set (onAuthStateChange should also fire)
-      setSession(data.session);
-      setUser(data.session?.user ?? null);
+      // If custom auth returned a magic link token, verify it
+      if (result.token_hash && result.type === "magiclink") {
+        const { data, error } = await supabase.auth.verifyOtp({
+          token_hash: result.token_hash,
+          type: "magiclink",
+        });
 
-      return { error: null };
+        if (error) {
+          console.error("Token verification failed:", error);
+          return { error: new Error("Authentication failed. Please try again.") };
+        }
+
+        setSession(data.session);
+        setUser(data.session?.user ?? null);
+        return { error: null };
+      }
+
+      // If custom auth returned a session directly (standard auth fallback)
+      if (result.session) {
+        setSession(result.session);
+        setUser(result.session?.user ?? null);
+        return { error: null };
+      }
+
+      return { error: new Error("Authentication failed. Please try again.") };
     } catch (err) {
       console.error("Sign in error:", err);
       return { error: err instanceof Error ? err : new Error("Sign in failed") };

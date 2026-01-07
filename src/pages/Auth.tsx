@@ -4,7 +4,9 @@ import { Leaf, Mail, Lock, User, Phone, ArrowLeft, Eye, EyeOff } from "lucide-re
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
 import { z } from "zod";
+import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
 
 const emailSchema = z.string().email("Please enter a valid email address");
 const passwordSchema = z.string().min(4, "Password must be at least 4 characters");
@@ -20,7 +22,10 @@ const Auth = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
-  const [resetEmailSent, setResetEmailSent] = useState(false);
+  const [resetStep, setResetStep] = useState<"email" | "otp" | "newPassword">("email");
+  const [otpCode, setOtpCode] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   
   const [formData, setFormData] = useState({
     email: "",
@@ -29,7 +34,7 @@ const Auth = () => {
     phone: "",
   });
 
-  const { signIn, signUp, resetPassword, user, isAdmin } = useAuth();
+  const { signIn, signUp, user, isAdmin } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -84,7 +89,7 @@ const Auth = () => {
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleForgotPassword = async (e: React.FormEvent) => {
+  const handleSendOTP = async (e: React.FormEvent) => {
     e.preventDefault();
     
     try {
@@ -99,20 +104,91 @@ const Auth = () => {
     setIsSubmitting(true);
     
     try {
-      const { error } = await resetPassword(formData.email);
+      const { data, error } = await supabase.functions.invoke('send-password-reset-otp', {
+        body: { email: formData.email }
+      });
+      
       if (error) {
         toast({
           title: "Error",
-          description: error.message,
+          description: error.message || "Failed to send OTP",
           variant: "destructive",
         });
       } else {
-        setResetEmailSent(true);
+        setResetStep("otp");
         toast({
-          title: "Email Sent!",
-          description: "Check your email for the password reset link.",
+          title: "OTP Sent!",
+          description: "Check your email for the 6-digit code.",
         });
       }
+    } catch (err: any) {
+      toast({
+        title: "Error",
+        description: err.message || "Failed to send OTP",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleVerifyAndResetPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (newPassword !== confirmPassword) {
+      setErrors({ confirmPassword: "Passwords do not match" });
+      return;
+    }
+    
+    try {
+      passwordSchema.parse(newPassword);
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        setErrors({ newPassword: err.errors[0].message });
+        return;
+      }
+    }
+    
+    setIsSubmitting(true);
+    
+    try {
+      const { data, error } = await supabase.functions.invoke('verify-password-reset-otp', {
+        body: { 
+          email: formData.email,
+          otp: otpCode,
+          newPassword: newPassword
+        }
+      });
+      
+      if (error) {
+        toast({
+          title: "Error",
+          description: error.message || "Failed to reset password",
+          variant: "destructive",
+        });
+      } else if (data?.error) {
+        toast({
+          title: "Error",
+          description: data.error,
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Password Reset!",
+          description: "Your password has been updated. Please login.",
+        });
+        setShowForgotPassword(false);
+        setResetStep("email");
+        setOtpCode("");
+        setNewPassword("");
+        setConfirmPassword("");
+      }
+    } catch (err: any) {
+      toast({
+        title: "Error",
+        description: err.message || "Failed to reset password",
+        variant: "destructive",
+      });
     } finally {
       setIsSubmitting(false);
     }
@@ -185,7 +261,10 @@ const Auth = () => {
             className="mb-6"
             onClick={() => {
               setShowForgotPassword(false);
-              setResetEmailSent(false);
+              setResetStep("email");
+              setOtpCode("");
+              setNewPassword("");
+              setConfirmPassword("");
               setErrors({});
             }}
           >
@@ -204,32 +283,13 @@ const Auth = () => {
               Reset Password
             </h2>
             <p className="text-muted-foreground text-center mb-6">
-              {resetEmailSent 
-                ? "Check your email for the reset link"
-                : "Enter your email to receive a reset link"}
+              {resetStep === "email" && "Enter your email to receive an OTP"}
+              {resetStep === "otp" && "Enter the 6-digit code sent to your email"}
+              {resetStep === "newPassword" && "Set your new password"}
             </p>
 
-            {resetEmailSent ? (
-              <div className="text-center space-y-4">
-                <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto">
-                  <Mail className="w-8 h-8 text-primary" />
-                </div>
-                <p className="text-sm text-muted-foreground">
-                  We sent a password reset link to <strong>{formData.email}</strong>
-                </p>
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    setShowForgotPassword(false);
-                    setResetEmailSent(false);
-                  }}
-                  className="w-full"
-                >
-                  Back to Login
-                </Button>
-              </div>
-            ) : (
-              <form onSubmit={handleForgotPassword} className="space-y-4">
+            {resetStep === "email" && (
+              <form onSubmit={handleSendOTP} className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-foreground mb-1">
                     Email Address
@@ -250,7 +310,97 @@ const Auth = () => {
                 </div>
 
                 <Button type="submit" className="w-full" size="lg" disabled={isSubmitting}>
-                  {isSubmitting ? "Sending..." : "Send Reset Link"}
+                  {isSubmitting ? "Sending..." : "Send OTP"}
+                </Button>
+              </form>
+            )}
+
+            {resetStep === "otp" && (
+              <div className="space-y-4">
+                <div className="flex justify-center">
+                  <InputOTP
+                    maxLength={6}
+                    value={otpCode}
+                    onChange={(value) => {
+                      setOtpCode(value);
+                      if (value.length === 6) {
+                        setResetStep("newPassword");
+                      }
+                    }}
+                  >
+                    <InputOTPGroup>
+                      <InputOTPSlot index={0} />
+                      <InputOTPSlot index={1} />
+                      <InputOTPSlot index={2} />
+                      <InputOTPSlot index={3} />
+                      <InputOTPSlot index={4} />
+                      <InputOTPSlot index={5} />
+                    </InputOTPGroup>
+                  </InputOTP>
+                </div>
+                <p className="text-sm text-muted-foreground text-center">
+                  We sent a code to <strong>{formData.email}</strong>
+                </p>
+                <Button
+                  variant="outline"
+                  onClick={() => setResetStep("email")}
+                  className="w-full"
+                >
+                  Resend OTP
+                </Button>
+              </div>
+            )}
+
+            {resetStep === "newPassword" && (
+              <form onSubmit={handleVerifyAndResetPassword} className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-1">
+                    New Password
+                  </label>
+                  <div className="relative">
+                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+                    <input
+                      type={showPassword ? "text" : "password"}
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      className="w-full pl-10 pr-12 py-3 rounded-lg border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+                      placeholder="••••••••"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    >
+                      {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                    </button>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-1">Minimum 4 characters</p>
+                  {errors.newPassword && (
+                    <p className="text-sm text-destructive mt-1">{errors.newPassword}</p>
+                  )}
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-1">
+                    Confirm Password
+                  </label>
+                  <div className="relative">
+                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+                    <input
+                      type={showPassword ? "text" : "password"}
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      className="w-full pl-10 pr-4 py-3 rounded-lg border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+                      placeholder="••••••••"
+                    />
+                  </div>
+                  {errors.confirmPassword && (
+                    <p className="text-sm text-destructive mt-1">{errors.confirmPassword}</p>
+                  )}
+                </div>
+
+                <Button type="submit" className="w-full" size="lg" disabled={isSubmitting}>
+                  {isSubmitting ? "Resetting..." : "Reset Password"}
                 </Button>
               </form>
             )}

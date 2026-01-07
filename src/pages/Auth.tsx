@@ -205,22 +205,16 @@ const Auth = () => {
       if (isLogin) {
         const { error } = await signIn(formData.email, formData.password);
         if (error) {
-          // Check if user needs to sign up
-          if (error.message.includes("No account found") || error.message.includes("sign up")) {
-            toast({
-              title: "Account Not Found",
-              description: "No account exists with this email. Please create an account first.",
-            });
-            setIsLogin(false); // Switch to signup mode
-          } else {
-            toast({
-              title: "Login Failed",
-              description: error.message === "Invalid login credentials" 
-                ? "Email or password is incorrect. Please try again."
-                : error.message,
-              variant: "destructive",
-            });
-          }
+          const msg = error.message || "Login failed";
+
+          toast({
+            title: "Login Failed",
+            description:
+              msg === "Invalid login credentials"
+                ? "Email or password is incorrect. If you created your account earlier, use ‘Forgot password?’ once to set a new password."
+                : msg,
+            variant: "destructive",
+          });
         } else {
           toast({
             title: "Welcome back!",
@@ -257,7 +251,7 @@ const Auth = () => {
         } else {
           toast({
             title: "Account Created!",
-            description: "Welcome to California Farms India. You can now start ordering.",
+            description: "Welcome! If you’re not logged in yet, please check your email (or just try logging in).",
           });
         }
       }

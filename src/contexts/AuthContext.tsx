@@ -25,34 +25,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [role, setRole] = useState<UserRole | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  const getFunctionsErrorMessage = async (err: unknown, fallback: string) => {
-    const anyErr = err as any;
-
-    // Supabase FunctionsHttpError often carries the real response on err.context.response
-    const res: Response | undefined = anyErr?.context?.response;
-    if (res) {
-      try {
-        const text = await res.text();
-        try {
-          const parsed = JSON.parse(text);
-          if (typeof parsed?.error === "string") return parsed.error;
-          if (typeof parsed?.message === "string") return parsed.message;
-        } catch {
-          // not json
-        }
-        if (text) return text;
-      } catch {
-        // ignore
-      }
-    }
-
-    const message = (anyErr?.message as string | undefined) ?? fallback;
-
-    // Back-compat: sometimes our JSON error is embedded inside err.message
-    const match = message.match(/\{"error":"([^"]+)"\}/);
-    return match?.[1] ?? message;
-  };
-
   const fetchUserRole = async (userId: string) => {
     const { data, error } = await supabase
       .from("user_roles")
@@ -63,6 +35,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (!error && data) {
       setRole(data.role as UserRole);
     } else {
+      // Default to customer if role can't be fetched (e.g. missing policy/record)
       setRole("customer");
     }
   };
@@ -102,46 +75,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const signIn = async (email: string, password: string) => {
     try {
-      // Use custom sign-in edge function
-      const { data, error } = await supabase.functions.invoke("custom-sign-in", {
-        body: { email, password },
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
       });
 
-      // Handle edge function errors - extract message from response body when possible
       if (error) {
-        const msg = await getFunctionsErrorMessage(error, "Sign in failed");
-        return { error: new Error(msg) };
+        console.error("Sign in failed:", { message: error.message });
+        return { error: new Error(error.message) };
       }
 
-      if (data?.error) {
-        return { error: new Error(data.error) };
-      }
+      // Ensure session is set (onAuthStateChange should also fire)
+      setSession(data.session);
+      setUser(data.session?.user ?? null);
 
-      // If we got a session directly (fallback to Supabase auth)
-      if (data?.session) {
-        await supabase.auth.setSession({
-          access_token: data.session.access_token,
-          refresh_token: data.session.refresh_token,
-        });
-        return { error: null };
-      }
-
-      // If we got a magic link token hash (custom password auth)
-      if ((data?.token_hash || data?.token) && data?.email) {
-        const tokenHash = (data.token_hash ?? data.token) as string;
-
-        const { error: verifyError } = await supabase.auth.verifyOtp({
-          token_hash: tokenHash,
-          type: "magiclink",
-        });
-
-        if (verifyError) {
-          return { error: new Error(verifyError.message) };
-        }
-        return { error: null };
-      }
-
-      return { error: new Error("Sign in failed") };
+      return { error: null };
     } catch (err) {
       console.error("Sign in error:", err);
       return { error: err instanceof Error ? err : new Error("Sign in failed") };
@@ -150,35 +98,28 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const signUp = async (email: string, password: string, fullName: string, phone: string) => {
     try {
-      // Use custom sign-up edge function
-      const { data, error } = await supabase.functions.invoke("custom-sign-up", {
-        body: { email, password, fullName, phone },
+      const redirectUrl = `${window.location.origin}/`;
+
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          emailRedirectTo: redirectUrl,
+          data: {
+            full_name: fullName,
+            phone,
+          },
+        },
       });
 
-      // Handle edge function errors - extract message from response body when possible
       if (error) {
-        const msg = await getFunctionsErrorMessage(error, "Sign up failed");
-        return { error: new Error(msg) };
+        console.error("Sign up failed:", { message: error.message });
+        return { error: new Error(error.message) };
       }
 
-      if (data?.error) {
-        return { error: new Error(data.error) };
-      }
-
-      // If we got a magic link token hash, verify it to sign in
-      if ((data?.token_hash || data?.token) && data?.email) {
-        const tokenHash = (data.token_hash ?? data.token) as string;
-
-        const { error: verifyError } = await supabase.auth.verifyOtp({
-          token_hash: tokenHash,
-          type: "magiclink",
-        });
-
-        if (verifyError) {
-          // Account created but couldn't auto-sign-in
-          console.log("Account created, but couldn't auto-sign-in:", verifyError);
-        }
-      }
+      // If email confirmation is enabled, session can be null. The account is still created.
+      setSession(data.session);
+      setUser(data.session?.user ?? null);
 
       return { error: null };
     } catch (err) {

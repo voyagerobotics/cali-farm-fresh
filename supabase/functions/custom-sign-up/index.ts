@@ -123,15 +123,14 @@ serve(async (req) => {
       );
     }
 
-    const url = new URL(linkData.properties.action_link);
-    const token = url.searchParams.get("token");
+    const tokenHash = linkData.properties.hashed_token;
 
     return new Response(
-      JSON.stringify({ 
-        success: true, 
-        token,
+      JSON.stringify({
+        success: true,
+        token_hash: tokenHash,
         type: "magiclink",
-        email
+        email,
       }),
       { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
     );

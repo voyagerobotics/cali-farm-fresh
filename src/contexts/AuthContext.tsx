@@ -110,11 +110,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return { error: null };
       }
 
-      // If we got a magic link token (custom password auth)
-      if (data?.token && data?.email) {
+      // If we got a magic link token hash (custom password auth)
+      if ((data?.token_hash || data?.token) && data?.email) {
+        const tokenHash = (data.token_hash ?? data.token) as string;
+
         const { error: verifyError } = await supabase.auth.verifyOtp({
-          email: data.email,
-          token: data.token,
+          token_hash: tokenHash,
           type: "magiclink",
         });
 
@@ -146,11 +147,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return { error: new Error(data.error) };
       }
 
-      // If we got a magic link token, verify it to sign in
-      if (data?.token && data?.email) {
+      // If we got a magic link token hash, verify it to sign in
+      if ((data?.token_hash || data?.token) && data?.email) {
+        const tokenHash = (data.token_hash ?? data.token) as string;
+
         const { error: verifyError } = await supabase.auth.verifyOtp({
-          email: data.email,
-          token: data.token,
+          token_hash: tokenHash,
           type: "magiclink",
         });
 

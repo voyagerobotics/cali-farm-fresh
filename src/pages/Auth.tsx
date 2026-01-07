@@ -235,12 +235,18 @@ const Auth = () => {
           formData.phone
         );
         if (error) {
-          if (error.message.includes("already registered")) {
+          // Check if account already exists - switch to login mode with email prefilled
+          if (error.message.toLowerCase().includes("already") || 
+              error.message.toLowerCase().includes("exists") ||
+              error.message.toLowerCase().includes("registered")) {
             toast({
-              title: "Account Exists",
-              description: "This email is already registered. Please login instead.",
-              variant: "destructive",
+              title: "Account Already Exists",
+              description: "Switching to login. Please enter your password.",
             });
+            // Switch to login mode - email stays prefilled
+            setIsLogin(true);
+            // Clear password so they enter the correct one
+            setFormData(prev => ({ ...prev, password: "" }));
           } else {
             toast({
               title: "Registration Failed",

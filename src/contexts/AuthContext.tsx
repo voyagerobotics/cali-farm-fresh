@@ -139,8 +139,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         body: { email, password, fullName, phone },
       });
 
+      // Handle edge function errors - parse the error message from the response
       if (error) {
-        return { error: new Error(error.message || "Sign up failed") };
+        const errorMessage = error.message || "Sign up failed";
+        
+        // Check if the error contains JSON with our custom error
+        try {
+          const match = errorMessage.match(/\{"error":"([^"]+)"\}/);
+          if (match) {
+            return { error: new Error(match[1]) };
+          }
+        } catch {
+          // Ignore parsing errors
+        }
+        
+        return { error: new Error(errorMessage) };
       }
 
       if (data?.error) {

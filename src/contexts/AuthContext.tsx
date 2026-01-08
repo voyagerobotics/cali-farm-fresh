@@ -107,6 +107,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
         setSession(data.session);
         setUser(data.session?.user ?? null);
+        
+        // Fetch user role after successful login
+        if (data.session?.user) {
+          await fetchUserRole(data.session.user.id);
+        }
+        
         return { error: null };
       }
 
@@ -114,6 +120,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (result.session) {
         setSession(result.session);
         setUser(result.session?.user ?? null);
+        
+        // Fetch user role after successful login
+        if (result.session?.user) {
+          await fetchUserRole(result.session.user.id);
+        }
+        
         return { error: null };
       }
 

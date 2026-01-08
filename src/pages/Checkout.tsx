@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { ArrowLeft, CreditCard, AlertCircle, MapPin, Truck, CheckCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useCart } from "@/contexts/CartContext";
+import { Percent } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -14,7 +15,7 @@ import UPIPayment from "@/components/UPIPayment";
 
 const Checkout = () => {
   const navigate = useNavigate();
-  const { items, total, clearCart } = useCart();
+  const { items, total, clearCart, totalSavings } = useCart();
   const { user } = useAuth();
   const { toast } = useToast();
   const { addresses, defaultAddress } = useAddresses();
@@ -449,17 +450,34 @@ const Checkout = () => {
 
             <div className="space-y-3 mb-6">
               {items.map((item) => (
-                <div key={item.id} className="flex items-center justify-between">
+                <div key={`${item.id}-${item.variantId || 'base'}`} className="flex items-center justify-between">
                   <div>
                     <p className="font-medium">{item.name}</p>
                     <p className="text-sm text-muted-foreground">
+                      {item.variantName && <span className="text-primary">{item.variantName} • </span>}
                       ₹{item.price} × {item.quantity}
+                      {item.originalPrice && item.originalPrice > item.price && (
+                        <span className="ml-1 line-through text-muted-foreground/60">₹{item.originalPrice}</span>
+                      )}
                     </p>
                   </div>
                   <p className="font-medium">₹{item.price * item.quantity}</p>
                 </div>
               ))}
             </div>
+
+            {/* Savings Summary */}
+            {totalSavings > 0 && (
+              <div className="mb-4 p-3 bg-primary/10 rounded-lg border border-primary/20">
+                <div className="flex items-center gap-2 text-primary">
+                  <Percent className="w-4 h-4" />
+                  <span className="font-semibold">You're saving ₹{totalSavings.toFixed(0)}!</span>
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Discount applied on selected products
+                </p>
+              </div>
+            )}
 
             <div className="border-t border-border pt-4 space-y-2">
               <div className="flex justify-between text-sm">

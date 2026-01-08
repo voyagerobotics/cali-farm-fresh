@@ -8,7 +8,7 @@ export interface ProductVariant {
   price: number;
   stock_quantity: number | null;
   is_available: boolean | null;
-  display_order: number;
+  display_order: number | null;
   created_at: string;
   updated_at: string;
 }

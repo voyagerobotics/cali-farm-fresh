@@ -13,9 +13,10 @@ interface ProductVariantsManagerProps {
 const PRESET_OPTIONS = [
   { name: "Per Piece", price: 0 },
   { name: "250 gm", price: 0 },
-  { name: "500 gm", price: 0 },
+  { name: "½ kg", price: 0 },
   { name: "1 kg", price: 0 },
-  { name: "2 kg", price: 0 },
+  { name: "3 kg", price: 0 },
+  { name: "5 kg", price: 0 },
 ];
 
 const ProductVariantsManager = ({ productId, productName, onClose }: ProductVariantsManagerProps) => {

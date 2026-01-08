@@ -1,9 +1,10 @@
 import { useState, useRef } from "react";
-import { Plus, Edit, Trash2, Eye, EyeOff, X, Image as ImageIcon, Settings2, Percent, Tag } from "lucide-react";
+import { Plus, Edit, Trash2, Eye, EyeOff, X, Image as ImageIcon, Settings2, Percent, Tag, Sparkles, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useProducts, useProductMutations, Product } from "@/hooks/useProducts";
 import { useImageUpload } from "@/hooks/useImageUpload";
 import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
 import ProductVariantsManager from "./ProductVariantsManager";
 
 const MAX_IMAGES = 4;
@@ -21,6 +22,8 @@ const AdminProducts = () => {
   const [imageFiles, setImageFiles] = useState<File[]>([]);
   const [existingImages, setExistingImages] = useState<string[]>([]);
   const [managingVariantsFor, setManagingVariantsFor] = useState<Product | null>(null);
+  const [generatingImages, setGeneratingImages] = useState<string | null>(null);
+  const [generatingProgress, setGeneratingProgress] = useState(0);
   
   const [formData, setFormData] = useState({
     name: "",
@@ -208,6 +211,67 @@ const AdminProducts = () => {
     }
   };
 
+  const handleGenerateAIImages = async (product: Product) => {
+    setGeneratingImages(product.id);
+    setGeneratingProgress(0);
+
+    const imageUrls: string[] = [];
+    
+    try {
+      for (let i = 0; i < 3; i++) {
+        setGeneratingProgress(i + 1);
+        
+        const { data, error } = await supabase.functions.invoke('generate-product-image', {
+          body: { 
+            productName: product.name, 
+            productDescription: product.description,
+            imageIndex: i 
+          }
+        });
+
+        if (error) {
+          throw new Error(error.message || 'Failed to generate image');
+        }
+
+        if (data?.imageUrl) {
+          imageUrls.push(data.imageUrl);
+        }
+
+        // Small delay between requests to avoid rate limiting
+        if (i < 2) {
+          await new Promise(resolve => setTimeout(resolve, 1000));
+        }
+      }
+
+      if (imageUrls.length > 0) {
+        // Update product with new images
+        const existingUrls = product.image_urls || (product.image_url ? [product.image_url] : []);
+        const allUrls = [...existingUrls, ...imageUrls].slice(0, MAX_IMAGES);
+        
+        await updateProduct(product.id, {
+          image_url: allUrls[0],
+          image_urls: allUrls,
+        });
+
+        toast({ 
+          title: "Images generated!", 
+          description: `${imageUrls.length} AI images added to ${product.name}` 
+        });
+        refetch();
+      }
+    } catch (error: any) {
+      console.error('AI image generation error:', error);
+      toast({ 
+        title: "Generation failed", 
+        description: error.message || "Failed to generate images", 
+        variant: "destructive" 
+      });
+    } finally {
+      setGeneratingImages(null);
+      setGeneratingProgress(0);
+    }
+  };
+
   const getProductImageCount = (product: Product) => {
     const urls = (product as any).image_urls;
     if (urls && urls.length > 0) return urls.length;
@@ -384,6 +448,13 @@ const AdminProducts = () => {
                   <option value="fruits">Fruits</option>
                   <option value="herbs">Herbs</option>
                   <option value="combos">Chemical Free Combos</option>
+                  <option value="groceries">Groceries</option>
+                  <option value="spices">Spices</option>
+                  <option value="health">Health</option>
+                  <option value="seeds">Seeds</option>
+                  <option value="pulses">Pulses</option>
+                  <option value="grains">Grains</option>
+                  <option value="beverages">Beverages</option>
                 </select>
               </div>
               <div className="flex flex-col gap-2">
@@ -532,6 +603,25 @@ const AdminProducts = () => {
 
             {/* Actions */}
             <div className="flex items-center gap-1 flex-shrink-0">
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                onClick={() => handleGenerateAIImages(product)}
+                disabled={generatingImages !== null || getProductImageCount(product) >= MAX_IMAGES}
+                title="Generate AI Images"
+                className="relative"
+              >
+                {generatingImages === product.id ? (
+                  <div className="flex items-center justify-center">
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span className="absolute -bottom-1 -right-1 text-[8px] bg-primary text-primary-foreground rounded-full w-3 h-3 flex items-center justify-center">
+                      {generatingProgress}
+                    </span>
+                  </div>
+                ) : (
+                  <Sparkles className="w-4 h-4 text-amber-500" />
+                )}
+              </Button>
               <Button 
                 variant="ghost" 
                 size="icon" 

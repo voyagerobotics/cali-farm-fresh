@@ -118,14 +118,26 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       // If custom auth returned a session directly (standard auth fallback)
       if (result.session) {
+        // IMPORTANT: also set it on the Supabase client so authenticated RLS queries work
+        const { error: setSessionError } = await supabase.auth.setSession({
+          access_token: result.session.access_token,
+          refresh_token: result.session.refresh_token,
+        });
+
+        if (setSessionError) {
+          console.error("Failed to set session:", setSessionError);
+          return { error: new Error("Authentication failed. Please try again.") };
+        }
+
+        // Auth state change listener will set user/session, but we keep this for immediate UI
         setSession(result.session);
         setUser(result.session?.user ?? null);
-        
+
         // Fetch user role after successful login
         if (result.session?.user) {
           await fetchUserRole(result.session.user.id);
         }
-        
+
         return { error: null };
       }
 

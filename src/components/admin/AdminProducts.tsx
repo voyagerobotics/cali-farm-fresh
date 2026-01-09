@@ -1,19 +1,23 @@
-import { useState, useRef } from "react";
-import { Plus, Edit, Trash2, Eye, EyeOff, X, Image as ImageIcon, Settings2, Percent, Tag, Sparkles, Loader2 } from "lucide-react";
+import { useState, useRef, useMemo } from "react";
+import { Plus, Edit, Trash2, Eye, EyeOff, X, Image as ImageIcon, Settings2, Percent, Tag, Sparkles, Loader2, Filter, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useProducts, useProductMutations, Product } from "@/hooks/useProducts";
 import { useImageUpload } from "@/hooks/useImageUpload";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import ProductVariantsManager from "./ProductVariantsManager";
+import { useCategories } from "@/hooks/useCategories";
 
 const MAX_IMAGES = 4;
+
+type StockFilter = "all" | "in_stock" | "out_of_stock" | "hidden" | "discounted";
 
 const AdminProducts = () => {
   const { products, isLoading, refetch } = useProducts(true);
   const { createProduct, updateProduct, deleteProduct, toggleVisibility } = useProductMutations();
   const { uploadImage, isUploading } = useImageUpload();
   const { toast } = useToast();
+  const { categories } = useCategories(true);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [showForm, setShowForm] = useState(false);
@@ -24,6 +28,11 @@ const AdminProducts = () => {
   const [managingVariantsFor, setManagingVariantsFor] = useState<Product | null>(null);
   const [generatingImages, setGeneratingImages] = useState<string | null>(null);
   const [generatingProgress, setGeneratingProgress] = useState(0);
+  
+  // Filter states
+  const [stockFilter, setStockFilter] = useState<StockFilter>("all");
+  const [categoryFilter, setCategoryFilter] = useState<string>("all");
+  const [searchQuery, setSearchQuery] = useState("");
   
   const [formData, setFormData] = useState({
     name: "",
@@ -286,6 +295,44 @@ const AdminProducts = () => {
     return `₹${product.discount_value} OFF`;
   };
 
+  // Filter products based on selected filters
+  const filteredProducts = useMemo(() => {
+    return products.filter((product) => {
+      // Search filter
+      if (searchQuery && !product.name.toLowerCase().includes(searchQuery.toLowerCase())) {
+        return false;
+      }
+      
+      // Category filter
+      if (categoryFilter !== "all" && product.category !== categoryFilter) {
+        return false;
+      }
+      
+      // Stock/status filter
+      switch (stockFilter) {
+        case "hidden":
+          return product.is_hidden === true;
+        case "out_of_stock":
+          return product.is_available === false || (product.stock_quantity ?? 0) === 0;
+        case "in_stock":
+          return product.is_available !== false && (product.stock_quantity ?? 0) > 0 && product.is_hidden !== true;
+        case "discounted":
+          return product.discount_enabled === true;
+        default:
+          return true;
+      }
+    });
+  }, [products, stockFilter, categoryFilter, searchQuery]);
+
+  // Count products by filter type
+  const filterCounts = useMemo(() => {
+    const hidden = products.filter(p => p.is_hidden === true).length;
+    const outOfStock = products.filter(p => p.is_available === false || (p.stock_quantity ?? 0) === 0).length;
+    const inStock = products.filter(p => p.is_available !== false && (p.stock_quantity ?? 0) > 0 && p.is_hidden !== true).length;
+    const discounted = products.filter(p => p.discount_enabled === true).length;
+    return { hidden, outOfStock, inStock, discounted, all: products.length };
+  }, [products]);
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -306,10 +353,96 @@ const AdminProducts = () => {
       )}
 
       <div className="flex items-center justify-between">
-        <h2 className="font-heading text-lg font-semibold">Products ({products.length})</h2>
+        <h2 className="font-heading text-lg font-semibold">Products ({filteredProducts.length})</h2>
         <Button onClick={() => { setShowForm(true); setEditingProduct(null); }}>
           <Plus className="w-4 h-4 mr-2" /> Add Product
         </Button>
+      </div>
+
+      {/* Filters Section */}
+      <div className="bg-card rounded-xl border border-border p-4 space-y-4">
+        <div className="flex items-center gap-2 text-sm font-medium">
+          <Filter className="w-4 h-4" />
+          <span>Filters</span>
+        </div>
+        
+        {/* Search and Category Row */}
+        <div className="flex flex-col sm:flex-row gap-3">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <input
+              type="text"
+              placeholder="Search products..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-10 pr-4 py-2 rounded-lg border border-input bg-background text-sm"
+            />
+          </div>
+          <select
+            value={categoryFilter}
+            onChange={(e) => setCategoryFilter(e.target.value)}
+            className="px-4 py-2 rounded-lg border border-input bg-background text-sm min-w-[160px]"
+          >
+            <option value="all">All Categories</option>
+            {categories.map((cat) => (
+              <option key={cat.id} value={cat.slug}>{cat.name}</option>
+            ))}
+          </select>
+        </div>
+
+        {/* Stock/Status Filter Pills */}
+        <div className="flex flex-wrap gap-2">
+          <button
+            onClick={() => setStockFilter("all")}
+            className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+              stockFilter === "all"
+                ? "bg-primary text-primary-foreground"
+                : "bg-muted hover:bg-muted/80"
+            }`}
+          >
+            All ({filterCounts.all})
+          </button>
+          <button
+            onClick={() => setStockFilter("in_stock")}
+            className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+              stockFilter === "in_stock"
+                ? "bg-green-500 text-white"
+                : "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 hover:bg-green-200 dark:hover:bg-green-900/50"
+            }`}
+          >
+            In Stock ({filterCounts.inStock})
+          </button>
+          <button
+            onClick={() => setStockFilter("out_of_stock")}
+            className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+              stockFilter === "out_of_stock"
+                ? "bg-red-500 text-white"
+                : "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-900/50"
+            }`}
+          >
+            Out of Stock ({filterCounts.outOfStock})
+          </button>
+          <button
+            onClick={() => setStockFilter("hidden")}
+            className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+              stockFilter === "hidden"
+                ? "bg-gray-500 text-white"
+                : "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700"
+            }`}
+          >
+            Hidden ({filterCounts.hidden})
+          </button>
+          <button
+            onClick={() => setStockFilter("discounted")}
+            className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+              stockFilter === "discounted"
+                ? "bg-orange-500 text-white"
+                : "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400 hover:bg-orange-200 dark:hover:bg-orange-900/50"
+            }`}
+          >
+            Discounted ({filterCounts.discounted})
+          </button>
+        </div>
       </div>
 
       {/* Product Form */}
@@ -556,8 +689,16 @@ const AdminProducts = () => {
       )}
 
       {/* Products List */}
+      {filteredProducts.length === 0 ? (
+        <div className="text-center py-12 bg-card rounded-xl border border-border">
+          <p className="text-muted-foreground">No products match your filters</p>
+          <Button variant="ghost" className="mt-2" onClick={() => { setStockFilter("all"); setCategoryFilter("all"); setSearchQuery(""); }}>
+            Clear Filters
+          </Button>
+        </div>
+      ) : (
       <div className="grid gap-4">
-        {products.map((product) => (
+        {filteredProducts.map((product) => (
           <div
             key={product.id}
             className={`bg-card rounded-xl border p-4 flex items-center gap-4 ${
@@ -643,6 +784,7 @@ const AdminProducts = () => {
           </div>
         ))}
       </div>
+      )}
     </div>
   );
 };

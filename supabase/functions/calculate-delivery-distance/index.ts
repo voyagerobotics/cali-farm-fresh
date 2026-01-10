@@ -6,10 +6,10 @@ const corsHeaders = {
 };
 
 // Store location: 105, Galli No. 3, Wakekar Layout, Ambekar Nagar, Ayodhya Nagar, Nagpur - 440024
-// Coordinates verified for Ayodhya Nagar area, Nagpur
+// Coordinates: 21.114435, 79.110042
 const STORE_COORDINATES = {
-  lat: 21.1195,
-  lng: 79.0985,
+  lat: 21.114435,
+  lng: 79.110042,
 };
 
 interface GeocodingResult {

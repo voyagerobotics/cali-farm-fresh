@@ -211,14 +211,16 @@ const Checkout = () => {
     });
   };
 
-  const placeOrder = async (upiReference: string | null) => {
+  const placeOrder = async (paymentId: string | null) => {
     setIsSubmitting(true);
 
     try {
       const orderData = {
         ...pendingOrderData,
-        upi_reference: upiReference,
-        payment_status: upiReference ? "pending" : "pending", // Admin verifies UPI payments
+        upi_reference: paymentId,
+        payment_status: paymentId ? "paid" : "pending",
+        status: paymentId ? "confirmed" : "pending",
+        payment_verified_at: paymentId ? new Date().toISOString() : null,
       };
 
       // Create order
@@ -296,8 +298,8 @@ const Checkout = () => {
       clearCart();
       
       toast({
-        title: "Order Placed Successfully!",
-        description: `Order #${pendingOrderNumber} will be delivered on ${deliveryDate}`,
+        title: "Order Confirmed!",
+        description: `Order #${pendingOrderNumber} is confirmed. Delivery on ${deliveryDate}`,
       });
 
       navigate("/orders");

@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, CreditCard, AlertCircle, MapPin, Truck, CheckCircle, Loader2 } from "lucide-react";
+import { ArrowLeft, CreditCard, AlertCircle, MapPin, Truck, CheckCircle, Loader2, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useCart } from "@/contexts/CartContext";
 import { Percent } from "lucide-react";
@@ -18,7 +18,7 @@ const Checkout = () => {
   const { user } = useAuth();
   const { toast } = useToast();
   const { addresses, defaultAddress } = useAddresses();
-  const { calculateDeliveryDistance, isCalculating, ratePerKm } = useDeliveryZones();
+  const { calculateDeliveryDistance, isCalculating, ratePerKm, clearCache } = useDeliveryZones();
   
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [paymentMethod] = useState<"online">("online");
@@ -51,13 +51,18 @@ const Checkout = () => {
   }, [defaultAddress]);
 
   // Calculate delivery charge when pincode changes (async)
-  const calculateDelivery = useCallback(async (pincode: string) => {
+  const calculateDelivery = useCallback(async (pincode: string, forceRefresh = false) => {
     if (!pincode || pincode.length < 6) {
       setDeliveryCharge(0);
       setDeliveryDistance(0);
       setDeliveryUnavailable(false);
       setDeliveryError(null);
       return;
+    }
+
+    // Clear cache if force refresh requested
+    if (forceRefresh) {
+      clearCache(pincode);
     }
 
     const result = await calculateDeliveryDistance(pincode);
@@ -73,7 +78,15 @@ const Checkout = () => {
       setDeliveryCharge(result.deliveryCharge);
       setDeliveryDistance(result.distanceKm);
     }
-  }, [calculateDeliveryDistance]);
+  }, [calculateDeliveryDistance, clearCache]);
+
+  // Force recalculate delivery distance
+  const handleRecalculateDistance = () => {
+    const pincode = selectedAddress?.pincode || formData.pincode;
+    if (pincode) {
+      calculateDelivery(pincode, true);
+    }
+  };
 
   useEffect(() => {
     const pincode = selectedAddress?.pincode || formData.pincode;
@@ -533,7 +546,17 @@ const Checkout = () => {
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground flex items-center gap-1">
                   <Truck className="w-4 h-4" />
-                  Delivery {isCalculating ? "" : deliveryDistance > 0 ? `(${deliveryDistance} km)` : ""}
+                  Delivery {isCalculating ? "" : deliveryDistance > 0 ? `(${deliveryDistance.toFixed(1)} km)` : ""}
+                  {!isCalculating && (selectedAddress?.pincode || formData.pincode) && (
+                    <button
+                      onClick={handleRecalculateDistance}
+                      className="ml-1 p-1 hover:bg-muted rounded-full transition-colors"
+                      title="Recalculate distance"
+                      type="button"
+                    >
+                      <RefreshCw className="w-3 h-3" />
+                    </button>
+                  )}
                 </span>
                 {isCalculating ? (
                   <span className="flex items-center gap-1 text-muted-foreground">

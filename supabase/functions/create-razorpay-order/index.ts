@@ -15,29 +15,29 @@ serve(async (req) => {
     const { amount, orderNumber, customerName, customerEmail, customerPhone } = await req.json();
 
     if (!amount || !orderNumber) {
-      return new Response(
-        JSON.stringify({ error: "Amount and order number are required" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      return new Response(JSON.stringify({ error: "Amount and order number are required" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
-    const keyId = "rzp_live_S27OsCWEUXjJga";
+    const keyId = "rzp_live_S27lPI8yIptMCg";
     const keySecret = Deno.env.get("RAZORPAY_KEY_SECRET");
 
     if (!keySecret) {
-      return new Response(
-        JSON.stringify({ error: "Razorpay configuration missing" }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      return new Response(JSON.stringify({ error: "Razorpay configuration missing" }), {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
     // Create Razorpay order
     const auth = btoa(`${keyId}:${keySecret}`);
-    
+
     const razorpayResponse = await fetch("https://api.razorpay.com/v1/orders", {
       method: "POST",
       headers: {
-        "Authorization": `Basic ${auth}`,
+        Authorization: `Basic ${auth}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
@@ -55,10 +55,10 @@ serve(async (req) => {
     if (!razorpayResponse.ok) {
       const errorData = await razorpayResponse.text();
       console.error("Razorpay error:", errorData);
-      return new Response(
-        JSON.stringify({ error: "Failed to create Razorpay order" }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      return new Response(JSON.stringify({ error: "Failed to create Razorpay order" }), {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
     const razorpayOrder = await razorpayResponse.json();
@@ -70,14 +70,14 @@ serve(async (req) => {
         currency: razorpayOrder.currency,
         keyId: keyId,
       }),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      { headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   } catch (error: unknown) {
     console.error("Error creating Razorpay order:", error);
     const message = error instanceof Error ? error.message : "Unknown error";
-    return new Response(
-      JSON.stringify({ error: message }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
+    return new Response(JSON.stringify({ error: message }), {
+      status: 500,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
   }
 });

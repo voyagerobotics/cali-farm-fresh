@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { ProductVariant, calculateDiscountedPrice } from "@/hooks/useProductVariants";
+import { useSiteSettings } from "@/hooks/useSiteSettings";
 
 import CategorySidebar from "./products/CategorySidebar";
 import MobileCategoryScroll from "./products/MobileCategoryScroll";
@@ -21,6 +22,7 @@ const ProductsSection = () => {
   const { addItem } = useCart();
   const { toast } = useToast();
   const isMobile = useIsMobile();
+  const { settings } = useSiteSettings();
 
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [selectedSubcategory, setSelectedSubcategory] = useState<string | null>(null);
@@ -255,35 +257,37 @@ const ProductsSection = () => {
           </div>
         </div>
 
-        {/* Featured Box CTA */}
-        <div className="mt-16 relative rounded-3xl overflow-hidden shadow-elevated">
-          <img
-            src={vegetablesImage}
-            alt="Fresh chemical free vegetables from California Farms India"
-            className="w-full h-[300px] md:h-[350px] object-cover"
-          />
-          <div className="absolute inset-0 bg-gradient-to-r from-foreground/80 via-foreground/60 to-transparent" />
-          <div className="absolute inset-0 flex items-center">
-            <div className="p-8 md:p-12 max-w-xl">
-              <span className="inline-block bg-secondary text-secondary-foreground px-3 py-1 rounded-full text-sm font-semibold mb-4">
-                Best Value
-              </span>
-              <h3 className="font-heading text-3xl md:text-4xl font-bold text-background mb-3">
-                Seasonal Vegetable Box
-              </h3>
-              <p className="text-background/80 mb-6 text-lg">
-                A curated mix of 5-6 seasonal vegetables, perfect for a week's healthy cooking
-              </p>
-              <div className="flex items-center gap-4 mb-6">
-                <span className="text-3xl font-bold text-background">₹299</span>
-                <span className="text-background/70">per box</span>
+        {/* Featured Box CTA - Conditionally rendered */}
+        {settings.show_seasonal_box && (
+          <div className="mt-16 relative rounded-3xl overflow-hidden shadow-elevated">
+            <img
+              src={vegetablesImage}
+              alt="Fresh chemical free vegetables from California Farms India"
+              className="w-full h-[300px] md:h-[350px] object-cover"
+            />
+            <div className="absolute inset-0 bg-gradient-to-r from-foreground/80 via-foreground/60 to-transparent" />
+            <div className="absolute inset-0 flex items-center">
+              <div className="p-8 md:p-12 max-w-xl">
+                <span className="inline-block bg-secondary text-secondary-foreground px-3 py-1 rounded-full text-sm font-semibold mb-4">
+                  Best Value
+                </span>
+                <h3 className="font-heading text-3xl md:text-4xl font-bold text-background mb-3">
+                  Seasonal Vegetable Box
+                </h3>
+                <p className="text-background/80 mb-6 text-lg">
+                  A curated mix of 5-6 seasonal vegetables, perfect for a week's healthy cooking
+                </p>
+                <div className="flex items-center gap-4 mb-6">
+                  <span className="text-3xl font-bold text-background">₹299</span>
+                  <span className="text-background/70">per box</span>
+                </div>
+                <Button size="lg" className="bg-secondary hover:bg-secondary/90 text-secondary-foreground font-semibold">
+                  Order Now
+                </Button>
               </div>
-              <Button size="lg" className="bg-secondary hover:bg-secondary/90 text-secondary-foreground font-semibold">
-                Order Now
-              </Button>
             </div>
           </div>
-        </div>
+        )}
 
         {/* CTA */}
         <div className="text-center mt-12">

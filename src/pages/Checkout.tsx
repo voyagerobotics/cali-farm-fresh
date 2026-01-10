@@ -93,10 +93,11 @@ const Checkout = () => {
     calculateDelivery(pincode);
   }, [selectedAddress, formData.pincode, calculateDelivery]);
 
+  // Order days: Tuesday (2) and Friday (5)
   const isOrderDayAllowed = () => {
     const today = new Date();
     const day = today.getDay();
-    return day === 1 || day === 4;
+    return day === 2 || day === 5; // Tuesday or Friday
   };
 
   const getNextOrderDay = () => {
@@ -104,9 +105,28 @@ const Checkout = () => {
     const day = today.getDay();
     
     let daysUntilNext = 0;
-    if (day === 0) daysUntilNext = 1;
-    else if (day < 4) daysUntilNext = 4 - day;
-    else daysUntilNext = 8 - day;
+    // Calculate days until next Tuesday (2) or Friday (5)
+    if (day <= 2) {
+      // Sunday (0), Monday (1), Tuesday (2) -> next is Tuesday
+      daysUntilNext = 2 - day;
+      if (daysUntilNext === 0) daysUntilNext = 0; // Today is Tuesday
+    } else if (day <= 5) {
+      // Wednesday (3), Thursday (4), Friday (5) -> next is Friday
+      daysUntilNext = 5 - day;
+      if (daysUntilNext === 0) daysUntilNext = 0; // Today is Friday
+    } else {
+      // Saturday (6) -> next Tuesday
+      daysUntilNext = 3;
+    }
+    
+    // If today is an order day, show today; otherwise show next order day
+    if (daysUntilNext === 0) {
+      return new Date().toLocaleDateString("en-IN", { 
+        weekday: "long", 
+        month: "short", 
+        day: "numeric" 
+      });
+    }
 
     const nextDate = new Date(today);
     nextDate.setDate(today.getDate() + daysUntilNext);
@@ -123,11 +143,19 @@ const Checkout = () => {
     const day = today.getDay();
     let orderDate = new Date(today);
     
-    if (day !== 1 && day !== 4) {
+    // If not Tuesday (2) or Friday (5), calculate next order day
+    if (day !== 2 && day !== 5) {
       let daysUntilNext = 0;
-      if (day === 0) daysUntilNext = 1;
-      else if (day < 4) daysUntilNext = 4 - day;
-      else daysUntilNext = 8 - day;
+      if (day <= 2) {
+        // Sunday (0), Monday (1) -> next Tuesday
+        daysUntilNext = 2 - day;
+      } else if (day <= 5) {
+        // Wednesday (3), Thursday (4) -> next Friday
+        daysUntilNext = 5 - day;
+      } else {
+        // Saturday (6) -> next Tuesday
+        daysUntilNext = 3;
+      }
       orderDate.setDate(today.getDate() + daysUntilNext);
     }
     

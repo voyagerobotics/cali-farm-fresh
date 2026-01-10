@@ -24,6 +24,10 @@ serve(async (req) => {
     const keyId = Deno.env.get("RAZORPAY_KEY_ID");
     const keySecret = Deno.env.get("RAZORPAY_KEY_SECRET");
 
+    // Debug: Log key presence and format (not the actual values)
+    console.log("DEBUG - Key ID present:", !!keyId, "Key ID length:", keyId?.length, "Key ID prefix:", keyId?.substring(0, 8));
+    console.log("DEBUG - Key Secret present:", !!keySecret, "Key Secret length:", keySecret?.length);
+
     if (!keyId || !keySecret) {
       console.error("Razorpay configuration missing - keyId:", !!keyId, "keySecret:", !!keySecret);
       return new Response(JSON.stringify({ error: "Razorpay configuration missing" }), {
@@ -32,8 +36,10 @@ serve(async (req) => {
       });
     }
 
-    // Create Razorpay order
-    const auth = btoa(`${keyId}:${keySecret}`);
+    // Create Razorpay order - ensure no whitespace in credentials
+    const trimmedKeyId = keyId.trim();
+    const trimmedKeySecret = keySecret.trim();
+    const auth = btoa(`${trimmedKeyId}:${trimmedKeySecret}`);
 
     const razorpayResponse = await fetch("https://api.razorpay.com/v1/orders", {
       method: "POST",

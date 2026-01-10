@@ -21,10 +21,11 @@ serve(async (req) => {
       });
     }
 
-    const keyId = "rzp_live_S27lPI8yIptMCg";
+    const keyId = Deno.env.get("RAZORPAY_KEY_ID");
     const keySecret = Deno.env.get("RAZORPAY_KEY_SECRET");
 
-    if (!keySecret) {
+    if (!keyId || !keySecret) {
+      console.error("Razorpay configuration missing - keyId:", !!keyId, "keySecret:", !!keySecret);
       return new Response(JSON.stringify({ error: "Razorpay configuration missing" }), {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -54,8 +55,8 @@ serve(async (req) => {
 
     if (!razorpayResponse.ok) {
       const errorData = await razorpayResponse.text();
-      console.error("Razorpay error:", errorData);
-      return new Response(JSON.stringify({ error: "Failed to create Razorpay order" }), {
+      console.error("Razorpay API error - Status:", razorpayResponse.status, "Response:", errorData);
+      return new Response(JSON.stringify({ error: "Failed to create Razorpay order", details: errorData }), {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });

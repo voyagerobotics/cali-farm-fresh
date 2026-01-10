@@ -406,19 +406,43 @@ export type Database = {
       site_settings: {
         Row: {
           created_at: string
+          delivery_time_slot: string
           id: string
+          order_days: string[]
+          seasonal_box_badge: string
+          seasonal_box_button_link: string | null
+          seasonal_box_button_text: string
+          seasonal_box_description: string
+          seasonal_box_price: number
+          seasonal_box_title: string
           show_seasonal_box: boolean
           updated_at: string
         }
         Insert: {
           created_at?: string
+          delivery_time_slot?: string
           id?: string
+          order_days?: string[]
+          seasonal_box_badge?: string
+          seasonal_box_button_link?: string | null
+          seasonal_box_button_text?: string
+          seasonal_box_description?: string
+          seasonal_box_price?: number
+          seasonal_box_title?: string
           show_seasonal_box?: boolean
           updated_at?: string
         }
         Update: {
           created_at?: string
+          delivery_time_slot?: string
           id?: string
+          order_days?: string[]
+          seasonal_box_badge?: string
+          seasonal_box_button_link?: string | null
+          seasonal_box_button_text?: string
+          seasonal_box_description?: string
+          seasonal_box_price?: number
+          seasonal_box_title?: string
           show_seasonal_box?: boolean
           updated_at?: string
         }

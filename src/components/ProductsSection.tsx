@@ -95,7 +95,17 @@ const ProductsSection = () => {
 
   const isOrderDay = () => {
     const day = new Date().getDay();
-    return day === 1 || day === 4; // Monday or Thursday
+    const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+    const currentDayName = dayNames[day];
+    return settings.order_days.map(d => d.toLowerCase()).includes(currentDayName);
+  };
+
+  const getOrderDaysText = () => {
+    const dayMap: Record<string, string> = {
+      'sunday': 'Sunday', 'monday': 'Monday', 'tuesday': 'Tuesday',
+      'wednesday': 'Wednesday', 'thursday': 'Thursday', 'friday': 'Friday', 'saturday': 'Saturday'
+    };
+    return settings.order_days.map(d => dayMap[d.toLowerCase()] || d).join(' & ');
   };
 
   const getCategoryName = () => {
@@ -132,10 +142,10 @@ const ProductsSection = () => {
             />
             <div>
               <p className={`font-semibold ${isOrderDay() ? "text-primary" : "text-foreground"}`}>
-                {isOrderDay() ? "🌿 Today is order day!" : "Orders on Monday & Thursday only"}
+                {isOrderDay() ? "🌿 Today is order day!" : `Orders on ${getOrderDaysText()} only`}
               </p>
               <p className="text-sm text-muted-foreground">
-                Delivery: 12 PM - 3 PM • Fresh from farm within 3 hours
+                Delivery: {settings.delivery_time_slot} • Fresh from farm within 3 hours
               </p>
             </div>
           </div>
@@ -269,20 +279,20 @@ const ProductsSection = () => {
             <div className="absolute inset-0 flex items-center">
               <div className="p-8 md:p-12 max-w-xl">
                 <span className="inline-block bg-secondary text-secondary-foreground px-3 py-1 rounded-full text-sm font-semibold mb-4">
-                  Best Value
+                  {settings.seasonal_box_badge}
                 </span>
                 <h3 className="font-heading text-3xl md:text-4xl font-bold text-background mb-3">
-                  Seasonal Vegetable Box
+                  {settings.seasonal_box_title}
                 </h3>
                 <p className="text-background/80 mb-6 text-lg">
-                  A curated mix of 5-6 seasonal vegetables, perfect for a week's healthy cooking
+                  {settings.seasonal_box_description}
                 </p>
                 <div className="flex items-center gap-4 mb-6">
-                  <span className="text-3xl font-bold text-background">₹299</span>
+                  <span className="text-3xl font-bold text-background">₹{settings.seasonal_box_price}</span>
                   <span className="text-background/70">per box</span>
                 </div>
                 <Button size="lg" className="bg-secondary hover:bg-secondary/90 text-secondary-foreground font-semibold">
-                  Order Now
+                  {settings.seasonal_box_button_text}
                 </Button>
               </div>
             </div>

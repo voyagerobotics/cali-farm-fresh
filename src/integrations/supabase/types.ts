@@ -403,6 +403,27 @@ export type Database = {
         }
         Relationships: []
       }
+      site_settings: {
+        Row: {
+          created_at: string
+          id: string
+          show_seasonal_box: boolean
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          show_seasonal_box?: boolean
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          show_seasonal_box?: boolean
+          updated_at?: string
+        }
+        Relationships: []
+      }
       stock_notifications: {
         Row: {
           created_at: string

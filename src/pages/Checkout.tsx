@@ -10,8 +10,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useAddresses, UserAddress } from "@/hooks/useAddresses";
 import { useDeliveryZones } from "@/hooks/useDeliveryZones";
 import AddressManager from "@/components/AddressManager";
-
-import UPIPayment from "@/components/UPIPayment";
+import RazorpayPayment from "@/components/RazorpayPayment";
 
 const Checkout = () => {
   const navigate = useNavigate();
@@ -19,16 +18,17 @@ const Checkout = () => {
   const { user } = useAuth();
   const { toast } = useToast();
   const { addresses, defaultAddress } = useAddresses();
-  const { getDeliveryChargeByPincode, zones } = useDeliveryZones();
+  const { getDeliveryChargeByPincode, getDeliveryInfo, ratePerKm } = useDeliveryZones();
   
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [paymentMethod] = useState<"online">("online");
   const [selectedAddress, setSelectedAddress] = useState<UserAddress | null>(null);
   const [showAddressManager, setShowAddressManager] = useState(false);
   const [deliveryCharge, setDeliveryCharge] = useState(0);
+  const [deliveryDistance, setDeliveryDistance] = useState(0);
   
-  // UPI payment state
-  const [showUPIPayment, setShowUPIPayment] = useState(false);
+  // Razorpay payment state
+  const [showRazorpay, setShowRazorpay] = useState(false);
   const [pendingOrderData, setPendingOrderData] = useState<any>(null);
   const [pendingOrderNumber, setPendingOrderNumber] = useState("");
 
@@ -52,10 +52,11 @@ const Checkout = () => {
   useEffect(() => {
     const pincode = selectedAddress?.pincode || formData.pincode;
     if (pincode && pincode.length >= 6) {
-      const charge = getDeliveryChargeByPincode(pincode);
-      setDeliveryCharge(charge);
+      const info = getDeliveryInfo(pincode);
+      setDeliveryCharge(info.charge);
+      setDeliveryDistance(info.distance);
     }
-  }, [selectedAddress, formData.pincode, zones]);
+  }, [selectedAddress, formData.pincode, getDeliveryInfo]);
 
   const isOrderDayAllowed = () => {
     const today = new Date();
@@ -147,13 +148,22 @@ const Checkout = () => {
       order_date: getOrderDate().toISOString().split("T")[0],
     });
 
-    // Show UPI payment directly (no OTP verification)
-    setShowUPIPayment(true);
+    // Show Razorpay payment
+    setShowRazorpay(true);
   };
 
-  const handleUPIPaymentConfirm = (upiReference: string) => {
-    setShowUPIPayment(false);
-    placeOrder(upiReference);
+  const handlePaymentSuccess = (paymentId: string) => {
+    setShowRazorpay(false);
+    placeOrder(paymentId);
+  };
+
+  const handlePaymentFailure = (error: string) => {
+    setShowRazorpay(false);
+    toast({
+      title: "Payment Failed",
+      description: error,
+      variant: "destructive",
+    });
   };
 
   const placeOrder = async (upiReference: string | null) => {
@@ -287,13 +297,17 @@ const Checkout = () => {
 
   return (
     <div className="min-h-screen bg-muted/30">
-      {/* UPI Payment Modal */}
-      {showUPIPayment && (
-        <UPIPayment
+      {/* Razorpay Payment */}
+      {showRazorpay && (
+        <RazorpayPayment
           amount={grandTotal}
           orderNumber={pendingOrderNumber}
-          onPaymentConfirm={handleUPIPaymentConfirm}
-          onCancel={() => setShowUPIPayment(false)}
+          customerName={selectedAddress?.full_name || formData.name}
+          customerEmail={user?.email || ""}
+          customerPhone={selectedAddress?.phone || formData.phone}
+          onPaymentSuccess={handlePaymentSuccess}
+          onPaymentFailure={handlePaymentFailure}
+          onCancel={() => setShowRazorpay(false)}
         />
       )}
 
@@ -437,8 +451,8 @@ const Checkout = () => {
               <div className="p-4 rounded-lg border-2 border-primary bg-primary/5 flex items-center gap-3">
                 <CreditCard className="w-5 h-5 text-primary" />
                 <div className="text-left">
-                  <p className="font-medium">UPI Payment</p>
-                  <p className="text-xs text-muted-foreground">GPay, PhonePe, Paytm</p>
+                  <p className="font-medium">Razorpay</p>
+                  <p className="text-xs text-muted-foreground">Cards, UPI, Wallets, Net Banking</p>
                 </div>
               </div>
             </div>
@@ -487,7 +501,7 @@ const Checkout = () => {
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground flex items-center gap-1">
                   <Truck className="w-4 h-4" />
-                  Delivery
+                  Delivery ({deliveryDistance} km)
                 </span>
                 <span className={deliveryCharge === 0 ? "text-primary" : ""}>
                   {deliveryCharge === 0 ? "Free" : `₹${deliveryCharge}`}
@@ -495,7 +509,7 @@ const Checkout = () => {
               </div>
               {deliveryCharge > 0 && (
                 <p className="text-xs text-muted-foreground">
-                  Based on your pincode delivery zone
+                  ₹{ratePerKm}/km from our farm • {deliveryDistance} km to your location
                 </p>
               )}
               <div className="flex justify-between font-bold text-lg pt-2 border-t border-border">

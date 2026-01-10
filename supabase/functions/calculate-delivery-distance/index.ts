@@ -5,10 +5,11 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-// Store location: 105, Gali no 3, Wakekar layout, Ambika nagar, Ayodhyanagar, Nagpur, 440024
+// Store location: 105, Galli No. 3, Wakekar Layout, Ambekar Nagar, Ayodhya Nagar, Nagpur - 440024
+// Coordinates verified for Ayodhya Nagar area, Nagpur
 const STORE_COORDINATES = {
-  lat: 21.1458,
-  lng: 79.0882,
+  lat: 21.1195,
+  lng: 79.0985,
 };
 
 interface GeocodingResult {

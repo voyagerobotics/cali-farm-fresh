@@ -1,6 +1,6 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, CreditCard, AlertCircle, MapPin, Truck, CheckCircle } from "lucide-react";
+import { ArrowLeft, CreditCard, AlertCircle, MapPin, Truck, CheckCircle, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useCart } from "@/contexts/CartContext";
 import { Percent } from "lucide-react";
@@ -18,7 +18,7 @@ const Checkout = () => {
   const { user } = useAuth();
   const { toast } = useToast();
   const { addresses, defaultAddress } = useAddresses();
-  const { getDeliveryChargeByPincode, getDeliveryInfo, ratePerKm } = useDeliveryZones();
+  const { calculateDeliveryDistance, isCalculating, ratePerKm } = useDeliveryZones();
   
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [paymentMethod] = useState<"online">("online");
@@ -26,6 +26,8 @@ const Checkout = () => {
   const [showAddressManager, setShowAddressManager] = useState(false);
   const [deliveryCharge, setDeliveryCharge] = useState(0);
   const [deliveryDistance, setDeliveryDistance] = useState(0);
+  const [deliveryUnavailable, setDeliveryUnavailable] = useState(false);
+  const [deliveryError, setDeliveryError] = useState<string | null>(null);
   
   // Razorpay payment state
   const [showRazorpay, setShowRazorpay] = useState(false);
@@ -48,15 +50,35 @@ const Checkout = () => {
     }
   }, [defaultAddress]);
 
-  // Calculate delivery charge when pincode changes
+  // Calculate delivery charge when pincode changes (async)
+  const calculateDelivery = useCallback(async (pincode: string) => {
+    if (!pincode || pincode.length < 6) {
+      setDeliveryCharge(0);
+      setDeliveryDistance(0);
+      setDeliveryUnavailable(false);
+      setDeliveryError(null);
+      return;
+    }
+
+    const result = await calculateDeliveryDistance(pincode);
+    
+    if (result.deliveryUnavailable) {
+      setDeliveryUnavailable(true);
+      setDeliveryError(result.error || "Delivery not available for this location.");
+      setDeliveryCharge(0);
+      setDeliveryDistance(0);
+    } else {
+      setDeliveryUnavailable(false);
+      setDeliveryError(null);
+      setDeliveryCharge(result.deliveryCharge);
+      setDeliveryDistance(result.distanceKm);
+    }
+  }, [calculateDeliveryDistance]);
+
   useEffect(() => {
     const pincode = selectedAddress?.pincode || formData.pincode;
-    if (pincode && pincode.length >= 6) {
-      const info = getDeliveryInfo(pincode);
-      setDeliveryCharge(info.charge);
-      setDeliveryDistance(info.distance);
-    }
-  }, [selectedAddress, formData.pincode, getDeliveryInfo]);
+    calculateDelivery(pincode);
+  }, [selectedAddress, formData.pincode, calculateDelivery]);
 
   const isOrderDayAllowed = () => {
     const today = new Date();
@@ -109,6 +131,16 @@ const Checkout = () => {
         variant: "destructive",
       });
       navigate("/auth");
+      return;
+    }
+
+    // Check if delivery is available
+    if (deliveryUnavailable) {
+      toast({
+        title: "Delivery Unavailable",
+        description: deliveryError || "We cannot deliver to this location. Please try a different address.",
+        variant: "destructive",
+      });
       return;
     }
 
@@ -501,13 +533,30 @@ const Checkout = () => {
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground flex items-center gap-1">
                   <Truck className="w-4 h-4" />
-                  Delivery ({deliveryDistance} km)
+                  Delivery {isCalculating ? "" : deliveryDistance > 0 ? `(${deliveryDistance} km)` : ""}
                 </span>
-                <span className={deliveryCharge === 0 ? "text-primary" : ""}>
-                  {deliveryCharge === 0 ? "Free" : `₹${deliveryCharge}`}
-                </span>
+                {isCalculating ? (
+                  <span className="flex items-center gap-1 text-muted-foreground">
+                    <Loader2 className="w-3 h-3 animate-spin" />
+                    Calculating...
+                  </span>
+                ) : deliveryUnavailable ? (
+                  <span className="text-destructive text-xs">Unavailable</span>
+                ) : (
+                  <span className={deliveryCharge === 0 ? "text-primary" : ""}>
+                    {deliveryCharge === 0 ? "Free" : `₹${deliveryCharge}`}
+                  </span>
+                )}
               </div>
-              {deliveryCharge > 0 && (
+              {deliveryUnavailable && deliveryError && (
+                <div className="p-2 bg-destructive/10 rounded-lg border border-destructive/20">
+                  <p className="text-xs text-destructive flex items-center gap-1">
+                    <AlertCircle className="w-3 h-3" />
+                    {deliveryError}
+                  </p>
+                </div>
+              )}
+              {!deliveryUnavailable && deliveryCharge > 0 && !isCalculating && (
                 <p className="text-xs text-muted-foreground">
                   ₹{ratePerKm}/km from our farm • {deliveryDistance} km to your location
                 </p>
@@ -522,14 +571,30 @@ const Checkout = () => {
             <Button
               size="lg"
               className="w-full mt-6"
-              disabled={isSubmitting}
+              disabled={isSubmitting || isCalculating || deliveryUnavailable}
               onClick={handleProceedToVerification}
             >
-              {isSubmitting ? "Processing..." : `Proceed to Verify • ₹${grandTotal}`}
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                  Processing...
+                </>
+              ) : isCalculating ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                  Calculating Delivery...
+                </>
+              ) : deliveryUnavailable ? (
+                "Delivery Unavailable"
+              ) : (
+                `Proceed to Verify • ₹${grandTotal}`
+              )}
             </Button>
 
             <p className="text-xs text-center text-muted-foreground mt-3">
-              You'll receive an OTP to verify your order
+              {deliveryUnavailable 
+                ? "Please try a different delivery address" 
+                : "You'll receive an OTP to verify your order"}
             </p>
 
             {/* Delivery Info */}

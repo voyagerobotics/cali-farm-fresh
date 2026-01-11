@@ -7,6 +7,7 @@ import { useCart } from "@/contexts/CartContext";
 import { useToast } from "@/hooks/use-toast";
 import { Product } from "@/hooks/useProducts";
 import { useProductVariants, ProductVariant, calculateDiscountedPrice } from "@/hooks/useProductVariants";
+import { useSiteSettings } from "@/hooks/useSiteSettings";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import ProductImageGallery from "@/components/ProductImageGallery";
@@ -18,6 +19,7 @@ const ProductDetail = () => {
   const navigate = useNavigate();
   const { addItem, items, updateQuantity } = useCart();
   const { toast } = useToast();
+  const { settings } = useSiteSettings();
   
   const [product, setProduct] = useState<Product | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -25,6 +27,16 @@ const ProductDetail = () => {
   const [selectedVariant, setSelectedVariant] = useState<ProductVariant | null>(null);
 
   const { variants } = useProductVariants(id);
+
+  // Format order days for display
+  const formatOrderDays = (): string => {
+    if (!settings?.order_days || settings.order_days.length === 0) {
+      return "Tuesday & Friday";
+    }
+    return settings.order_days
+      .map(day => day.charAt(0).toUpperCase() + day.slice(1))
+      .join(" & ");
+  };
 
   // Auto-select first available variant
   useEffect(() => {
@@ -272,8 +284,8 @@ const ProductDetail = () => {
             <div className="mt-8 p-4 bg-secondary/10 rounded-xl flex items-start gap-3">
               <AlertCircle className="w-5 h-5 text-secondary flex-shrink-0 mt-0.5" />
               <div>
-                <p className="font-medium text-foreground">Orders on Monday & Thursday only</p>
-                <p className="text-sm text-muted-foreground">Delivery between 12 PM - 3 PM</p>
+                <p className="font-medium text-foreground">Orders on {formatOrderDays()} only</p>
+                <p className="text-sm text-muted-foreground">Delivery between {settings?.delivery_time_slot || "12:00 PM - 3:00 PM"}</p>
               </div>
             </div>
           </div>

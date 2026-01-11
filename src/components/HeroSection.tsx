@@ -54,7 +54,7 @@ const HeroSection = () => {
           <div className="flex flex-col sm:flex-row gap-4 animate-slide-up" style={{
           animationDelay: "0.3s"
         }}>
-            <Button variant="hero" size="lg" onClick={scrollToContact}>
+            <Button variant="hero" size="lg" onClick={scrollToProducts}>
               Order Fresh Veggies
               <ArrowRight className="w-5 h-5" />
             </Button>

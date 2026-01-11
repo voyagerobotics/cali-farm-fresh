@@ -34,12 +34,20 @@ const AboutSection = () => {
               created it. Located in the heart of India, our farm spans acres of rich, fertile land 
               where we cultivate vegetables using traditional chemical free methods passed down through generations.
             </p>
-            <p className="text-muted-foreground mb-8 leading-relaxed">
+            <p className="text-muted-foreground mb-6 leading-relaxed">
               We don't use any synthetic pesticides, herbicides, or chemical fertilizers. Instead, 
               we rely on natural composting, crop rotation, and beneficial insects to maintain soil 
               health and keep pests at bay. The result? Vegetables that taste better, are richer in 
               nutrients, and are safer for you and your family.
             </p>
+            
+            <div className="p-4 bg-muted/50 rounded-lg border border-border mb-8">
+              <p className="text-sm text-muted-foreground">
+                <strong className="text-foreground">California Farms India</strong> is owned and operated by{" "}
+                <strong className="text-foreground">Voyage Robotics Private Limited</strong>, 
+                a registered company committed to sustainable agriculture and innovation.
+              </p>
+            </div>
 
             {/* Features */}
             <div className="grid sm:grid-cols-2 gap-4">

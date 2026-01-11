@@ -9,6 +9,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useAddresses, UserAddress } from "@/hooks/useAddresses";
 import { useDeliveryZones } from "@/hooks/useDeliveryZones";
+import { useSiteSettings } from "@/hooks/useSiteSettings";
 import AddressManager from "@/components/AddressManager";
 import RazorpayPayment from "@/components/RazorpayPayment";
 
@@ -19,6 +20,7 @@ const Checkout = () => {
   const { toast } = useToast();
   const { addresses, defaultAddress } = useAddresses();
   const { calculateDeliveryDistance, isCalculating, ratePerKm, clearCache } = useDeliveryZones();
+  const { settings } = useSiteSettings();
   
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [paymentMethod] = useState<"online">("online");
@@ -42,6 +44,28 @@ const Checkout = () => {
     pincode: "",
     notes: "",
   });
+
+  // Helper to convert day name to day number
+  const dayNameToNumber = (dayName: string): number => {
+    const dayMap: Record<string, number> = {
+      sunday: 0,
+      monday: 1,
+      tuesday: 2,
+      wednesday: 3,
+      thursday: 4,
+      friday: 5,
+      saturday: 6,
+    };
+    return dayMap[dayName.toLowerCase()] ?? -1;
+  };
+
+  // Get order days as numbers from settings
+  const getOrderDayNumbers = useCallback(() => {
+    return settings.order_days
+      .map(day => dayNameToNumber(day))
+      .filter(num => num !== -1)
+      .sort((a, b) => a - b);
+  }, [settings.order_days]);
 
   // Set default address when loaded
   useEffect(() => {
@@ -93,39 +117,41 @@ const Checkout = () => {
     calculateDelivery(pincode);
   }, [selectedAddress, formData.pincode, calculateDelivery]);
 
-  // Order days: Tuesday (2) and Friday (5)
-  const isOrderDayAllowed = () => {
+  // Check if today is an order day based on settings
+  const isOrderDayAllowed = useCallback(() => {
     const today = new Date();
     const day = today.getDay();
-    return day === 2 || day === 5; // Tuesday or Friday
-  };
+    const orderDays = getOrderDayNumbers();
+    return orderDays.includes(day);
+  }, [getOrderDayNumbers]);
 
-  const getNextOrderDay = () => {
+  // Get next order day based on settings
+  const getNextOrderDay = useCallback(() => {
     const today = new Date();
-    const day = today.getDay();
+    const currentDay = today.getDay();
+    const orderDays = getOrderDayNumbers();
     
-    let daysUntilNext = 0;
-    // Calculate days until next Tuesday (2) or Friday (5)
-    if (day <= 2) {
-      // Sunday (0), Monday (1), Tuesday (2) -> next is Tuesday
-      daysUntilNext = 2 - day;
-      if (daysUntilNext === 0) daysUntilNext = 0; // Today is Tuesday
-    } else if (day <= 5) {
-      // Wednesday (3), Thursday (4), Friday (5) -> next is Friday
-      daysUntilNext = 5 - day;
-      if (daysUntilNext === 0) daysUntilNext = 0; // Today is Friday
-    } else {
-      // Saturday (6) -> next Tuesday
-      daysUntilNext = 3;
+    if (orderDays.length === 0) {
+      return "Contact us for schedule";
     }
-    
-    // If today is an order day, show today; otherwise show next order day
-    if (daysUntilNext === 0) {
+
+    // Check if today is an order day
+    if (orderDays.includes(currentDay)) {
       return new Date().toLocaleDateString("en-IN", { 
         weekday: "long", 
         month: "short", 
         day: "numeric" 
       });
+    }
+    
+    // Find next order day
+    let daysUntilNext = 7;
+    for (const orderDay of orderDays) {
+      let diff = orderDay - currentDay;
+      if (diff <= 0) diff += 7;
+      if (diff < daysUntilNext) {
+        daysUntilNext = diff;
+      }
     }
 
     const nextDate = new Date(today);
@@ -136,31 +162,37 @@ const Checkout = () => {
       month: "short", 
       day: "numeric" 
     });
-  };
+  }, [getOrderDayNumbers]);
 
-  const getOrderDate = () => {
+  // Get the actual order date for database storage
+  const getOrderDate = useCallback(() => {
     const today = new Date();
-    const day = today.getDay();
-    let orderDate = new Date(today);
+    const currentDay = today.getDay();
+    const orderDays = getOrderDayNumbers();
     
-    // If not Tuesday (2) or Friday (5), calculate next order day
-    if (day !== 2 && day !== 5) {
-      let daysUntilNext = 0;
-      if (day <= 2) {
-        // Sunday (0), Monday (1) -> next Tuesday
-        daysUntilNext = 2 - day;
-      } else if (day <= 5) {
-        // Wednesday (3), Thursday (4) -> next Friday
-        daysUntilNext = 5 - day;
-      } else {
-        // Saturday (6) -> next Tuesday
-        daysUntilNext = 3;
-      }
-      orderDate.setDate(today.getDate() + daysUntilNext);
+    if (orderDays.length === 0) {
+      return today;
+    }
+
+    // If today is an order day, return today
+    if (orderDays.includes(currentDay)) {
+      return today;
     }
     
+    // Find next order day
+    let daysUntilNext = 7;
+    for (const orderDay of orderDays) {
+      let diff = orderDay - currentDay;
+      if (diff <= 0) diff += 7;
+      if (diff < daysUntilNext) {
+        daysUntilNext = diff;
+      }
+    }
+
+    const orderDate = new Date(today);
+    orderDate.setDate(today.getDate() + daysUntilNext);
     return orderDate;
-  };
+  }, [getOrderDayNumbers]);
 
   const grandTotal = total + deliveryCharge;
 

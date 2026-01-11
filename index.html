@@ -4,6 +4,19 @@
     <meta charset="UTF-8" />
     <link rel="icon" href="data:,">
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- SPA routing fix for GitHub Pages -->
+    <script type="text/javascript">
+      (function(l) {
+        if (l.search[1] === '/' ) {
+          var decoded = l.search.slice(1).split('&').map(function(s) { 
+            return s.replace(/~and~/g, '&')
+          }).join('?');
+          window.history.replaceState(null, null,
+              l.pathname.slice(0, -1) + decoded + l.hash
+          );
+        }
+      }(window.location))
+    </script>
     <title>California Farms India | Fresh Chemical Free Vegetables - Zero Chemicals</title>
     <meta name="description" content="California Farms India grows 100% chemical free vegetables with zero chemicals. Fresh farm produce delivered to your doorstep. Order fresh spinach, tomatoes, carrots & more!" />
     <meta name="keywords" content="chemical free vegetables, zero chemical vegetables, fresh farm produce, chemical free farming India, California Farms India, home delivery vegetables" />

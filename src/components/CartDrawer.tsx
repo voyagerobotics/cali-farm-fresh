@@ -2,6 +2,7 @@ import { X, Minus, Plus, ShoppingBag, Trash2, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useCart } from "@/contexts/CartContext";
 import { useNavigate } from "react-router-dom";
+import { useSiteSettings } from "@/hooks/useSiteSettings";
 
 interface CartDrawerProps {
   isOpen: boolean;
@@ -11,22 +12,65 @@ interface CartDrawerProps {
 const CartDrawer = ({ isOpen, onClose }: CartDrawerProps) => {
   const { items, removeItem, updateQuantity, total, clearCart } = useCart();
   const navigate = useNavigate();
+  const { settings } = useSiteSettings();
+
+  // Map day names to day numbers
+  const dayNameToNumber: Record<string, number> = {
+    sunday: 0,
+    monday: 1,
+    tuesday: 2,
+    wednesday: 3,
+    thursday: 4,
+    friday: 5,
+    saturday: 6,
+  };
+
+  // Get order day numbers from settings
+  const getOrderDayNumbers = (): number[] => {
+    if (!settings?.order_days || settings.order_days.length === 0) {
+      return [2, 5]; // Default: Tuesday and Friday
+    }
+    return settings.order_days
+      .map(day => dayNameToNumber[day.toLowerCase()])
+      .filter(num => num !== undefined)
+      .sort((a, b) => a - b);
+  };
 
   const isOrderAllowed = () => {
     const today = new Date();
     const day = today.getDay();
-    // Monday = 1, Thursday = 4
-    return day === 1 || day === 4;
+    const orderDays = getOrderDayNumbers();
+    return orderDays.includes(day);
   };
 
   const getNextOrderDay = () => {
     const today = new Date();
-    const day = today.getDay();
+    const currentDay = today.getDay();
+    const orderDays = getOrderDayNumbers();
     
-    if (day < 1) return "Monday";
-    if (day < 4) return "Thursday";
-    if (day < 8) return "Monday";
-    return "Monday";
+    // Find the next order day
+    for (const orderDay of orderDays) {
+      if (orderDay > currentDay) {
+        return getDayName(orderDay);
+      }
+    }
+    // If no order day found this week, return first order day of next week
+    return getDayName(orderDays[0]);
+  };
+
+  const getDayName = (dayNum: number): string => {
+    const days = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+    return days[dayNum];
+  };
+
+  // Format order days for display
+  const formatOrderDays = (): string => {
+    if (!settings?.order_days || settings.order_days.length === 0) {
+      return "Tuesday & Friday";
+    }
+    return settings.order_days
+      .map(day => day.charAt(0).toUpperCase() + day.slice(1))
+      .join(" & ");
   };
 
   const handleCheckout = () => {
@@ -70,10 +114,10 @@ const CartDrawer = ({ isOpen, onClose }: CartDrawerProps) => {
               <AlertCircle className="w-5 h-5 text-secondary flex-shrink-0 mt-0.5" />
               <div>
                 <p className="text-sm font-medium text-foreground">
-                  Orders on Monday & Thursday Only
+                  Orders on {formatOrderDays()} Only
                 </p>
                 <p className="text-xs text-muted-foreground">
-                  Delivery: 12 PM - 3 PM • Within 3 hours
+                  Delivery: {settings?.delivery_time_slot || "12:00 PM - 3:00 PM"} • Within 3 hours
                 </p>
               </div>
             </div>
@@ -153,7 +197,7 @@ const CartDrawer = ({ isOpen, onClose }: CartDrawerProps) => {
                 <div className="p-3 bg-secondary/10 rounded-lg flex items-start gap-2">
                   <AlertCircle className="w-5 h-5 text-secondary flex-shrink-0" />
                   <p className="text-sm text-muted-foreground">
-                    Orders can only be placed on Monday & Thursday. Next order day: <strong>{getNextOrderDay()}</strong>
+                    Orders can only be placed on {formatOrderDays()}. Next order day: <strong>{getNextOrderDay()}</strong>
                   </p>
                 </div>
               )}

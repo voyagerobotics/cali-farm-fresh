@@ -2,9 +2,11 @@ import { Phone, Mail, MapPin, Clock, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
+import { useSiteSettings } from "@/hooks/useSiteSettings";
 
 const ContactSection = () => {
   const { toast } = useToast();
+  const { settings } = useSiteSettings();
   const [formData, setFormData] = useState({
     name: "",
     phone: "",
@@ -18,6 +20,18 @@ const ContactSection = () => {
       description: "We'll contact you within 2 hours to confirm your order.",
     });
     setFormData({ name: "", phone: "", message: "" });
+  };
+
+  // Format order days for display
+  const formatOrderDays = () => {
+    const days = settings.order_days;
+    if (days.length === 0) return "Contact us";
+    
+    // Capitalize and abbreviate days
+    return days.map(day => {
+      const abbrev = day.charAt(0).toUpperCase() + day.slice(1, 3);
+      return abbrev;
+    }).join(" & ");
   };
 
   return (
@@ -79,7 +93,7 @@ const ContactSection = () => {
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">Delivery Time</p>
-                  <p className="font-medium text-foreground">Mon & Thu • 12 PM – 3 PM</p>
+                  <p className="font-medium text-foreground">{formatOrderDays()} • {settings.delivery_time_slot}</p>
                 </div>
               </div>
             </div>

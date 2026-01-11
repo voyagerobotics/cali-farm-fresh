@@ -1,13 +1,23 @@
 import { Leaf, Instagram, Facebook, Phone, Mail, MapPin } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { useSiteSettings } from "@/hooks/useSiteSettings";
 
 const Footer = () => {
   const currentYear = new Date().getFullYear();
   const navigate = useNavigate();
+  const { settings } = useSiteSettings();
 
   const scrollToSection = (id: string) => {
     const element = document.getElementById(id);
     element?.scrollIntoView({ behavior: "smooth" });
+  };
+
+  // Format order days for display
+  const formatOrderDays = () => {
+    const days = settings.order_days;
+    if (days.length === 0) return "Contact us for schedule";
+    
+    return days.map(day => day.charAt(0).toUpperCase() + day.slice(1)).join(" & ");
   };
 
   return (
@@ -25,9 +35,12 @@ const Footer = () => {
                 <p className="text-xs text-background/70">India</p>
               </div>
             </div>
-            <p className="text-background/70 text-sm leading-relaxed">
+            <p className="text-background/70 text-sm leading-relaxed mb-3">
               Growing fresh, chemical free vegetables with zero chemicals. From our farm to your table, 
               pure and natural goodness.
+            </p>
+            <p className="text-background/50 text-xs">
+              Owned by Voyage Robotics Private Limited
             </p>
           </div>
 
@@ -137,18 +150,39 @@ const Footer = () => {
             </p>
             <div className="mt-4 p-3 bg-background/10 rounded-lg">
               <p className="text-xs text-background/70">
-                <strong className="text-background">Delivery Hours:</strong><br />
-                Monday & Thursday<br />
-                12:00 PM - 3:00 PM
+                <strong className="text-background">Delivery Schedule:</strong><br />
+                {formatOrderDays()}<br />
+                {settings.delivery_time_slot}
               </p>
             </div>
           </div>
         </div>
 
+        {/* Legal Links */}
+        <div className="pt-6 border-t border-background/20 mb-6">
+          <div className="flex flex-wrap justify-center gap-6 text-sm">
+            <button 
+              onClick={() => navigate("/terms-and-conditions")} 
+              className="text-background/50 hover:text-secondary transition-colors"
+            >
+              Terms & Conditions
+            </button>
+            <button 
+              onClick={() => navigate("/refund-policy")} 
+              className="text-background/50 hover:text-secondary transition-colors"
+            >
+              Refund & Cancellation Policy
+            </button>
+          </div>
+        </div>
+
         {/* Bottom Bar */}
-        <div className="pt-8 border-t border-background/20 text-center">
+        <div className="pt-4 border-t border-background/10 text-center">
           <p className="text-background/50 text-sm">
             © {currentYear} California Farms India. All rights reserved. Grown with love 🌱
+          </p>
+          <p className="text-background/30 text-xs mt-2">
+            A Voyage Robotics Private Limited Company
           </p>
         </div>
       </div>

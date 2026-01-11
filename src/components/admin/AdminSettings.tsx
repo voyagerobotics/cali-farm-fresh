@@ -139,6 +139,28 @@ const AdminSettings = () => {
             ))}
           </div>
 
+          {/* Visual Summary of Selected Days */}
+          {orderDays.length > 0 && (
+            <div className="p-4 bg-primary/10 rounded-lg border border-primary/20">
+              <div className="flex items-center gap-2 mb-2">
+                <Calendar className="w-4 h-4 text-primary" />
+                <span className="font-medium text-primary">Currently Selected:</span>
+              </div>
+              <p className="text-foreground font-semibold text-lg">
+                {orderDays
+                  .sort((a, b) => {
+                    const order = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+                    return order.indexOf(a) - order.indexOf(b);
+                  })
+                  .map(day => day.charAt(0).toUpperCase() + day.slice(1))
+                  .join(' & ')}
+              </p>
+              <p className="text-sm text-muted-foreground mt-1">
+                Customers can place orders on these days
+              </p>
+            </div>
+          )}
+
           <div className="pt-4 border-t border-border">
             <div className="flex items-center gap-2 mb-2">
               <Clock className="w-4 h-4 text-muted-foreground" />
@@ -151,6 +173,11 @@ const AdminSettings = () => {
               placeholder="e.g., 12:00 PM - 3:00 PM"
               className="max-w-xs"
             />
+            {deliveryTimeSlot && (
+              <p className="text-sm text-muted-foreground mt-2">
+                Deliveries will be made during: <strong className="text-foreground">{deliveryTimeSlot}</strong>
+              </p>
+            )}
           </div>
         </CardContent>
       </Card>

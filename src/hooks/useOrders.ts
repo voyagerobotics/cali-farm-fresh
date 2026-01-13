@@ -65,6 +65,9 @@ export const useOrders = (isAdmin: boolean = false) => {
 
   const updateOrderStatus = async (orderId: string, status: Order["status"]) => {
     try {
+      // Get order details first for email notification
+      const order = orders.find(o => o.id === orderId);
+      
       const { error } = await supabase
         .from("orders")
         .update({ status })
@@ -73,6 +76,32 @@ export const useOrders = (isAdmin: boolean = false) => {
       if (error) throw error;
       
       toast({ title: "Order status updated" });
+      
+      // Send status update email notification for key status changes
+      if (order && ['confirmed', 'preparing', 'out_for_delivery', 'delivered', 'cancelled'].includes(status)) {
+        try {
+          const response = await supabase.functions.invoke('send-order-status-update', {
+            body: {
+              orderId: order.id,
+              orderNumber: order.order_number,
+              customerName: order.delivery_name,
+              newStatus: status,
+              deliveryAddress: order.delivery_address,
+              userId: order.user_id,
+            },
+          });
+          
+          if (response.error) {
+            console.error('Failed to send status update email:', response.error);
+          } else {
+            console.log('Status update email sent successfully');
+          }
+        } catch (emailError) {
+          console.error('Error sending status update email:', emailError);
+          // Don't fail the status update if email fails
+        }
+      }
+      
       fetchOrders();
       return true;
     } catch (error: any) {

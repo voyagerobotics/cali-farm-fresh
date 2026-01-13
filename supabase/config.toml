@@ -26,3 +26,6 @@ verify_jwt = false
 
 [functions.calculate-delivery-distance]
 verify_jwt = false
+
+[functions.send-order-status-update]
+verify_jwt = false

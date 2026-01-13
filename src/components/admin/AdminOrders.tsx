@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Clock, CheckCircle, Truck, Package, XCircle, ChevronDown, ChevronUp, CreditCard, Banknote } from "lucide-react";
+import { Clock, CheckCircle, Truck, Package, XCircle, ChevronDown, ChevronUp, CreditCard, Banknote, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Order, useOrders } from "@/hooks/useOrders";
 
@@ -20,9 +20,16 @@ const paymentStatusConfig: Record<Order["payment_status"], { label: string; colo
 };
 
 const AdminOrders = () => {
-  const { orders, isLoading, updateOrderStatus, updatePaymentStatus } = useOrders(true);
+  const { orders, isLoading, refetch, updateOrderStatus, updatePaymentStatus } = useOrders(true);
   const [expandedOrder, setExpandedOrder] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<Order["status"] | "all">("all");
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    await refetch();
+    setIsRefreshing(false);
+  };
 
   const filteredOrders = statusFilter === "all" 
     ? orders 
@@ -48,6 +55,21 @@ const AdminOrders = () => {
 
   return (
     <div className="space-y-6">
+      {/* Header with Refresh Button */}
+      <div className="flex items-center justify-between">
+        <h2 className="text-lg font-semibold">Orders ({orders.length})</h2>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={handleRefresh}
+          disabled={isRefreshing}
+          className="gap-2"
+        >
+          <RefreshCw className={`w-4 h-4 ${isRefreshing ? "animate-spin" : ""}`} />
+          {isRefreshing ? "Refreshing..." : "Refresh"}
+        </Button>
+      </div>
+
       {/* Status Filters */}
       <div className="flex flex-wrap gap-2">
         {(["all", "pending", "confirmed", "preparing", "out_for_delivery", "delivered", "cancelled"] as const).map((status) => (

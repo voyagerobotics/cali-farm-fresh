@@ -336,6 +336,7 @@ const Checkout = () => {
             email: user?.email,
             orderNumber: pendingOrderNumber,
             customerName: customerName,
+            customerPhone: selectedAddress?.phone || formData.phone,
             items: items.map((item) => ({
               product_name: item.name,
               quantity: item.quantity,
@@ -349,7 +350,7 @@ const Checkout = () => {
             deliveryDate: deliveryDate,
           },
         });
-        console.log("Order confirmation email sent");
+        console.log("Order confirmation email sent to customer and admin");
       } catch (emailError) {
         console.error("Failed to send order confirmation email:", emailError);
         // Don't fail the order if email fails
@@ -466,7 +467,7 @@ const Checkout = () => {
               </div>
 
               {/* Show selected address or address manager */}
-              {showAddressManager || addresses.length === 0 ? (
+              {showAddressManager ? (
                 <AddressManager
                   onSelect={(address) => {
                     setSelectedAddress(address);
@@ -475,7 +476,7 @@ const Checkout = () => {
                   selectedId={selectedAddress?.id}
                   showSelectMode={addresses.length > 0}
                 />
-              ) : selectedAddress ? (
+              ) : addresses.length > 0 && selectedAddress ? (
                 <div className="p-4 bg-muted/50 rounded-lg">
                   <div className="flex items-center gap-2 mb-1">
                     <span className="font-medium">{selectedAddress.label}</span>

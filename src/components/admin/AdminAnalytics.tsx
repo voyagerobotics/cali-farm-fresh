@@ -149,6 +149,50 @@ const AdminAnalytics = () => {
     };
 
     fetchAnalytics();
+
+    // Set up real-time subscriptions for orders, profiles, and products
+    const ordersChannel = supabase
+      .channel('admin-analytics-orders')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'orders' },
+        () => {
+          console.log('Orders changed, refreshing analytics...');
+          fetchAnalytics();
+        }
+      )
+      .subscribe();
+
+    const profilesChannel = supabase
+      .channel('admin-analytics-profiles')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'profiles' },
+        () => {
+          console.log('Profiles changed, refreshing analytics...');
+          fetchAnalytics();
+        }
+      )
+      .subscribe();
+
+    const productsChannel = supabase
+      .channel('admin-analytics-products')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'products' },
+        () => {
+          console.log('Products changed, refreshing analytics...');
+          fetchAnalytics();
+        }
+      )
+      .subscribe();
+
+    // Cleanup subscriptions on unmount
+    return () => {
+      supabase.removeChannel(ordersChannel);
+      supabase.removeChannel(profilesChannel);
+      supabase.removeChannel(productsChannel);
+    };
   }, [user]);
 
   const exportToCSV = (data: any[], filename: string) => {

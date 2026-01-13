@@ -16,7 +16,7 @@ import RazorpayPayment from "@/components/RazorpayPayment";
 const Checkout = () => {
   const navigate = useNavigate();
   const { items, total, clearCart, totalSavings } = useCart();
-  const { user } = useAuth();
+  const { user, isLoading: isAuthLoading } = useAuth();
   const { toast } = useToast();
   const { addresses, defaultAddress } = useAddresses();
   const { calculateDeliveryDistance, isCalculating, ratePerKm, clearCache } = useDeliveryZones();
@@ -374,6 +374,15 @@ const Checkout = () => {
       setIsSubmitting(false);
     }
   };
+
+  // Show loading state while checking auth
+  if (isAuthLoading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+        <div className="animate-spin w-8 h-8 border-2 border-primary border-t-transparent rounded-full" />
+      </div>
+    );
+  }
 
   if (!user) {
     return (

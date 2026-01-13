@@ -105,20 +105,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           return { error: new Error("Authentication failed. Please try again.") };
         }
 
-        setSession(data.session);
-        setUser(data.session?.user ?? null);
-        
-        // Fetch user role after successful login
-        if (data.session?.user) {
-          await fetchUserRole(data.session.user.id);
-        }
+        // Session will be automatically persisted by the Supabase client
+        // The onAuthStateChange listener will update our state
+        console.log("Magic link verified successfully, session persisted");
         
         return { error: null };
       }
 
       // If custom auth returned a session directly (standard auth fallback)
       if (result.session) {
-        // IMPORTANT: also set it on the Supabase client so authenticated RLS queries work
+        // IMPORTANT: Set session on the Supabase client so it persists
         const { error: setSessionError } = await supabase.auth.setSession({
           access_token: result.session.access_token,
           refresh_token: result.session.refresh_token,
@@ -129,15 +125,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           return { error: new Error("Authentication failed. Please try again.") };
         }
 
-        // Auth state change listener will set user/session, but we keep this for immediate UI
-        setSession(result.session);
-        setUser(result.session?.user ?? null);
-
-        // Fetch user role after successful login
-        if (result.session?.user) {
-          await fetchUserRole(result.session.user.id);
-        }
-
+        console.log("Session set successfully and will be persisted");
+        
         return { error: null };
       }
 

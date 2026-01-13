@@ -107,13 +107,37 @@ export const useOrders = (isAdmin: boolean = false) => {
   useEffect(() => {
     fetchOrders();
 
-    // Subscribe to realtime updates
-    const channel = supabase
-      .channel("orders-updates")
+    // Subscribe to realtime updates for orders table
+    const ordersChannel = supabase
+      .channel("orders-realtime")
       .on(
         "postgres_changes",
         {
-          event: "*",
+          event: "INSERT",
+          schema: "public",
+          table: "orders",
+        },
+        (payload) => {
+          console.log("New order received:", payload);
+          fetchOrders();
+        }
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "orders",
+        },
+        (payload) => {
+          console.log("Order updated:", payload);
+          fetchOrders();
+        }
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "DELETE",
           schema: "public",
           table: "orders",
         },
@@ -121,10 +145,12 @@ export const useOrders = (isAdmin: boolean = false) => {
           fetchOrders();
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        console.log("Realtime subscription status:", status);
+      });
 
     return () => {
-      supabase.removeChannel(channel);
+      supabase.removeChannel(ordersChannel);
     };
   }, [isAdmin]);
 

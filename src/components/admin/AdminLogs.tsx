@@ -1,11 +1,13 @@
 import { useState, useEffect } from "react";
-import { Eye, Users, FileText, MousePointer, TrendingUp, RefreshCw, Activity, ShoppingBag, AlertTriangle, UserPlus, Calendar, Filter, Download, Trash2, ShoppingCart, Package, ExternalLink } from "lucide-react";
+import { Eye, Users, FileText, MousePointer, TrendingUp, RefreshCw, Activity, ShoppingBag, AlertTriangle, UserPlus, Calendar, Filter, Download, Trash2, ShoppingCart, Package, ExternalLink, Crown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAdminAnalyticsData } from "@/hooks/useAnalytics";
 import { useToast } from "@/hooks/use-toast";
 import CustomerDetailModal from "./CustomerDetailModal";
+import CustomerSegmentation from "./CustomerSegmentation";
+import SalesReportGenerator from "./SalesReportGenerator";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -467,8 +469,12 @@ const AdminLogs = () => {
 
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-6">
+        <TabsList className="grid w-full grid-cols-4 lg:grid-cols-8">
           <TabsTrigger value="overview">Overview</TabsTrigger>
+          <TabsTrigger value="segments" className="flex items-center gap-1">
+            <Crown className="w-3 h-3" /> Segments
+          </TabsTrigger>
+          <TabsTrigger value="reports">Reports</TabsTrigger>
           <TabsTrigger value="users">Users ({users.length})</TabsTrigger>
           <TabsTrigger value="visits">Visits</TabsTrigger>
           <TabsTrigger value="products">Products</TabsTrigger>
@@ -529,6 +535,16 @@ const AdminLogs = () => {
               )}
             </div>
           </div>
+        </TabsContent>
+
+        {/* Customer Segments Tab */}
+        <TabsContent value="segments">
+          <CustomerSegmentation />
+        </TabsContent>
+
+        {/* Sales Reports Tab */}
+        <TabsContent value="reports">
+          <SalesReportGenerator />
         </TabsContent>
 
         {/* Users Tab */}

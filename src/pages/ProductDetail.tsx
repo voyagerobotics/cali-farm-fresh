@@ -8,6 +8,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Product } from "@/hooks/useProducts";
 import { useProductVariants, ProductVariant, calculateDiscountedPrice } from "@/hooks/useProductVariants";
 import { useSiteSettings } from "@/hooks/useSiteSettings";
+import { usePageTracking, useProductViewTracking } from "@/hooks/useAnalytics";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import ProductImageGallery from "@/components/ProductImageGallery";
@@ -20,6 +21,10 @@ const ProductDetail = () => {
   const { addItem, items, updateQuantity } = useCart();
   const { toast } = useToast();
   const { settings } = useSiteSettings();
+  
+  // Track page and product views
+  usePageTracking();
+  useProductViewTracking(id);
   
   const [product, setProduct] = useState<Product | null>(null);
   const [isLoading, setIsLoading] = useState(true);

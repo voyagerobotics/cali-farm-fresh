@@ -89,19 +89,85 @@ export const useActivityLogger = () => {
   return { logActivity };
 };
 
-// Error logging hook
+// Track add to cart events
+export const useCartTracking = () => {
+  const { user } = useAuth();
+
+  const trackAddToCart = useCallback(async (
+    productId: string,
+    productName: string,
+    price: number,
+    quantity: number = 1,
+    variantName?: string
+  ) => {
+    try {
+      await supabase.from("user_activity_logs").insert([{
+        user_id: user?.id || null,
+        action_type: "add_to_cart",
+        action_details: JSON.parse(JSON.stringify({
+          product_id: productId,
+          product_name: productName,
+          price,
+          quantity,
+          variant_name: variantName,
+          session_id: getSessionId(),
+        })),
+        page_path: window.location.pathname,
+      }]);
+    } catch (error) {
+      console.error("Error tracking add to cart:", error);
+    }
+  }, [user]);
+
+  return { trackAddToCart };
+};
+
+// Track order placed events
+export const useOrderTracking = () => {
+  const { user } = useAuth();
+
+  const trackOrderPlaced = useCallback(async (
+    orderNumber: string,
+    orderTotal: number,
+    itemCount: number,
+    paymentMethod: string
+  ) => {
+    try {
+      await supabase.from("user_activity_logs").insert([{
+        user_id: user?.id || null,
+        action_type: "order_placed",
+        action_details: JSON.parse(JSON.stringify({
+          order_number: orderNumber,
+          order_total: orderTotal,
+          item_count: itemCount,
+          payment_method: paymentMethod,
+          session_id: getSessionId(),
+        })),
+        page_path: "/checkout",
+      }]);
+    } catch (error) {
+      console.error("Error tracking order placed:", error);
+    }
+  }, [user]);
+
+  return { trackOrderPlaced };
+};
+
+// Error logging hook with email alerts for critical errors
 export const useErrorLogger = () => {
   const { user } = useAuth();
 
   const logError = useCallback(async (
     error: Error | string,
     errorType?: string,
-    additionalContext?: Record<string, unknown>
+    additionalContext?: Record<string, unknown>,
+    sendEmailAlert: boolean = true
   ) => {
     try {
       const errorMessage = typeof error === "string" ? error : error.message;
       const errorStack = typeof error === "object" ? error.stack : undefined;
 
+      // Log to database
       await supabase.from("error_logs").insert([{
         user_id: user?.id || null,
         session_id: getSessionId(),
@@ -112,6 +178,25 @@ export const useErrorLogger = () => {
         user_agent: navigator.userAgent,
         additional_context: additionalContext ? JSON.parse(JSON.stringify(additionalContext)) : null,
       }]);
+
+      // Send email alert for critical errors
+      if (sendEmailAlert) {
+        try {
+          await supabase.functions.invoke("send-critical-error-alert", {
+            body: {
+              error_message: errorMessage,
+              error_type: errorType || "runtime_error",
+              error_stack: errorStack,
+              page_path: window.location.pathname,
+              user_id: user?.id,
+              session_id: getSessionId(),
+              additional_context: additionalContext,
+            },
+          });
+        } catch (emailError) {
+          console.error("Failed to send error alert email:", emailError);
+        }
+      }
     } catch (logError) {
       console.error("Error logging error:", logError);
     }
@@ -191,7 +276,7 @@ export const useAdminAnalyticsData = () => {
   };
 
   const fetchUsersWithDetails = async () => {
-    // Fetch profiles with user details
+    // Fetch profiles with user details - admin RLS policy allows viewing all
     const { data: profiles, error } = await supabase
       .from("profiles")
       .select("id, user_id, full_name, phone, address, city, pincode, created_at")
@@ -262,6 +347,31 @@ export const useAdminAnalyticsData = () => {
     }
     const { count: errorCount } = await errorQuery;
 
+    // Get conversion stats - add to cart and orders
+    let addToCartQuery = supabase
+      .from("user_activity_logs")
+      .select("*", { count: "exact", head: true })
+      .eq("action_type", "add_to_cart");
+    if (startDate) {
+      addToCartQuery = addToCartQuery.gte("created_at", startDate.toISOString());
+    }
+    if (endDate) {
+      addToCartQuery = addToCartQuery.lte("created_at", endDate.toISOString());
+    }
+    const { count: addToCartCount } = await addToCartQuery;
+
+    let ordersQuery = supabase
+      .from("user_activity_logs")
+      .select("*", { count: "exact", head: true })
+      .eq("action_type", "order_placed");
+    if (startDate) {
+      ordersQuery = ordersQuery.gte("created_at", startDate.toISOString());
+    }
+    if (endDate) {
+      ordersQuery = ordersQuery.lte("created_at", endDate.toISOString());
+    }
+    const { count: ordersPlacedCount } = await ordersQuery;
+
     return {
       uniqueTodayVisitors,
       uniqueVisitorsInRange,
@@ -269,6 +379,8 @@ export const useAdminAnalyticsData = () => {
       totalPageViews: totalPageViews || 0,
       totalProductViews: totalProductViews || 0,
       errorCount: errorCount || 0,
+      addToCartCount: addToCartCount || 0,
+      ordersPlacedCount: ordersPlacedCount || 0,
     };
   };
 
@@ -345,6 +457,64 @@ export const useAdminAnalyticsData = () => {
     return count || 0;
   };
 
+  // Delete functions for logs
+  const deletePageVisits = async (startDate?: Date, endDate?: Date) => {
+    let query = supabase.from("page_visits").delete();
+    
+    if (startDate) {
+      query = query.gte("created_at", startDate.toISOString());
+    }
+    if (endDate) {
+      query = query.lte("created_at", endDate.toISOString());
+    }
+    
+    // Need a WHERE clause for delete
+    const { error } = await query.neq("id", "00000000-0000-0000-0000-000000000000");
+    return { error };
+  };
+
+  const deleteProductViews = async (startDate?: Date, endDate?: Date) => {
+    let query = supabase.from("product_views").delete();
+    
+    if (startDate) {
+      query = query.gte("created_at", startDate.toISOString());
+    }
+    if (endDate) {
+      query = query.lte("created_at", endDate.toISOString());
+    }
+    
+    const { error } = await query.neq("id", "00000000-0000-0000-0000-000000000000");
+    return { error };
+  };
+
+  const deleteActivityLogs = async (startDate?: Date, endDate?: Date) => {
+    let query = supabase.from("user_activity_logs").delete();
+    
+    if (startDate) {
+      query = query.gte("created_at", startDate.toISOString());
+    }
+    if (endDate) {
+      query = query.lte("created_at", endDate.toISOString());
+    }
+    
+    const { error } = await query.neq("id", "00000000-0000-0000-0000-000000000000");
+    return { error };
+  };
+
+  const deleteErrorLogs = async (startDate?: Date, endDate?: Date) => {
+    let query = supabase.from("error_logs").delete();
+    
+    if (startDate) {
+      query = query.gte("created_at", startDate.toISOString());
+    }
+    if (endDate) {
+      query = query.lte("created_at", endDate.toISOString());
+    }
+    
+    const { error } = await query.neq("id", "00000000-0000-0000-0000-000000000000");
+    return { error };
+  };
+
   return {
     fetchPageVisits,
     fetchProductViews,
@@ -355,5 +525,9 @@ export const useAdminAnalyticsData = () => {
     getTopViewedProducts,
     getPageViewStats,
     getNewSignups,
+    deletePageVisits,
+    deleteProductViews,
+    deleteActivityLogs,
+    deleteErrorLogs,
   };
 };

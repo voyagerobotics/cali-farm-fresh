@@ -1,10 +1,11 @@
 import { useState, useEffect } from "react";
-import { Eye, Users, FileText, MousePointer, TrendingUp, RefreshCw, Activity, ShoppingBag, AlertTriangle, UserPlus, Calendar, Filter, Download, Trash2, ShoppingCart, Package } from "lucide-react";
+import { Eye, Users, FileText, MousePointer, TrendingUp, RefreshCw, Activity, ShoppingBag, AlertTriangle, UserPlus, Calendar, Filter, Download, Trash2, ShoppingCart, Package, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAdminAnalyticsData } from "@/hooks/useAnalytics";
 import { useToast } from "@/hooks/use-toast";
+import CustomerDetailModal from "./CustomerDetailModal";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -107,6 +108,7 @@ const AdminLogs = () => {
   const [isDeleting, setIsDeleting] = useState(false);
   const [activeTab, setActiveTab] = useState("overview");
   const [dateRange, setDateRange] = useState<DateRange>("7days");
+  const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   
   const { toast } = useToast();
   const analytics = useAdminAnalyticsData();
@@ -553,30 +555,38 @@ const AdminLogs = () => {
                   <thead>
                     <tr className="border-b border-border">
                       <th className="text-left py-3 px-2 font-medium">#</th>
-                      <th className="text-left py-3 px-2 font-medium">User ID</th>
                       <th className="text-left py-3 px-2 font-medium">Name</th>
                       <th className="text-left py-3 px-2 font-medium">Phone</th>
-                      <th className="text-left py-3 px-2 font-medium">Address</th>
                       <th className="text-left py-3 px-2 font-medium">City</th>
-                      <th className="text-left py-3 px-2 font-medium">Pincode</th>
                       <th className="text-left py-3 px-2 font-medium">Signed Up</th>
+                      <th className="text-left py-3 px-2 font-medium">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
                     {users.map((user, index) => (
-                      <tr key={user.id} className="border-b border-border last:border-0 hover:bg-muted/30">
+                      <tr 
+                        key={user.id} 
+                        className="border-b border-border last:border-0 hover:bg-muted/30 cursor-pointer"
+                        onClick={() => setSelectedUserId(user.user_id)}
+                      >
                         <td className="py-3 px-2">{index + 1}</td>
-                        <td className="py-3 px-2">
-                          <span className="font-mono text-xs bg-muted px-2 py-0.5 rounded">
-                            {user.user_id.slice(0, 8)}...
-                          </span>
-                        </td>
                         <td className="py-3 px-2 font-medium">{user.full_name || <span className="text-muted-foreground italic">Not provided</span>}</td>
                         <td className="py-3 px-2">{user.phone || <span className="text-muted-foreground italic">-</span>}</td>
-                        <td className="py-3 px-2 max-w-[200px] truncate">{user.address || <span className="text-muted-foreground italic">-</span>}</td>
                         <td className="py-3 px-2">{user.city || <span className="text-muted-foreground italic">-</span>}</td>
-                        <td className="py-3 px-2">{user.pincode || <span className="text-muted-foreground italic">-</span>}</td>
                         <td className="py-3 px-2 text-muted-foreground">{formatDate(user.created_at)}</td>
+                        <td className="py-3 px-2">
+                          <Button 
+                            variant="ghost" 
+                            size="sm" 
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedUserId(user.user_id);
+                            }}
+                          >
+                            <ExternalLink className="w-4 h-4 mr-1" />
+                            View Details
+                          </Button>
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -919,6 +929,14 @@ const AdminLogs = () => {
           </div>
         </TabsContent>
       </Tabs>
+
+      {/* Customer Detail Modal */}
+      {selectedUserId && (
+        <CustomerDetailModal
+          userId={selectedUserId}
+          onClose={() => setSelectedUserId(null)}
+        />
+      )}
     </div>
   );
 };

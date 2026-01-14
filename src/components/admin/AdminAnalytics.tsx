@@ -1,9 +1,22 @@
 import { useState, useEffect } from "react";
-import { TrendingUp, ShoppingBag, DollarSign, Users, Package, Calendar, Download, BarChart3 } from "lucide-react";
+import { TrendingUp, ShoppingBag, DollarSign, Users, Package, Calendar, Download, BarChart3, Trash2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import AnalyticsTrendCharts from "./AnalyticsTrendCharts";
 
 interface AnalyticsData {
   totalUsers: number;
@@ -34,10 +47,14 @@ interface AnalyticsData {
   }>;
 }
 
+type ChartRange = "7days" | "30days" | "90days";
+
 const AdminAnalytics = () => {
   const { user } = useAuth();
   const [analytics, setAnalytics] = useState<AnalyticsData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [chartRange, setChartRange] = useState<ChartRange>("7days");
   const { toast } = useToast();
 
   useEffect(() => {
@@ -261,6 +278,38 @@ const AdminAnalytics = () => {
     }
   };
 
+  const deleteAllOrders = async () => {
+    setIsDeleting(true);
+    try {
+      // First delete order items, then orders
+      await supabase.from("order_items").delete().neq("id", "00000000-0000-0000-0000-000000000000");
+      await supabase.from("orders").delete().neq("id", "00000000-0000-0000-0000-000000000000");
+      toast({ title: "All orders deleted successfully" });
+      window.location.reload();
+    } catch (error) {
+      console.error("Error deleting orders:", error);
+      toast({ title: "Error deleting orders", variant: "destructive" });
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const deleteAllProducts = async () => {
+    setIsDeleting(true);
+    try {
+      // Delete variants first due to FK constraint
+      await supabase.from("product_variants").delete().neq("id", "00000000-0000-0000-0000-000000000000");
+      await supabase.from("products").delete().neq("id", "00000000-0000-0000-0000-000000000000");
+      toast({ title: "All products deleted successfully" });
+      window.location.reload();
+    } catch (error) {
+      console.error("Error deleting products:", error);
+      toast({ title: "Error deleting products", variant: "destructive" });
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -284,17 +333,81 @@ const AdminAnalytics = () => {
 
   return (
     <div className="space-y-6">
-      {/* Export Buttons */}
-      <div className="flex flex-wrap gap-2">
-        <Button variant="outline" size="sm" onClick={exportOrders}>
-          <Download className="w-4 h-4 mr-2" /> Export Orders
-        </Button>
-        <Button variant="outline" size="sm" onClick={exportProducts}>
-          <Download className="w-4 h-4 mr-2" /> Export Inventory
-        </Button>
-        <Button variant="outline" size="sm" onClick={exportUsers}>
-          <Download className="w-4 h-4 mr-2" /> Export Users
-        </Button>
+      {/* Export & Delete Buttons */}
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <div className="flex flex-wrap gap-2">
+          <Button variant="outline" size="sm" onClick={exportOrders}>
+            <Download className="w-4 h-4 mr-2" /> Export Orders
+          </Button>
+          <Button variant="outline" size="sm" onClick={exportProducts}>
+            <Download className="w-4 h-4 mr-2" /> Export Inventory
+          </Button>
+          <Button variant="outline" size="sm" onClick={exportUsers}>
+            <Download className="w-4 h-4 mr-2" /> Export Users
+          </Button>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button variant="destructive" size="sm" disabled={isDeleting}>
+                <Trash2 className="w-4 h-4 mr-2" /> Delete All Orders
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Delete All Orders?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This will permanently delete ALL orders and order items. This action cannot be undone.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction onClick={deleteAllOrders} className="bg-destructive text-destructive-foreground">
+                  Delete All Orders
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button variant="destructive" size="sm" disabled={isDeleting}>
+                <Trash2 className="w-4 h-4 mr-2" /> Delete All Products
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Delete All Products?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This will permanently delete ALL products and variants. This action cannot be undone.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction onClick={deleteAllProducts} className="bg-destructive text-destructive-foreground">
+                  Delete All Products
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </div>
+      </div>
+
+      {/* Trend Charts */}
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <h3 className="font-heading font-semibold text-lg">Trends Overview</h3>
+          <Select value={chartRange} onValueChange={(value: ChartRange) => setChartRange(value)}>
+            <SelectTrigger className="w-[150px]">
+              <SelectValue placeholder="Select range" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="7days">Last 7 Days</SelectItem>
+              <SelectItem value="30days">Last 30 Days</SelectItem>
+              <SelectItem value="90days">Last 90 Days</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <AnalyticsTrendCharts dateRange={chartRange} />
       </div>
 
       {/* Stat Cards */}

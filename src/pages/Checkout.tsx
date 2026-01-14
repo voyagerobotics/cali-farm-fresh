@@ -10,6 +10,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useAddresses, UserAddress } from "@/hooks/useAddresses";
 import { useDeliveryZones } from "@/hooks/useDeliveryZones";
 import { useSiteSettings } from "@/hooks/useSiteSettings";
+import { usePageTracking, useActivityLogger } from "@/hooks/useAnalytics";
 import AddressManager from "@/components/AddressManager";
 import RazorpayPayment from "@/components/RazorpayPayment";
 
@@ -21,6 +22,10 @@ const Checkout = () => {
   const { addresses, defaultAddress } = useAddresses();
   const { calculateDeliveryDistance, isCalculating, ratePerKm, clearCache } = useDeliveryZones();
   const { settings } = useSiteSettings();
+  const { logActivity } = useActivityLogger();
+  
+  // Track page visit
+  usePageTracking();
   
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [paymentMethod] = useState<"online">("online");

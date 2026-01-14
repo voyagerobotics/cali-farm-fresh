@@ -8,6 +8,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { z } from "zod";
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
 import { PasswordStrengthIndicator } from "@/components/PasswordStrengthIndicator";
+import { usePageTracking, useActivityLogger } from "@/hooks/useAnalytics";
 
 const emailSchema = z.string().email("Please enter a valid email address");
 const passwordSchema = z.string().min(4, "Password must be at least 4 characters");
@@ -38,6 +39,10 @@ const Auth = () => {
   const { signIn, signUp, user, isAdmin } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { logActivity } = useActivityLogger();
+  
+  // Track page visit
+  usePageTracking();
 
   useEffect(() => {
     if (user) {

@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { usePageTracking } from "@/hooks/useAnalytics";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -55,6 +56,9 @@ const Orders = () => {
   const [cancellingOrderId, setCancellingOrderId] = useState<string | null>(null);
   const [orderToCancel, setOrderToCancel] = useState<Order | null>(null);
   const [showCancelDialog, setShowCancelDialog] = useState(false);
+
+  // Track page visit
+  usePageTracking();
 
   const fetchOrders = async () => {
     if (!user) return;

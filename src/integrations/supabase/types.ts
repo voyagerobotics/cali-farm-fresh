@@ -77,6 +77,45 @@ export type Database = {
         }
         Relationships: []
       }
+      error_logs: {
+        Row: {
+          additional_context: Json | null
+          created_at: string
+          error_message: string
+          error_stack: string | null
+          error_type: string | null
+          id: string
+          page_path: string | null
+          session_id: string | null
+          user_agent: string | null
+          user_id: string | null
+        }
+        Insert: {
+          additional_context?: Json | null
+          created_at?: string
+          error_message: string
+          error_stack?: string | null
+          error_type?: string | null
+          id?: string
+          page_path?: string | null
+          session_id?: string | null
+          user_agent?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          additional_context?: Json | null
+          created_at?: string
+          error_message?: string
+          error_stack?: string | null
+          error_type?: string | null
+          id?: string
+          page_path?: string | null
+          session_id?: string | null
+          user_agent?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       order_items: {
         Row: {
           created_at: string

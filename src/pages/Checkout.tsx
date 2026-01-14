@@ -361,6 +361,23 @@ const Checkout = () => {
         // Don't fail the order if email fails
       }
 
+      // Track order placed
+      try {
+        await supabase.from("user_activity_logs").insert([{
+          user_id: user?.id || null,
+          action_type: "order_placed",
+          action_details: JSON.parse(JSON.stringify({
+            order_number: pendingOrderNumber,
+            order_total: grandTotal,
+            item_count: items.length,
+            payment_method: "online",
+          })),
+          page_path: "/checkout",
+        }]);
+      } catch (trackError) {
+        console.error("Error tracking order:", trackError);
+      }
+
       clearCart();
       
       toast({

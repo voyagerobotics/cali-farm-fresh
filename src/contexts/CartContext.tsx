@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
+import { supabase } from "@/integrations/supabase/client";
 
 export interface CartItem {
   id: string;
@@ -25,6 +26,16 @@ interface CartContextType {
 
 const CartContext = createContext<CartContextType | undefined>(undefined);
 
+// Helper to get session ID
+const getSessionId = (): string => {
+  let sessionId = sessionStorage.getItem("analytics_session_id");
+  if (!sessionId) {
+    sessionId = `session_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
+    sessionStorage.setItem("analytics_session_id", sessionId);
+  }
+  return sessionId;
+};
+
 export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [items, setItems] = useState<CartItem[]>(() => {
     const saved = localStorage.getItem("cart");
@@ -35,9 +46,30 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     localStorage.setItem("cart", JSON.stringify(items));
   }, [items]);
 
+  const trackAddToCart = async (item: Omit<CartItem, "quantity">) => {
+    try {
+      await supabase.from("user_activity_logs").insert([{
+        user_id: null, // Will be null for guests, updated if logged in
+        action_type: "add_to_cart",
+        action_details: JSON.parse(JSON.stringify({
+          product_id: item.id,
+          product_name: item.name,
+          price: item.price,
+          variant_name: item.variantName,
+          session_id: getSessionId(),
+        })),
+        page_path: window.location.pathname,
+      }]);
+    } catch (error) {
+      console.error("Error tracking add to cart:", error);
+    }
+  };
+
   const addItem = (item: Omit<CartItem, "quantity">) => {
+    // Track add to cart
+    trackAddToCart(item);
+    
     setItems((prev) => {
-      // Use combination of product id and variant id as unique key
       const cartKey = item.variantId ? `${item.id}-${item.variantId}` : item.id;
       const existing = prev.find((i) => {
         const existingKey = i.variantId ? `${i.id}-${i.variantId}` : i.id;

@@ -1,9 +1,21 @@
 import { useState, useEffect } from "react";
-import { Eye, Users, FileText, MousePointer, TrendingUp, RefreshCw, Activity, ShoppingBag, AlertTriangle, UserPlus, Calendar, Filter } from "lucide-react";
+import { Eye, Users, FileText, MousePointer, TrendingUp, RefreshCw, Activity, ShoppingBag, AlertTriangle, UserPlus, Calendar, Filter, Download, Trash2, ShoppingCart, Package } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAdminAnalyticsData } from "@/hooks/useAnalytics";
+import { useToast } from "@/hooks/use-toast";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 interface VisitorStats {
   uniqueTodayVisitors: number;
@@ -12,6 +24,8 @@ interface VisitorStats {
   totalPageViews: number;
   totalProductViews: number;
   errorCount: number;
+  addToCartCount: number;
+  ordersPlacedCount: number;
 }
 
 interface TopProduct {
@@ -90,9 +104,11 @@ const AdminLogs = () => {
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [newSignups, setNewSignups] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [activeTab, setActiveTab] = useState("overview");
   const [dateRange, setDateRange] = useState<DateRange>("7days");
-
+  
+  const { toast } = useToast();
   const analytics = useAdminAnalyticsData();
 
   const getDateRange = (range: DateRange): { startDate: Date | undefined; endDate: Date } => {
@@ -208,6 +224,92 @@ const AdminLogs = () => {
     }
   };
 
+  // Export functions
+  const exportToCSV = (data: unknown[], filename: string) => {
+    if (data.length === 0) {
+      toast({ title: "No data to export", variant: "destructive" });
+      return;
+    }
+
+    const headers = Object.keys(data[0] as object);
+    const csvContent = [
+      headers.join(","),
+      ...data.map(row => 
+        headers.map(header => {
+          const value = (row as Record<string, unknown>)[header];
+          const strValue = typeof value === "object" ? JSON.stringify(value) : String(value ?? "");
+          return `"${strValue.replace(/"/g, '""')}"`;
+        }).join(",")
+      )
+    ].join("\n");
+
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = `${filename}_${new Date().toISOString().split("T")[0]}.csv`;
+    link.click();
+    
+    toast({ title: "Export successful", description: `${filename}.csv downloaded` });
+  };
+
+  const exportAllLogs = () => {
+    const allData = {
+      users,
+      pageVisits: pageVisits.slice(0, 1000),
+      productViews: productViews.slice(0, 1000),
+      activityLogs: activityLogs.slice(0, 1000),
+      errorLogs,
+    };
+
+    const blob = new Blob([JSON.stringify(allData, null, 2)], { type: "application/json" });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = `analytics_export_${new Date().toISOString().split("T")[0]}.json`;
+    link.click();
+    
+    toast({ title: "Export successful", description: "All analytics data exported as JSON" });
+  };
+
+  // Delete functions
+  const handleDeleteLogs = async (type: "visits" | "products" | "activity" | "errors" | "all") => {
+    setIsDeleting(true);
+    const { startDate, endDate } = getDateRange(dateRange);
+    
+    try {
+      if (type === "visits" || type === "all") {
+        await analytics.deletePageVisits(startDate, endDate);
+      }
+      if (type === "products" || type === "all") {
+        await analytics.deleteProductViews(startDate, endDate);
+      }
+      if (type === "activity" || type === "all") {
+        await analytics.deleteActivityLogs(startDate, endDate);
+      }
+      if (type === "errors" || type === "all") {
+        await analytics.deleteErrorLogs(startDate, endDate);
+      }
+      
+      toast({ 
+        title: "Logs deleted", 
+        description: `${type === "all" ? "All logs" : type + " logs"} for ${getDateRangeLabel(dateRange)} deleted successfully` 
+      });
+      
+      fetchData();
+    } catch (error) {
+      console.error("Error deleting logs:", error);
+      toast({ title: "Error deleting logs", variant: "destructive" });
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  // Get conversion rate
+  const getConversionRate = () => {
+    if (!stats || stats.totalProductViews === 0) return "0%";
+    const rate = (stats.ordersPlacedCount / stats.totalProductViews) * 100;
+    return rate.toFixed(1) + "%";
+  };
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -221,7 +323,7 @@ const AdminLogs = () => {
       {/* Header with Filters */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <h2 className="font-heading text-xl font-semibold">Website Analytics & Logs</h2>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <div className="flex items-center gap-2">
             <Filter className="w-4 h-4 text-muted-foreground" />
             <Select value={dateRange} onValueChange={(value: DateRange) => setDateRange(value)}>
@@ -241,6 +343,32 @@ const AdminLogs = () => {
             <RefreshCw className="w-4 h-4 mr-2" />
             Refresh
           </Button>
+          <Button variant="outline" size="sm" onClick={exportAllLogs}>
+            <Download className="w-4 h-4 mr-2" />
+            Export All
+          </Button>
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button variant="destructive" size="sm" disabled={isDeleting}>
+                <Trash2 className="w-4 h-4 mr-2" />
+                Delete All
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Delete All Logs?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This will permanently delete all page visits, product views, activity logs, and error logs for {getDateRangeLabel(dateRange)}. This action cannot be undone.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction onClick={() => handleDeleteLogs("all")} className="bg-destructive text-destructive-foreground">
+                  Delete All
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </div>
       </div>
 
@@ -252,7 +380,7 @@ const AdminLogs = () => {
 
       {/* Stats Cards */}
       {stats && (
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-4">
           <div className="bg-card border border-border rounded-xl p-4">
             <div className="w-10 h-10 rounded-lg bg-blue-500/10 flex items-center justify-center mb-3">
               <Users className="w-5 h-5 text-blue-600" />
@@ -289,11 +417,48 @@ const AdminLogs = () => {
             <p className="text-sm text-muted-foreground">Product Views</p>
           </div>
           <div className="bg-card border border-border rounded-xl p-4">
+            <div className="w-10 h-10 rounded-lg bg-yellow-500/10 flex items-center justify-center mb-3">
+              <ShoppingCart className="w-5 h-5 text-yellow-600" />
+            </div>
+            <p className="text-2xl font-bold">{stats.addToCartCount}</p>
+            <p className="text-sm text-muted-foreground">Add to Cart</p>
+          </div>
+          <div className="bg-card border border-border rounded-xl p-4">
+            <div className="w-10 h-10 rounded-lg bg-emerald-500/10 flex items-center justify-center mb-3">
+              <Package className="w-5 h-5 text-emerald-600" />
+            </div>
+            <p className="text-2xl font-bold">{stats.ordersPlacedCount}</p>
+            <p className="text-sm text-muted-foreground">Orders Placed</p>
+          </div>
+          <div className="bg-card border border-border rounded-xl p-4">
             <div className="w-10 h-10 rounded-lg bg-red-500/10 flex items-center justify-center mb-3">
               <AlertTriangle className="w-5 h-5 text-red-600" />
             </div>
             <p className="text-2xl font-bold">{stats.errorCount}</p>
             <p className="text-sm text-muted-foreground">Errors</p>
+          </div>
+        </div>
+      )}
+
+      {/* Conversion Funnel */}
+      {stats && (
+        <div className="bg-card border border-border rounded-xl p-6">
+          <h3 className="font-heading font-semibold mb-4">Conversion Funnel</h3>
+          <div className="grid grid-cols-5 gap-4 text-center">
+            <div className="space-y-2">
+              <div className="text-2xl font-bold text-blue-600">{stats.uniqueVisitorsInRange}</div>
+              <div className="text-sm text-muted-foreground">Visitors</div>
+            </div>
+            <div className="flex items-center justify-center text-muted-foreground">→</div>
+            <div className="space-y-2">
+              <div className="text-2xl font-bold text-yellow-600">{stats.addToCartCount}</div>
+              <div className="text-sm text-muted-foreground">Add to Cart</div>
+            </div>
+            <div className="flex items-center justify-center text-muted-foreground">→</div>
+            <div className="space-y-2">
+              <div className="text-2xl font-bold text-emerald-600">{stats.ordersPlacedCount}</div>
+              <div className="text-sm text-muted-foreground">Orders ({getConversionRate()})</div>
+            </div>
           </div>
         </div>
       )}
@@ -372,7 +537,13 @@ const AdminLogs = () => {
                 <Users className="w-5 h-5 text-primary" />
                 <h3 className="font-heading font-semibold">All Registered Users</h3>
               </div>
-              <span className="text-sm text-muted-foreground">{users.length} total users</span>
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-muted-foreground">{users.length} total users</span>
+                <Button variant="outline" size="sm" onClick={() => exportToCSV(users, "users")}>
+                  <Download className="w-4 h-4 mr-2" />
+                  Export
+                </Button>
+              </div>
             </div>
             {users.length === 0 ? (
               <p className="text-muted-foreground text-sm">No registered users yet</p>
@@ -423,7 +594,35 @@ const AdminLogs = () => {
                 <MousePointer className="w-5 h-5 text-primary" />
                 <h3 className="font-heading font-semibold">Page Visits</h3>
               </div>
-              <span className="text-sm text-muted-foreground">{pageVisits.length} visits</span>
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-muted-foreground">{pageVisits.length} visits</span>
+                <Button variant="outline" size="sm" onClick={() => exportToCSV(pageVisits, "page_visits")}>
+                  <Download className="w-4 h-4 mr-2" />
+                  Export
+                </Button>
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button variant="destructive" size="sm" disabled={isDeleting}>
+                      <Trash2 className="w-4 h-4 mr-2" />
+                      Delete
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Delete Page Visits?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        This will permanently delete all page visit logs for {getDateRangeLabel(dateRange)}.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                      <AlertDialogAction onClick={() => handleDeleteLogs("visits")} className="bg-destructive text-destructive-foreground">
+                        Delete
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              </div>
             </div>
             {pageVisits.length === 0 ? (
               <p className="text-muted-foreground text-sm">No page visits in this period</p>
@@ -476,7 +675,35 @@ const AdminLogs = () => {
                 <Eye className="w-5 h-5 text-primary" />
                 <h3 className="font-heading font-semibold">Product Views</h3>
               </div>
-              <span className="text-sm text-muted-foreground">{productViews.length} views</span>
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-muted-foreground">{productViews.length} views</span>
+                <Button variant="outline" size="sm" onClick={() => exportToCSV(productViews, "product_views")}>
+                  <Download className="w-4 h-4 mr-2" />
+                  Export
+                </Button>
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button variant="destructive" size="sm" disabled={isDeleting}>
+                      <Trash2 className="w-4 h-4 mr-2" />
+                      Delete
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Delete Product Views?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        This will permanently delete all product view logs for {getDateRangeLabel(dateRange)}.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                      <AlertDialogAction onClick={() => handleDeleteLogs("products")} className="bg-destructive text-destructive-foreground">
+                        Delete
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              </div>
             </div>
             {productViews.length === 0 ? (
               <p className="text-muted-foreground text-sm">No product views in this period</p>
@@ -525,7 +752,35 @@ const AdminLogs = () => {
                 <Activity className="w-5 h-5 text-primary" />
                 <h3 className="font-heading font-semibold">Activity Logs</h3>
               </div>
-              <span className="text-sm text-muted-foreground">{activityLogs.length} activities</span>
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-muted-foreground">{activityLogs.length} activities</span>
+                <Button variant="outline" size="sm" onClick={() => exportToCSV(activityLogs, "activity_logs")}>
+                  <Download className="w-4 h-4 mr-2" />
+                  Export
+                </Button>
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button variant="destructive" size="sm" disabled={isDeleting}>
+                      <Trash2 className="w-4 h-4 mr-2" />
+                      Delete
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Delete Activity Logs?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        This will permanently delete all activity logs for {getDateRangeLabel(dateRange)}.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                      <AlertDialogAction onClick={() => handleDeleteLogs("activity")} className="bg-destructive text-destructive-foreground">
+                        Delete
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              </div>
             </div>
             {activityLogs.length === 0 ? (
               <p className="text-muted-foreground text-sm">No activity logs in this period</p>
@@ -544,7 +799,11 @@ const AdminLogs = () => {
                     {activityLogs.slice(0, 100).map((log) => (
                       <tr key={log.id} className="border-b border-border last:border-0 hover:bg-muted/30">
                         <td className="py-3 px-2">
-                          <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full capitalize">
+                          <span className={`text-xs px-2 py-0.5 rounded-full capitalize ${
+                            log.action_type === "add_to_cart" ? "bg-yellow-500/10 text-yellow-600" :
+                            log.action_type === "order_placed" ? "bg-emerald-500/10 text-emerald-600" :
+                            "bg-primary/10 text-primary"
+                          }`}>
                             {log.action_type.replace(/_/g, " ")}
                           </span>
                         </td>
@@ -570,7 +829,35 @@ const AdminLogs = () => {
                 <AlertTriangle className="w-5 h-5 text-red-500" />
                 <h3 className="font-heading font-semibold">Error Logs</h3>
               </div>
-              <span className="text-sm text-muted-foreground">{errorLogs.length} errors</span>
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-muted-foreground">{errorLogs.length} errors</span>
+                <Button variant="outline" size="sm" onClick={() => exportToCSV(errorLogs, "error_logs")}>
+                  <Download className="w-4 h-4 mr-2" />
+                  Export
+                </Button>
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button variant="destructive" size="sm" disabled={isDeleting}>
+                      <Trash2 className="w-4 h-4 mr-2" />
+                      Delete
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Delete Error Logs?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        This will permanently delete all error logs for {getDateRangeLabel(dateRange)}.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                      <AlertDialogAction onClick={() => handleDeleteLogs("errors")} className="bg-destructive text-destructive-foreground">
+                        Delete
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              </div>
             </div>
             {errorLogs.length === 0 ? (
               <div className="text-center py-8">

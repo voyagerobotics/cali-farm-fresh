@@ -13,6 +13,7 @@ import CategorySidebar from "./products/CategorySidebar";
 import MobileCategoryScroll from "./products/MobileCategoryScroll";
 import ProductSearch from "./products/ProductSearch";
 import ProductCard from "./products/ProductCard";
+import ProductSortFilter, { SortOption } from "./products/ProductSortFilter";
 import { CATEGORIES } from "./products/CategoryData";
 
 import vegetablesImage from "@/assets/vegetables-display.jpg";
@@ -27,8 +28,9 @@ const ProductsSection = () => {
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [selectedSubcategory, setSelectedSubcategory] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [sortBy, setSortBy] = useState<SortOption>("default");
 
-  // Filter products based on category and search
+  // Filter and sort products based on category, search, and sort option
   const filteredProducts = useMemo(() => {
     let filtered = products;
 
@@ -48,8 +50,31 @@ const ProductsSection = () => {
       filtered = filtered.filter((p) => p.category === selectedCategory);
     }
 
-    return filtered;
-  }, [products, selectedCategory, searchQuery]);
+    // Sort products
+    const sorted = [...filtered];
+    switch (sortBy) {
+      case "price-low":
+        sorted.sort((a, b) => a.price - b.price);
+        break;
+      case "price-high":
+        sorted.sort((a, b) => b.price - a.price);
+        break;
+      case "name-asc":
+        sorted.sort((a, b) => a.name.localeCompare(b.name));
+        break;
+      case "name-desc":
+        sorted.sort((a, b) => b.name.localeCompare(a.name));
+        break;
+      case "newest":
+        sorted.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+        break;
+      default:
+        // Keep original order
+        break;
+    }
+
+    return sorted;
+  }, [products, selectedCategory, searchQuery, sortBy]);
 
   const handleAddToCart = (product: Product, quantity: number, variant?: ProductVariant) => {
     const stockQuantity = variant ? variant.stock_quantity : product.stock_quantity;
@@ -151,12 +176,13 @@ const ProductsSection = () => {
           </div>
         </div>
 
-        {/* Search Bar */}
-        <div className="flex justify-center mb-8">
+        {/* Search and Sort Bar */}
+        <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-8">
           <ProductSearch
             products={products}
             onSearch={setSearchQuery}
           />
+          <ProductSortFilter sortBy={sortBy} onSortChange={setSortBy} />
         </div>
 
         {/* Mobile Category Scroll */}

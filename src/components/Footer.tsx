@@ -50,7 +50,7 @@ const Footer = () => {
             <ul className="space-y-2">
               <li>
                 <button 
-                  onClick={() => scrollToSection("about")} 
+                  onClick={() => navigate("/about")} 
                   className="text-background/70 hover:text-secondary transition-colors text-sm"
                 >
                   About Us
@@ -66,18 +66,10 @@ const Footer = () => {
               </li>
               <li>
                 <button 
-                  onClick={() => scrollToSection("benefits")} 
+                  onClick={() => navigate("/contact")} 
                   className="text-background/70 hover:text-secondary transition-colors text-sm"
                 >
-                  Why Choose Us
-                </button>
-              </li>
-              <li>
-                <button 
-                  onClick={() => scrollToSection("contact")} 
-                  className="text-background/70 hover:text-secondary transition-colors text-sm"
-                >
-                  Contact & Order
+                  Contact Us
                 </button>
               </li>
               <li>
@@ -86,6 +78,45 @@ const Footer = () => {
                   className="text-background/70 hover:text-secondary transition-colors text-sm"
                 >
                   My Orders
+                </button>
+              </li>
+            </ul>
+          </div>
+
+          {/* Useful Links */}
+          <div>
+            <h4 className="font-heading font-semibold text-lg mb-4">Useful Links</h4>
+            <ul className="space-y-2">
+              <li>
+                <button 
+                  onClick={() => navigate("/privacy-policy")} 
+                  className="text-background/70 hover:text-secondary transition-colors text-sm"
+                >
+                  Privacy Policy
+                </button>
+              </li>
+              <li>
+                <button 
+                  onClick={() => navigate("/terms-and-conditions")} 
+                  className="text-background/70 hover:text-secondary transition-colors text-sm"
+                >
+                  Terms & Conditions
+                </button>
+              </li>
+              <li>
+                <button 
+                  onClick={() => navigate("/refund-policy")} 
+                  className="text-background/70 hover:text-secondary transition-colors text-sm"
+                >
+                  Refund Policy
+                </button>
+              </li>
+              <li>
+                <button 
+                  onClick={() => navigate("/auth")} 
+                  className="text-background/70 hover:text-secondary transition-colors text-sm"
+                >
+                  My Account
                 </button>
               </li>
             </ul>
@@ -158,22 +189,14 @@ const Footer = () => {
           </div>
         </div>
 
-        {/* Legal Links */}
-        <div className="pt-6 border-t border-background/20 mb-6">
-          <div className="flex flex-wrap justify-center gap-6 text-sm">
-            <button 
-              onClick={() => navigate("/terms-and-conditions")} 
-              className="text-background/50 hover:text-secondary transition-colors"
-            >
-              Terms & Conditions
-            </button>
-            <button 
-              onClick={() => navigate("/refund-policy")} 
-              className="text-background/50 hover:text-secondary transition-colors"
-            >
-              Refund & Cancellation Policy
-            </button>
-          </div>
+        {/* Bottom Bar */}
+        <div className="pt-6 border-t border-background/10 text-center">
+          <p className="text-background/50 text-sm">
+            © {currentYear} California Farms India. All rights reserved. Grown with love 🌱
+          </p>
+          <p className="text-background/30 text-xs mt-2">
+            A Voyage Robotics Private Limited Company
+          </p>
         </div>
 
         {/* Bottom Bar */}

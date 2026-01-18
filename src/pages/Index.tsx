@@ -6,6 +6,7 @@ import BenefitsSection from "@/components/BenefitsSection";
 import TestimonialsSection from "@/components/TestimonialsSection";
 import ContactSection from "@/components/ContactSection";
 import Footer from "@/components/Footer";
+import SocialMediaSidebar from "@/components/SocialMediaSidebar";
 import { usePageTracking } from "@/hooks/useAnalytics";
 
 const Index = () => {
@@ -14,6 +15,7 @@ const Index = () => {
   return (
     <div className="min-h-screen bg-background">
       <Navbar />
+      <SocialMediaSidebar />
       <main>
         <HeroSection />
         <AboutSection />

@@ -11,6 +11,7 @@ export interface SiteSettings {
   seasonal_box_button_link: string | null;
   order_days: string[];
   delivery_time_slot: string;
+  map_url: string | null;
 }
 
 export const useSiteSettings = () => {
@@ -24,6 +25,7 @@ const [settings, setSettings] = useState<SiteSettings>({
     seasonal_box_button_link: null,
     order_days: ['tuesday', 'friday'],
     delivery_time_slot: '12:00 PM - 3:00 PM',
+    map_url: 'https://maps.app.goo.gl/7yhfzXpd9DizTaNE7',
   });
   const [isLoading, setIsLoading] = useState(true);
 
@@ -47,6 +49,7 @@ const [settings, setSettings] = useState<SiteSettings>({
           seasonal_box_button_link: data.seasonal_box_button_link,
           order_days: data.order_days,
           delivery_time_slot: data.delivery_time_slot,
+          map_url: data.map_url,
         });
       }
     } catch (error) {

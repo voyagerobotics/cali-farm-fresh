@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Settings, Eye, EyeOff, Save, Loader2, Package, Calendar, Clock } from "lucide-react";
+import { Settings, Eye, EyeOff, Save, Loader2, Package, Calendar, Clock, MapPin } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
@@ -9,6 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Checkbox } from "@/components/ui/checkbox";
 import { useSiteSettings } from "@/hooks/useSiteSettings";
 import { useToast } from "@/hooks/use-toast";
+import AdminSocialLinks from "./AdminSocialLinks";
 
 const DAYS_OF_WEEK = [
   { id: 'monday', label: 'Monday' },
@@ -34,6 +35,7 @@ const AdminSettings = () => {
   const [seasonalBoxButtonText, setSeasonalBoxButtonText] = useState(settings.seasonal_box_button_text);
   const [orderDays, setOrderDays] = useState<string[]>(settings.order_days);
   const [deliveryTimeSlot, setDeliveryTimeSlot] = useState(settings.delivery_time_slot);
+  const [mapUrl, setMapUrl] = useState(settings.map_url || "");
 
   // Sync local state when settings load
   useEffect(() => {
@@ -45,6 +47,7 @@ const AdminSettings = () => {
     setSeasonalBoxButtonText(settings.seasonal_box_button_text);
     setOrderDays(settings.order_days);
     setDeliveryTimeSlot(settings.delivery_time_slot);
+    setMapUrl(settings.map_url || "");
   }, [settings]);
 
   const handleDayToggle = (day: string) => {
@@ -75,6 +78,7 @@ const AdminSettings = () => {
       seasonal_box_button_text: seasonalBoxButtonText,
       order_days: orderDays,
       delivery_time_slot: deliveryTimeSlot,
+      map_url: mapUrl || null,
     });
     setIsSaving(false);
     
@@ -275,6 +279,49 @@ const AdminSettings = () => {
                   />
                 </div>
               </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Social Media Links */}
+      <AdminSocialLinks />
+
+      {/* Map Settings */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <MapPin className="w-5 h-5" />
+            Map Location
+          </CardTitle>
+          <CardDescription>
+            Configure your Google Maps location URL for the footer
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="map-url">Google Maps URL</Label>
+            <Input
+              id="map-url"
+              value={mapUrl}
+              onChange={(e) => setMapUrl(e.target.value)}
+              placeholder="https://maps.app.goo.gl/..."
+            />
+            <p className="text-sm text-muted-foreground">
+              Paste your Google Maps share link here
+            </p>
+          </div>
+          {mapUrl && (
+            <div className="p-3 bg-muted/30 rounded-lg border">
+              <p className="text-sm text-muted-foreground mb-2">Current Map Link:</p>
+              <a
+                href={mapUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-primary hover:underline text-sm break-all"
+              >
+                {mapUrl}
+              </a>
             </div>
           )}
         </CardContent>

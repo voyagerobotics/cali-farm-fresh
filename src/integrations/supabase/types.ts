@@ -515,6 +515,7 @@ export type Database = {
           created_at: string
           delivery_time_slot: string
           id: string
+          map_url: string | null
           order_days: string[]
           seasonal_box_badge: string
           seasonal_box_button_link: string | null
@@ -529,6 +530,7 @@ export type Database = {
           created_at?: string
           delivery_time_slot?: string
           id?: string
+          map_url?: string | null
           order_days?: string[]
           seasonal_box_badge?: string
           seasonal_box_button_link?: string | null
@@ -543,6 +545,7 @@ export type Database = {
           created_at?: string
           delivery_time_slot?: string
           id?: string
+          map_url?: string | null
           order_days?: string[]
           seasonal_box_badge?: string
           seasonal_box_button_link?: string | null
@@ -552,6 +555,39 @@ export type Database = {
           seasonal_box_title?: string
           show_seasonal_box?: boolean
           updated_at?: string
+        }
+        Relationships: []
+      }
+      social_links: {
+        Row: {
+          created_at: string
+          display_order: number | null
+          icon: string
+          id: string
+          is_visible: boolean | null
+          platform: string
+          updated_at: string
+          url: string
+        }
+        Insert: {
+          created_at?: string
+          display_order?: number | null
+          icon: string
+          id?: string
+          is_visible?: boolean | null
+          platform: string
+          updated_at?: string
+          url: string
+        }
+        Update: {
+          created_at?: string
+          display_order?: number | null
+          icon?: string
+          id?: string
+          is_visible?: boolean | null
+          platform?: string
+          updated_at?: string
+          url?: string
         }
         Relationships: []
       }

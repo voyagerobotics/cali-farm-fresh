@@ -242,18 +242,28 @@ const ContactUs = () => {
                 </div>
               </div>
 
-              {/* Map Placeholder */}
-              <div className="bg-muted/50 border border-border rounded-2xl p-6 h-64 flex items-center justify-center">
-                <div className="text-center">
-                  <MapPin className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-                  <p className="text-muted-foreground">
-                    Ramgiri, Nagpur, Maharashtra
-                  </p>
-                  <p className="text-sm text-muted-foreground mt-2">
-                    Visit our farm by appointment
-                  </p>
-                </div>
+              {/* Google Map */}
+              <div className="rounded-2xl overflow-hidden border border-border h-64">
+                <iframe
+                  src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3720.9997!2d79.0882!3d21.1458!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x3bd4c0a5a31faf13%3A0x19b37d06d0bb3e2b!2sCalifornia%20Farms!5e0!3m2!1sen!2sin!4v1700000000000!5m2!1sen!2sin"
+                  width="100%"
+                  height="100%"
+                  style={{ border: 0 }}
+                  allowFullScreen
+                  loading="lazy"
+                  referrerPolicy="no-referrer-when-downgrade"
+                  title="California Farms Location"
+                />
               </div>
+              <a
+                href="https://maps.app.goo.gl/7yhfzXpd9DizTaNE7"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center justify-center gap-2 bg-card border border-border rounded-xl p-3 text-sm text-muted-foreground hover:text-foreground hover:border-primary/30 transition-colors"
+              >
+                <MapPin className="w-4 h-4" />
+                Open in Google Maps
+              </a>
             </div>
           </div>
         </div>

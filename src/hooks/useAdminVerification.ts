@@ -56,15 +56,23 @@ export const useAdminVerification = () => {
   }, [user, navigate]);
 
   useEffect(() => {
-    if (!authLoading) {
+    // Only run verification after auth state is fully loaded
+    if (authLoading) {
+      return;
+    }
+    
+    // Small delay to ensure auth state is stable after page reload
+    const timer = setTimeout(() => {
       if (!user) {
         setIsVerified(false);
         setIsVerifying(false);
-        navigate("/auth?type=admin");
+        navigate("/auth?type=admin", { replace: true });
       } else {
         verifyAdminRole();
       }
-    }
+    }, 100);
+
+    return () => clearTimeout(timer);
   }, [user, authLoading, verifyAdminRole, navigate]);
 
   return {

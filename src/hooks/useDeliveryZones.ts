@@ -18,6 +18,7 @@ export interface DeliveryCalculationResult {
   deliveryUnavailable: boolean;
   error?: string;
   coordinates?: { lat: number; lng: number };
+  ratePerKm?: number;
 }
 
 // Store address coordinates: 105, Gali no 3, Wakekar layout, Ambika nagar, Ayodhyanagar, Nagpur, 440024
@@ -27,8 +28,6 @@ const STORE_LOCATION = {
   pincode: "440024",
 };
 
-const RATE_PER_KM = 10; // ₹10 per km
-
 // In-memory cache for delivery calculations
 const deliveryCache = new Map<string, { result: DeliveryCalculationResult; timestamp: number }>();
 const CACHE_DURATION_MS = 30 * 60 * 1000; // 30 minutes
@@ -37,6 +36,7 @@ export const useDeliveryZones = () => {
   const [zones, setZones] = useState<DeliveryZone[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isCalculating, setIsCalculating] = useState(false);
+  const [ratePerKm, setRatePerKm] = useState(10);
   const pendingRequests = useRef<Map<string, Promise<DeliveryCalculationResult>>>(new Map());
 
   const fetchZones = async () => {
@@ -184,7 +184,13 @@ export const useDeliveryZones = () => {
           durationMinutes: data.durationMinutes,
           deliveryUnavailable: false,
           coordinates: data.coordinates,
+          ratePerKm: data.ratePerKm,
         };
+
+        // Update rate from server
+        if (data.ratePerKm) {
+          setRatePerKm(data.ratePerKm);
+        }
 
         // Cache successful result
         setCachedResult(cleanPincode, result);
@@ -218,7 +224,7 @@ export const useDeliveryZones = () => {
   };
 
   const getDeliveryCharge = (distanceKm: number): number => {
-    return distanceKm * RATE_PER_KM;
+    return distanceKm * ratePerKm;
   };
 
   const getZoneByPincode = (pincode: string): DeliveryZone | null => {
@@ -289,6 +295,6 @@ export const useDeliveryZones = () => {
     clearCache,
     refetch: fetchZones,
     storeLocation: STORE_LOCATION,
-    ratePerKm: RATE_PER_KM,
+    ratePerKm,
   };
 };

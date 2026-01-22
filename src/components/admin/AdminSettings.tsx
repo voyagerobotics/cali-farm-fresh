@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Settings, Eye, EyeOff, Save, Loader2, Package, Calendar, Clock, MapPin } from "lucide-react";
+import { Settings, Eye, EyeOff, Save, Loader2, Package, Calendar, Clock, MapPin, Truck, IndianRupee } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
@@ -36,6 +36,8 @@ const AdminSettings = () => {
   const [orderDays, setOrderDays] = useState<string[]>(settings.order_days);
   const [deliveryTimeSlot, setDeliveryTimeSlot] = useState(settings.delivery_time_slot);
   const [mapUrl, setMapUrl] = useState(settings.map_url || "");
+  const [freeDeliveryThreshold, setFreeDeliveryThreshold] = useState(settings.free_delivery_threshold);
+  const [deliveryRatePerKm, setDeliveryRatePerKm] = useState(settings.delivery_rate_per_km);
 
   // Sync local state when settings load
   useEffect(() => {
@@ -48,6 +50,8 @@ const AdminSettings = () => {
     setOrderDays(settings.order_days);
     setDeliveryTimeSlot(settings.delivery_time_slot);
     setMapUrl(settings.map_url || "");
+    setFreeDeliveryThreshold(settings.free_delivery_threshold);
+    setDeliveryRatePerKm(settings.delivery_rate_per_km);
   }, [settings]);
 
   const handleDayToggle = (day: string) => {
@@ -79,6 +83,8 @@ const AdminSettings = () => {
       order_days: orderDays,
       delivery_time_slot: deliveryTimeSlot,
       map_url: mapUrl || null,
+      free_delivery_threshold: freeDeliveryThreshold,
+      delivery_rate_per_km: deliveryRatePerKm,
     });
     setIsSaving(false);
     
@@ -345,32 +351,72 @@ const AdminSettings = () => {
         </CardContent>
       </Card>
 
-      {/* Delivery Info Card */}
+      {/* Delivery Configuration */}
       <Card>
         <CardHeader>
-          <CardTitle>Delivery Configuration</CardTitle>
+          <CardTitle className="flex items-center gap-2">
+            <Truck className="w-5 h-5" />
+            Delivery Configuration
+          </CardTitle>
           <CardDescription>
-            Current delivery charge settings
+            Configure delivery pricing and free delivery threshold
           </CardDescription>
         </CardHeader>
-        <CardContent>
-          <div className="p-4 rounded-lg border border-border bg-muted/30">
-            <div className="grid gap-4 md:grid-cols-2">
-              <div>
-                <p className="text-sm text-muted-foreground">Store Location</p>
-                <p className="font-medium">
-                  105, Gali no 3, Wakekar layout, Ambika nagar, Ayodhyanagar, Nagpur - 440024
-                </p>
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Delivery Rate</p>
-                <p className="font-medium text-primary">₹20 per km</p>
-              </div>
+        <CardContent className="space-y-6">
+          <div className="grid gap-4 md:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="free-threshold" className="flex items-center gap-2">
+                <IndianRupee className="w-4 h-4" />
+                Free Delivery Threshold (₹)
+              </Label>
+              <Input
+                id="free-threshold"
+                type="number"
+                value={freeDeliveryThreshold}
+                onChange={(e) => setFreeDeliveryThreshold(Number(e.target.value))}
+                placeholder="399"
+                min={0}
+              />
+              <p className="text-sm text-muted-foreground">
+                Orders above this amount get free delivery
+              </p>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="rate-per-km" className="flex items-center gap-2">
+                <Truck className="w-4 h-4" />
+                Delivery Rate (₹ per km)
+              </Label>
+              <Input
+                id="rate-per-km"
+                type="number"
+                value={deliveryRatePerKm}
+                onChange={(e) => setDeliveryRatePerKm(Number(e.target.value))}
+                placeholder="10"
+                min={0}
+              />
+              <p className="text-sm text-muted-foreground">
+                Charge per kilometer for delivery
+              </p>
             </div>
           </div>
-          <p className="text-sm text-muted-foreground mt-3">
-            Delivery charges are calculated based on distance from the store location to the customer's pincode.
-          </p>
+
+          <div className="p-4 rounded-lg border border-primary/20 bg-primary/5">
+            <div className="flex items-center gap-2 mb-2">
+              <Truck className="w-4 h-4 text-primary" />
+              <span className="font-medium text-primary">Current Settings Preview</span>
+            </div>
+            <ul className="text-sm space-y-1">
+              <li>• Free delivery for orders above <strong>₹{freeDeliveryThreshold}</strong></li>
+              <li>• Delivery charge: <strong>₹{deliveryRatePerKm}/km</strong> for orders below threshold</li>
+            </ul>
+          </div>
+
+          <div className="p-4 rounded-lg border border-border bg-muted/30">
+            <p className="text-sm text-muted-foreground mb-2">Store Location</p>
+            <p className="font-medium">
+              105, Gali no 3, Wakekar layout, Ambika nagar, Ayodhyanagar, Nagpur - 440024
+            </p>
+          </div>
         </CardContent>
       </Card>
 

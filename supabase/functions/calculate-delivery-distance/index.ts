@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -126,6 +127,21 @@ serve(async (req) => {
 
     console.log("Calculating delivery distance for pincode:", cleanPincode);
 
+    // Create Supabase client to fetch dynamic settings
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const supabase = createClient(supabaseUrl, supabaseKey);
+
+    // Fetch delivery rate from settings
+    const { data: settings } = await supabase
+      .from("site_settings")
+      .select("delivery_rate_per_km")
+      .eq("id", "default")
+      .single();
+
+    const RATE_PER_KM = settings?.delivery_rate_per_km || 10;
+    console.log("Using delivery rate:", RATE_PER_KM, "per km");
+
     // Step 1: Geocode the customer pincode
     const customerCoords = await geocodePincode(cleanPincode);
     
@@ -163,8 +179,7 @@ serve(async (req) => {
 
     console.log("Distance result:", distanceResult);
 
-    // Step 3: Calculate delivery charge (₹10 per km)
-    const RATE_PER_KM = 10;
+    // Step 3: Calculate delivery charge dynamically
     const distanceKm = Math.round(distanceResult.distanceKm * 10) / 10; // Round to 1 decimal
     const deliveryCharge = Math.round(distanceKm * RATE_PER_KM);
 
@@ -192,6 +207,7 @@ serve(async (req) => {
         distanceKm,
         durationMinutes: Math.round(distanceResult.durationMinutes),
         deliveryCharge: finalCharge,
+        ratePerKm: RATE_PER_KM,
         deliveryUnavailable: false,
         coordinates: customerCoords,
       }),

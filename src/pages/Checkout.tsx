@@ -13,6 +13,7 @@ import { useSiteSettings } from "@/hooks/useSiteSettings";
 import { usePageTracking, useActivityLogger } from "@/hooks/useAnalytics";
 import AddressManager from "@/components/AddressManager";
 import RazorpayPayment from "@/components/RazorpayPayment";
+import WeeklySubscriptionCheckbox from "@/components/WeeklySubscriptionCheckbox";
 
 const Checkout = () => {
   const navigate = useNavigate();
@@ -104,10 +105,13 @@ const Checkout = () => {
     } else {
       setDeliveryUnavailable(false);
       setDeliveryError(null);
-      setDeliveryCharge(result.deliveryCharge);
+      // Apply free delivery threshold
+      const freeThreshold = settings.free_delivery_threshold || 399;
+      const calculatedCharge = total >= freeThreshold ? 0 : result.deliveryCharge;
+      setDeliveryCharge(calculatedCharge);
       setDeliveryDistance(result.distanceKm);
     }
-  }, [calculateDeliveryDistance, clearCache]);
+  }, [calculateDeliveryDistance, clearCache, total, settings.free_delivery_threshold]);
 
   // Force recalculate delivery distance
   const handleRecalculateDistance = () => {
@@ -120,7 +124,7 @@ const Checkout = () => {
   useEffect(() => {
     const pincode = selectedAddress?.pincode || formData.pincode;
     calculateDelivery(pincode);
-  }, [selectedAddress, formData.pincode, calculateDelivery]);
+  }, [selectedAddress, formData.pincode, calculateDelivery, total]);
 
   // Check if today is an order day based on settings
   const isOrderDayAllowed = useCallback(() => {
@@ -582,6 +586,14 @@ const Checkout = () => {
                 className="w-full px-4 py-3 rounded-lg border border-input bg-background focus:outline-none focus:ring-2 focus:ring-primary/50 resize-none"
                 placeholder="Any special requests..."
               />
+              
+              {/* Weekly Subscription */}
+              <div className="mt-4 pt-4 border-t border-border">
+                <WeeklySubscriptionCheckbox 
+                  email={user?.email} 
+                  phone={selectedAddress?.phone || formData.phone}
+                />
+              </div>
             </div>
 
             {/* Payment Method */}
@@ -675,7 +687,17 @@ const Checkout = () => {
               )}
               {!deliveryUnavailable && deliveryCharge > 0 && !isCalculating && (
                 <p className="text-xs text-muted-foreground">
-                  ₹{ratePerKm}/km from our farm • {deliveryDistance} km to your location
+                  ₹{settings.delivery_rate_per_km || 10}/km from our farm • {deliveryDistance.toFixed(1)} km to your location
+                </p>
+              )}
+              {!deliveryUnavailable && deliveryCharge === 0 && total >= (settings.free_delivery_threshold || 399) && !isCalculating && (
+                <p className="text-xs text-primary font-medium">
+                  🎉 Free delivery on orders above ₹{settings.free_delivery_threshold || 399}!
+                </p>
+              )}
+              {!deliveryUnavailable && total < (settings.free_delivery_threshold || 399) && !isCalculating && deliveryCharge > 0 && (
+                <p className="text-xs text-primary font-medium">
+                  Add ₹{((settings.free_delivery_threshold || 399) - total).toFixed(0)} more for FREE delivery!
                 </p>
               )}
               <div className="flex justify-between font-bold text-lg pt-2 border-t border-border">

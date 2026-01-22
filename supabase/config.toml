@@ -29,3 +29,6 @@ verify_jwt = false
 
 [functions.send-order-status-update]
 verify_jwt = false
+
+[functions.send-weekly-reminder]
+verify_jwt = false

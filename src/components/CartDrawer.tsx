@@ -119,6 +119,11 @@ const CartDrawer = ({ isOpen, onClose }: CartDrawerProps) => {
                 <p className="text-xs text-muted-foreground">
                   Delivery: {settings?.delivery_time_slot || "12:00 PM - 3:00 PM"} • Within 3 hours
                 </p>
+                {total < (settings?.free_delivery_threshold || 399) && (
+                  <p className="text-xs text-primary font-medium mt-1">
+                    Add ₹{(settings?.free_delivery_threshold || 399) - total} more for FREE delivery!
+                  </p>
+                )}
               </div>
             </div>
           </div>

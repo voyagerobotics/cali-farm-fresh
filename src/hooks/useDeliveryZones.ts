@@ -27,7 +27,7 @@ const STORE_LOCATION = {
   pincode: "440024",
 };
 
-const RATE_PER_KM = 20; // ₹20 per km
+const RATE_PER_KM = 10; // ₹10 per km
 
 // In-memory cache for delivery calculations
 const deliveryCache = new Map<string, { result: DeliveryCalculationResult; timestamp: number }>();

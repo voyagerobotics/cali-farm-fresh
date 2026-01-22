@@ -163,8 +163,8 @@ serve(async (req) => {
 
     console.log("Distance result:", distanceResult);
 
-    // Step 3: Calculate delivery charge (₹20 per km)
-    const RATE_PER_KM = 20;
+    // Step 3: Calculate delivery charge (₹10 per km)
+    const RATE_PER_KM = 10;
     const distanceKm = Math.round(distanceResult.distanceKm * 10) / 10; // Round to 1 decimal
     const deliveryCharge = Math.round(distanceKm * RATE_PER_KM);
 

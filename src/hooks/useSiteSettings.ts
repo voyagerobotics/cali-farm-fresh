@@ -12,6 +12,8 @@ export interface SiteSettings {
   order_days: string[];
   delivery_time_slot: string;
   map_url: string | null;
+  free_delivery_threshold: number;
+  delivery_rate_per_km: number;
 }
 
 export const useSiteSettings = () => {
@@ -26,6 +28,8 @@ const [settings, setSettings] = useState<SiteSettings>({
     order_days: ['tuesday', 'friday'],
     delivery_time_slot: '12:00 PM - 3:00 PM',
     map_url: 'https://maps.app.goo.gl/7yhfzXpd9DizTaNE7',
+    free_delivery_threshold: 399,
+    delivery_rate_per_km: 10,
   });
   const [isLoading, setIsLoading] = useState(true);
 
@@ -50,6 +54,8 @@ const [settings, setSettings] = useState<SiteSettings>({
           order_days: data.order_days,
           delivery_time_slot: data.delivery_time_slot,
           map_url: data.map_url,
+          free_delivery_threshold: data.free_delivery_threshold ?? 399,
+          delivery_rate_per_km: data.delivery_rate_per_km ?? 10,
         });
       }
     } catch (error) {

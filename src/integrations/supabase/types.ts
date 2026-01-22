@@ -116,6 +116,45 @@ export type Database = {
         }
         Relationships: []
       }
+      offline_customers: {
+        Row: {
+          address: string | null
+          created_at: string
+          created_by: string | null
+          email: string | null
+          full_name: string
+          id: string
+          notes: string | null
+          phone: string
+          pincode: string | null
+          updated_at: string
+        }
+        Insert: {
+          address?: string | null
+          created_at?: string
+          created_by?: string | null
+          email?: string | null
+          full_name: string
+          id?: string
+          notes?: string | null
+          phone: string
+          pincode?: string | null
+          updated_at?: string
+        }
+        Update: {
+          address?: string | null
+          created_at?: string
+          created_by?: string | null
+          email?: string | null
+          full_name?: string
+          id?: string
+          notes?: string | null
+          phone?: string
+          pincode?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       order_items: {
         Row: {
           created_at: string
@@ -513,7 +552,9 @@ export type Database = {
       site_settings: {
         Row: {
           created_at: string
+          delivery_rate_per_km: number | null
           delivery_time_slot: string
+          free_delivery_threshold: number | null
           id: string
           map_url: string | null
           order_days: string[]
@@ -528,7 +569,9 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          delivery_rate_per_km?: number | null
           delivery_time_slot?: string
+          free_delivery_threshold?: number | null
           id?: string
           map_url?: string | null
           order_days?: string[]
@@ -543,7 +586,9 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          delivery_rate_per_km?: number | null
           delivery_time_slot?: string
+          free_delivery_threshold?: number | null
           id?: string
           map_url?: string | null
           order_days?: string[]
@@ -802,6 +847,36 @@ export type Database = {
           id?: string
           role?: Database["public"]["Enums"]["app_role"]
           user_id?: string
+        }
+        Relationships: []
+      }
+      weekly_subscriptions: {
+        Row: {
+          created_at: string
+          email: string
+          id: string
+          is_active: boolean
+          phone: string | null
+          updated_at: string
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          email: string
+          id?: string
+          is_active?: boolean
+          phone?: string | null
+          updated_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          email?: string
+          id?: string
+          is_active?: boolean
+          phone?: string | null
+          updated_at?: string
+          user_id?: string | null
         }
         Relationships: []
       }

@@ -1,3 +1,9 @@
+declare global {
+  interface Window {
+    gtag?: (...args: any[]) => void;
+  }
+}
+
 import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft, CreditCard, AlertCircle, MapPin, Truck, CheckCircle, Loader2, RefreshCw } from "lucide-react";
@@ -383,6 +389,20 @@ const Checkout = () => {
       }
 
       clearCart();
+
+      // Google Ads conversion tracking
+      if (typeof window.gtag === 'function') {
+        window.gtag('event', 'purchase', {
+          transaction_id: pendingOrderNumber,
+          value: grandTotal,
+          currency: 'INR',
+          items: items.map((item) => ({
+            item_name: item.name,
+            quantity: item.quantity,
+            price: item.price,
+          })),
+        });
+      }
       
       toast({
         title: "Order Confirmed!",

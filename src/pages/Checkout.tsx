@@ -249,56 +249,30 @@ const Checkout = () => {
       return;
     }
 
-    // Generate order number for reference
-    const { data: orderNumber } = await supabase.rpc("generate_order_number");
-    setPendingOrderNumber(orderNumber);
-
-    // Store pending order data
-    setPendingOrderData({
-      user_id: user.id,
-      order_number: orderNumber,
-      payment_method: paymentMethod,
-      subtotal: total,
-      delivery_charge: deliveryCharge,
-      total: grandTotal,
-      delivery_address: `${addressData.address}, ${addressData.pincode}`,
-      delivery_phone: addressData.phone,
-      delivery_name: addressData.full_name,
-      notes: formData.notes,
-      order_date: getOrderDate().toISOString().split("T")[0],
-    });
-
-    // Show Razorpay payment
-    setShowRazorpay(true);
-  };
-
-  const handlePaymentSuccess = (paymentId: string) => {
-    setShowRazorpay(false);
-    placeOrder(paymentId);
-  };
-
-  const handlePaymentFailure = (error: string) => {
-    setShowRazorpay(false);
-    toast({
-      title: "Payment Failed",
-      description: error,
-      variant: "destructive",
-    });
-  };
-
-  const placeOrder = async (paymentId: string | null) => {
     setIsSubmitting(true);
 
     try {
+      // Generate order number
+      const { data: orderNumber } = await supabase.rpc("generate_order_number");
+      setPendingOrderNumber(orderNumber);
+
       const orderData = {
-        ...pendingOrderData,
-        upi_reference: paymentId,
-        payment_status: paymentId ? "paid" : "pending",
-        status: paymentId ? "confirmed" : "pending",
-        payment_verified_at: paymentId ? new Date().toISOString() : null,
+        user_id: user.id,
+        order_number: orderNumber,
+        payment_method: paymentMethod as "online",
+        subtotal: total,
+        delivery_charge: deliveryCharge,
+        total: grandTotal,
+        delivery_address: `${addressData.address}, ${addressData.pincode}`,
+        delivery_phone: addressData.phone,
+        delivery_name: addressData.full_name,
+        notes: formData.notes,
+        order_date: getOrderDate().toISOString().split("T")[0],
+        payment_status: "pending" as const,
+        status: "pending" as const,
       };
 
-      // Create order
+      // Create order in DB BEFORE payment (pending status)
       const { data: order, error: orderError } = await supabase
         .from("orders")
         .insert([orderData])
@@ -326,7 +300,7 @@ const Checkout = () => {
       // Save address if not already saved
       if (!selectedAddress && formData.name && formData.address) {
         await supabase.from("user_addresses").insert({
-          user_id: user!.id,
+          user_id: user.id,
           label: "Home",
           full_name: formData.name,
           phone: formData.phone,
@@ -336,6 +310,43 @@ const Checkout = () => {
           is_default: addresses.length === 0,
         });
       }
+
+      // Store pending order data for post-payment processing
+      setPendingOrderData({
+        orderId: order.id,
+        orderNumber: orderNumber,
+      });
+
+      // Now open Razorpay payment
+      setShowRazorpay(true);
+    } catch (error: any) {
+      toast({
+        title: "Order Failed",
+        description: error.message || "Something went wrong. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handlePaymentSuccess = async (paymentId: string) => {
+    setShowRazorpay(false);
+    setIsSubmitting(true);
+
+    try {
+      // Update the existing pending order to confirmed/paid
+      const { error: updateError } = await supabase
+        .from("orders")
+        .update({
+          payment_status: "paid",
+          status: "confirmed",
+          upi_reference: paymentId,
+          payment_verified_at: new Date().toISOString(),
+        })
+        .eq("id", pendingOrderData.orderId);
+
+      if (updateError) throw updateError;
 
       // Send order confirmation email
       const customerName = selectedAddress?.full_name || formData.name;
@@ -349,7 +360,7 @@ const Checkout = () => {
         await supabase.functions.invoke("send-order-confirmation", {
           body: {
             email: user?.email,
-            orderNumber: pendingOrderNumber,
+            orderNumber: pendingOrderData.orderNumber,
             customerName: customerName,
             customerPhone: selectedAddress?.phone || formData.phone,
             items: items.map((item) => ({
@@ -361,14 +372,13 @@ const Checkout = () => {
             subtotal: total,
             deliveryCharge: deliveryCharge,
             total: grandTotal,
-            deliveryAddress: pendingOrderData.delivery_address,
+            deliveryAddress: `${(selectedAddress?.address || formData.address)}, ${(selectedAddress?.pincode || formData.pincode)}`,
             deliveryDate: deliveryDate,
           },
         });
         console.log("Order confirmation email sent to customer and admin");
       } catch (emailError) {
         console.error("Failed to send order confirmation email:", emailError);
-        // Don't fail the order if email fails
       }
 
       // Track order placed
@@ -377,7 +387,7 @@ const Checkout = () => {
           user_id: user?.id || null,
           action_type: "order_placed",
           action_details: JSON.parse(JSON.stringify({
-            order_number: pendingOrderNumber,
+            order_number: pendingOrderData.orderNumber,
             order_total: grandTotal,
             item_count: items.length,
             payment_method: "online",
@@ -393,7 +403,7 @@ const Checkout = () => {
       // Google Ads conversion tracking
       if (typeof window.gtag === 'function') {
         window.gtag('event', 'purchase', {
-          transaction_id: pendingOrderNumber,
+          transaction_id: pendingOrderData.orderNumber,
           value: grandTotal,
           currency: 'INR',
           items: items.map((item) => ({
@@ -403,22 +413,34 @@ const Checkout = () => {
           })),
         });
       }
-      
+
       toast({
         title: "Order Confirmed!",
-        description: `Order #${pendingOrderNumber} is confirmed. Delivery on ${deliveryDate}`,
+        description: `Order #${pendingOrderData.orderNumber} is confirmed. Delivery on ${deliveryDate}`,
       });
 
       navigate("/orders");
     } catch (error: any) {
       toast({
-        title: "Order Failed",
-        description: error.message || "Something went wrong. Please try again.",
+        title: "Payment received but order update failed",
+        description: "Your payment was successful. Please contact support with your payment ID: " + paymentId,
         variant: "destructive",
       });
+      navigate("/orders");
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const handlePaymentFailure = (error: string) => {
+    setShowRazorpay(false);
+    // Order stays as pending in DB - admin can see it and customer can retry
+    toast({
+      title: "Payment Failed",
+      description: `${error}. Your order #${pendingOrderData?.orderNumber} is saved. You can retry payment from your orders page.`,
+      variant: "destructive",
+    });
+    navigate("/orders");
   };
 
   // Show loading state while checking auth
@@ -470,7 +492,15 @@ const Checkout = () => {
           customerPhone={selectedAddress?.phone || formData.phone}
           onPaymentSuccess={handlePaymentSuccess}
           onPaymentFailure={handlePaymentFailure}
-          onCancel={() => setShowRazorpay(false)}
+          onCancel={() => {
+            setShowRazorpay(false);
+            // Order is already saved as pending in DB
+            toast({
+              title: "Payment Cancelled",
+              description: `Your order #${pendingOrderData?.orderNumber} is saved. You can complete payment later.`,
+            });
+            navigate("/orders");
+          }}
         />
       )}
 

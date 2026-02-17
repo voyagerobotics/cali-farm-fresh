@@ -55,7 +55,7 @@ serve(async (req) => {
       );
     }
 
-    // Update order payment status if order_number provided
+    // Update order payment status if order_number provided (server-side backup)
     if (order_number) {
       const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
       const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -65,6 +65,7 @@ serve(async (req) => {
         .from("orders")
         .update({
           payment_status: "paid",
+          status: "confirmed",
           upi_reference: razorpay_payment_id,
           payment_verified_at: new Date().toISOString(),
         })

@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Clock, CheckCircle, Truck, Package, XCircle, ChevronDown, ChevronUp, CreditCard, Banknote, RefreshCw } from "lucide-react";
+import { useState, useMemo } from "react";
+import { Clock, CheckCircle, Truck, Package, XCircle, ChevronDown, ChevronUp, CreditCard, Banknote, RefreshCw, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Order, useOrders } from "@/hooks/useOrders";
 
@@ -45,6 +45,17 @@ const AdminOrders = () => {
     cancelled: orders.filter(o => o.status === "cancelled").length,
   };
 
+  // Stale pending payment orders (older than 30 minutes)
+  const stalePendingOrders = useMemo(() => {
+    const thirtyMinutesAgo = new Date(Date.now() - 30 * 60 * 1000);
+    return orders.filter(
+      (o) =>
+        o.payment_status === "pending" &&
+        o.status === "pending" &&
+        new Date(o.created_at) < thirtyMinutesAgo
+    );
+  }, [orders]);
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -52,9 +63,38 @@ const AdminOrders = () => {
       </div>
     );
   }
-
   return (
     <div className="space-y-6">
+      {/* Stale Pending Payment Alert */}
+      {stalePendingOrders.length > 0 && (
+        <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-xl p-4 flex items-start gap-3">
+          <AlertTriangle className="w-5 h-5 text-yellow-600 flex-shrink-0 mt-0.5" />
+          <div>
+            <p className="font-semibold text-yellow-700">
+              {stalePendingOrders.length} order{stalePendingOrders.length > 1 ? "s" : ""} with pending payment for 30+ minutes
+            </p>
+            <p className="text-sm text-yellow-600 mt-1">
+              These orders were created but payment was not completed. Review and verify or cancel them.
+            </p>
+            <div className="mt-2 space-y-1">
+              {stalePendingOrders.map((o) => (
+                <div key={o.id} className="text-sm text-yellow-700 flex items-center gap-2">
+                  <span className="font-mono font-medium">#{o.order_number}</span>
+                  <span>•</span>
+                  <span>{o.delivery_name}</span>
+                  <span>•</span>
+                  <span>₹{o.total}</span>
+                  <span>•</span>
+                  <span className="text-yellow-600">
+                    {Math.round((Date.now() - new Date(o.created_at).getTime()) / 60000)} min ago
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Header with Refresh Button */}
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-semibold">Orders ({orders.length})</h2>

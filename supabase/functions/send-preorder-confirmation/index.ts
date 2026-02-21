@@ -32,6 +32,9 @@ interface PreOrderConfirmationRequest {
   paymentStatus: string;
   razorpayPaymentId?: string;
   notes?: string;
+  deliveryAddress?: string;
+  deliveryCharge?: number;
+  deliveryDistance?: number;
 }
 
 const ADMIN_EMAILS = ["californiafarmsmail@gmail.com", "shradhatakalkhede15@gmail.com"];
@@ -78,6 +81,9 @@ const handler = async (req: Request): Promise<Response> => {
       paymentStatus,
       razorpayPaymentId,
       notes,
+      deliveryAddress,
+      deliveryCharge,
+      deliveryDistance,
     }: PreOrderConfirmationRequest = await req.json();
 
     if (!email || !productName) {
@@ -135,6 +141,8 @@ const handler = async (req: Request): Promise<Response> => {
             <div class="info-box">
               <p><strong>Pre-Order ID:</strong> ${escapeHtml(preOrderId)}</p>
               <p><strong>Date:</strong> ${orderDate}</p>
+              ${deliveryAddress ? `<p><strong>Delivery Address:</strong> ${escapeHtml(deliveryAddress)}</p>` : ''}
+              ${deliveryDistance ? `<p><strong>Distance:</strong> ${escapeHtml(deliveryDistance?.toFixed(1))} km</p>` : ''}
             </div>
             
             <h3 style="color: #2d5a3d;">📦 Pre-Order Invoice</h3>
@@ -157,6 +165,18 @@ const handler = async (req: Request): Promise<Response> => {
               </tbody>
             </table>
             
+            ${(deliveryCharge != null && deliveryCharge > 0) ? `
+            <div style="display: flex; justify-content: space-between; padding: 8px 0; font-size: 14px; color: #666;">
+              <span>Delivery Charge</span>
+              <span>₹${escapeHtml(deliveryCharge)}</span>
+            </div>
+            ` : (deliveryAddress ? `
+            <div style="display: flex; justify-content: space-between; padding: 8px 0; font-size: 14px; color: #16a34a;">
+              <span>Delivery</span>
+              <span>🎉 Free</span>
+            </div>
+            ` : '')}
+
             <div class="total-row">
               <span>Total Amount</span>
               <span>₹${escapeHtml(totalAmount)}</span>
@@ -244,6 +264,9 @@ const handler = async (req: Request): Promise<Response> => {
               <p><strong>Quantity:</strong> ${escapeHtml(quantity)} ${escapeHtml(unit)}</p>
               <p><strong>Rate:</strong> ₹${escapeHtml(pricePerUnit)}/${escapeHtml(unit)}</p>
               <p><strong>Total:</strong> ₹${escapeHtml(totalAmount)}</p>
+              ${deliveryAddress ? `<p><strong>Delivery Address:</strong> ${escapeHtml(deliveryAddress)}</p>` : ''}
+              ${deliveryCharge != null ? `<p><strong>Delivery Charge:</strong> ${deliveryCharge > 0 ? '₹' + escapeHtml(deliveryCharge) : '🎉 Free'}</p>` : ''}
+              ${deliveryDistance ? `<p><strong>Distance:</strong> ${escapeHtml(deliveryDistance?.toFixed(1))} km</p>` : ''}
               <p><strong>Payment:</strong> ${isPaid ? `✅ Paid (${escapeHtml(razorpayPaymentId)})` : '⏳ Pending (pay later)'}</p>
               ${notes ? `<p><strong>Notes:</strong> ${escapeHtml(notes)}</p>` : ''}
               <p><strong>Date:</strong> ${orderDate}</p>

@@ -54,6 +54,10 @@ export const usePreOrders = (isAdmin: boolean = false) => {
     payment_status?: string;
     payment_amount?: number;
     razorpay_payment_id?: string;
+    delivery_address?: string;
+    delivery_pincode?: string;
+    delivery_charge?: number;
+    delivery_distance_km?: number;
   }) => {
     if (!user) {
       toast({ title: "Please login", description: "You need to be logged in to pre-order.", variant: "destructive" });

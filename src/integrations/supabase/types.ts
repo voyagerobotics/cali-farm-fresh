@@ -413,6 +413,10 @@ export type Database = {
           customer_email: string | null
           customer_name: string
           customer_phone: string
+          delivery_address: string | null
+          delivery_charge: number | null
+          delivery_distance_km: number | null
+          delivery_pincode: string | null
           id: string
           notes: string | null
           payment_amount: number | null
@@ -430,6 +434,10 @@ export type Database = {
           customer_email?: string | null
           customer_name: string
           customer_phone: string
+          delivery_address?: string | null
+          delivery_charge?: number | null
+          delivery_distance_km?: number | null
+          delivery_pincode?: string | null
           id?: string
           notes?: string | null
           payment_amount?: number | null
@@ -447,6 +455,10 @@ export type Database = {
           customer_email?: string | null
           customer_name?: string
           customer_phone?: string
+          delivery_address?: string | null
+          delivery_charge?: number | null
+          delivery_distance_km?: number | null
+          delivery_pincode?: string | null
           id?: string
           notes?: string | null
           payment_amount?: number | null

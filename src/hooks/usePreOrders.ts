@@ -17,6 +17,10 @@ export interface PreOrder {
   payment_status: string;
   payment_amount: number;
   razorpay_payment_id: string | null;
+  delivery_address: string | null;
+  delivery_pincode: string | null;
+  delivery_charge: number | null;
+  delivery_distance_km: number | null;
   created_at: string;
   updated_at: string;
 }

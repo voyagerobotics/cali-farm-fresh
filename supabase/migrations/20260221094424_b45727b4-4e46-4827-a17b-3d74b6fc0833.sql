@@ -1,0 +1,1 @@
+ALTER TABLE public.promotional_banners ADD COLUMN unit text DEFAULT 'kg';

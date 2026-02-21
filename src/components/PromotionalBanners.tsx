@@ -139,6 +139,7 @@ const PromotionalBanners = () => {
           bannerId={selectedBanner.id}
           paymentRequired={selectedBanner.payment_required}
           pricePerUnit={selectedBanner.price_per_unit || 0}
+          unit={selectedBanner.unit || "kg"}
         />
       )}
     </>

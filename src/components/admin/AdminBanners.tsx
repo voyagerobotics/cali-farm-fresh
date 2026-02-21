@@ -17,7 +17,7 @@ import { supabase } from "@/integrations/supabase/client";
 
 const AdminBanners = () => {
   const { banners, isLoading, createBanner, updateBanner, deleteBanner } = usePromotionalBanners(false);
-  const { preOrders, isLoading: preOrdersLoading, updatePreOrderStatus } = usePreOrders(true);
+  const { preOrders, isLoading: preOrdersLoading, updatePreOrderStatus, deletePreOrder } = usePreOrders(true);
   const { uploadImage, isUploading } = useImageUpload();
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -309,6 +309,17 @@ const AdminBanners = () => {
                         <SelectItem value="cancelled">Cancelled</SelectItem>
                       </SelectContent>
                     </Select>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => {
+                        if (window.confirm(`Delete pre-order from ${po.customer_name}?`)) {
+                          deletePreOrder(po.id);
+                        }
+                      }}
+                    >
+                      <Trash2 className="w-4 h-4 text-destructive" />
+                    </Button>
                   </div>
                 </div>
               ))}

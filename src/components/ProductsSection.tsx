@@ -7,6 +7,17 @@ import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { ProductVariant, calculateDiscountedPrice } from "@/hooks/useProductVariants";
+
+// Helper to get effective price considering discounts
+const getEffectivePrice = (product: Product): number => {
+  const { finalPrice } = calculateDiscountedPrice(
+    product.price,
+    product.discount_type,
+    product.discount_value,
+    product.discount_enabled
+  );
+  return finalPrice;
+};
 import { useSiteSettings } from "@/hooks/useSiteSettings";
 
 import CategorySidebar from "./products/CategorySidebar";
@@ -50,14 +61,19 @@ const ProductsSection = () => {
       filtered = filtered.filter((p) => p.category === selectedCategory);
     }
 
+    // Filter by subcategory
+    if (selectedSubcategory) {
+      filtered = filtered.filter((p) => p.subcategory === selectedSubcategory);
+    }
+
     // Sort products
     const sorted = [...filtered];
     switch (sortBy) {
       case "price-low":
-        sorted.sort((a, b) => a.price - b.price);
+        sorted.sort((a, b) => getEffectivePrice(a) - getEffectivePrice(b));
         break;
       case "price-high":
-        sorted.sort((a, b) => b.price - a.price);
+        sorted.sort((a, b) => getEffectivePrice(b) - getEffectivePrice(a));
         break;
       case "name-asc":
         sorted.sort((a, b) => a.name.localeCompare(b.name));

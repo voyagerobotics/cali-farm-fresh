@@ -24,6 +24,7 @@ const AdminBanners = () => {
   const [editBanner, setEditBanner] = useState<PromotionalBanner | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [notifyingProduct, setNotifyingProduct] = useState<string | null>(null);
+  const [queueFilter, setQueueFilter] = useState("all");
   const [form, setForm] = useState({
     title: "",
     subtitle: "",
@@ -132,6 +133,15 @@ const AdminBanners = () => {
     }
   });
 
+  // FIFO queue: sort by created_at ascending (first booked = first in queue)
+  const sortedQueue = [...preOrders]
+    .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
+    .map((po, idx) => ({ ...po, queuePosition: idx + 1 }));
+
+  const filteredQueue = queueFilter === "all"
+    ? sortedQueue
+    : sortedQueue.filter(po => po.status === queueFilter);
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -213,52 +223,76 @@ const AdminBanners = () => {
         )}
       </div>
 
-      {/* Pre-Orders Section */}
+      {/* Pre-Orders Delivery Queue */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <ShoppingBag className="w-5 h-5" />
-            Pre-Orders ({preOrders.length})
-          </CardTitle>
-          <CardDescription>Customer pre-orders from promotional banners</CardDescription>
+          <div className="flex items-center justify-between flex-wrap gap-3">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                <ShoppingBag className="w-5 h-5" />
+                Delivery Queue ({preOrders.length})
+              </CardTitle>
+              <CardDescription>First come, first served — deliver in queue order</CardDescription>
+            </div>
+            <Select
+              value={queueFilter}
+              onValueChange={(val) => setQueueFilter(val)}
+            >
+              <SelectTrigger className="w-[160px]">
+                <SelectValue placeholder="Filter status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Orders</SelectItem>
+                <SelectItem value="pending">Pending</SelectItem>
+                <SelectItem value="confirmed">Confirmed</SelectItem>
+                <SelectItem value="fulfilled">Fulfilled</SelectItem>
+                <SelectItem value="cancelled">Cancelled</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </CardHeader>
         <CardContent>
           {preOrdersLoading ? (
             <div className="flex justify-center py-4">
               <Loader2 className="w-6 h-6 animate-spin" />
             </div>
-          ) : preOrders.length === 0 ? (
-            <p className="text-center text-muted-foreground py-4">No pre-orders yet.</p>
+          ) : filteredQueue.length === 0 ? (
+            <p className="text-center text-muted-foreground py-4">No pre-orders found.</p>
           ) : (
             <div className="space-y-3">
-              {preOrders.map((po: PreOrder) => (
+              {filteredQueue.map((po: PreOrder & { queuePosition: number }) => (
                 <div key={po.id} className="flex items-center justify-between p-3 rounded-lg border bg-muted/20 flex-wrap gap-3">
-                  <div>
-                    <p className="font-medium">{po.customer_name}</p>
-                    <p className="text-sm text-muted-foreground">
-                      {po.product_name} × {po.quantity} • {po.customer_phone}
-                    </p>
-                    <div className="flex gap-2 mt-1">
-                      {po.payment_status !== "not_required" && (
-                        <Badge variant="outline" className="text-xs">
-                          Payment: {po.payment_status === "paid" ? "✅ Paid" : "⏳ " + po.payment_status}
-                          {po.payment_amount > 0 && ` (₹${po.payment_amount})`}
-                        </Badge>
-                      )}
+                  <div className="flex items-start gap-3">
+                    <div className="flex-shrink-0 w-8 h-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-sm font-bold">
+                      {po.queuePosition}
                     </div>
-                    {po.delivery_address && (
-                      <p className="text-xs text-muted-foreground mt-1">
-                        📍 {po.delivery_address}{po.delivery_pincode ? ` - ${po.delivery_pincode}` : ''}
-                        {po.delivery_charge != null && po.delivery_charge > 0
-                          ? ` • Delivery: ₹${po.delivery_charge}`
-                          : ' • Free Delivery'}
-                        {po.delivery_distance_km != null && po.delivery_distance_km > 0 && ` (${po.delivery_distance_km} km)`}
+                    <div>
+                      <p className="font-medium">{po.customer_name}</p>
+                      <p className="text-sm text-muted-foreground">
+                        {po.product_name} × {po.quantity} • {po.customer_phone}
                       </p>
-                    )}
-                    {po.notes && <p className="text-xs text-muted-foreground mt-1">Note: {po.notes}</p>}
-                    <p className="text-xs text-muted-foreground">
-                      {new Date(po.created_at).toLocaleDateString("en-IN", { dateStyle: "medium" })}
-                    </p>
+                      <div className="flex gap-2 mt-1">
+                        {po.payment_status !== "not_required" && (
+                          <Badge variant="outline" className="text-xs">
+                            Payment: {po.payment_status === "paid" ? "✅ Paid" : "⏳ " + po.payment_status}
+                            {po.payment_amount > 0 && ` (₹${po.payment_amount})`}
+                          </Badge>
+                        )}
+                      </div>
+                      {po.delivery_address && (
+                        <p className="text-xs text-muted-foreground mt-1">
+                          📍 {po.delivery_address}{po.delivery_pincode ? ` - ${po.delivery_pincode}` : ''}
+                          {po.delivery_charge != null && po.delivery_charge > 0
+                            ? ` • Delivery: ₹${po.delivery_charge}`
+                            : ' • Free Delivery'}
+                          {po.delivery_distance_km != null && po.delivery_distance_km > 0 && ` (${po.delivery_distance_km} km)`}
+                        </p>
+                      )}
+                      {po.notes && <p className="text-xs text-muted-foreground mt-1">Note: {po.notes}</p>}
+                      <p className="text-xs text-muted-foreground">
+                        🕐 {new Date(po.created_at).toLocaleDateString("en-IN", { dateStyle: "medium" })} {new Date(po.created_at).toLocaleTimeString("en-IN", { timeStyle: "short" })}
+                      </p>
+                    </div>
                   </div>
                   <div className="flex items-center gap-2">
                     <Select

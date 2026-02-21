@@ -17,9 +17,10 @@ interface PreOrderDialogProps {
   bannerId?: string;
   paymentRequired?: boolean;
   pricePerUnit?: number;
+  unit?: string;
 }
 
-const PreOrderDialog = ({ open, onOpenChange, productName, bannerId, paymentRequired = false, pricePerUnit = 0 }: PreOrderDialogProps) => {
+const PreOrderDialog = ({ open, onOpenChange, productName, bannerId, paymentRequired = false, pricePerUnit = 0, unit = "kg" }: PreOrderDialogProps) => {
   const { user } = useAuth();
   const { createPreOrder } = usePreOrders();
   const navigate = useNavigate();
@@ -158,7 +159,7 @@ const PreOrderDialog = ({ open, onOpenChange, productName, bannerId, paymentRequ
                   <span className="font-medium text-sm">Payment Required</span>
                 </div>
                 <p className="text-sm text-muted-foreground">
-                  ₹{pricePerUnit} × {form.quantity} = <span className="font-bold text-foreground">₹{totalAmount}</span>
+                  ₹{pricePerUnit}/{unit} × {form.quantity} = <span className="font-bold text-foreground">₹{totalAmount}</span>
                 </p>
               </div>
             )}

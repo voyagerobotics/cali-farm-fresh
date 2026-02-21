@@ -20,6 +20,7 @@ export interface PromotionalBanner {
   end_date: string | null;
   payment_required: boolean;
   price_per_unit: number;
+  unit: string;
   created_at: string;
   updated_at: string;
 }

@@ -37,6 +37,7 @@ const AdminBanners = () => {
     is_active: true,
     payment_required: false,
     price_per_unit: 0,
+    unit: "kg",
   });
 
   const resetForm = () => {
@@ -46,6 +47,7 @@ const AdminBanners = () => {
       background_color: "#FEF3C7", text_color: "#92400E", is_active: true,
       payment_required: false,
       price_per_unit: 0,
+      unit: "kg",
     });
     setEditBanner(null);
     setShowForm(false);
@@ -66,6 +68,7 @@ const AdminBanners = () => {
       is_active: banner.is_active,
       payment_required: banner.payment_required || false,
       price_per_unit: (banner as any).price_per_unit || 0,
+      unit: (banner as any).unit || "kg",
     });
     setShowForm(true);
   };
@@ -344,15 +347,35 @@ const AdminBanners = () => {
               <Switch checked={form.payment_required} onCheckedChange={(v) => setForm(f => ({ ...f, payment_required: v }))} />
               </div>
               {form.payment_required && (
-                <div className="space-y-2">
-                  <Label className="text-sm">Price per Unit (₹)</Label>
-                  <Input
-                    type="number"
-                    min={0}
-                    value={form.price_per_unit}
-                    onChange={(e) => setForm(f => ({ ...f, price_per_unit: Number(e.target.value) }))}
-                    placeholder="e.g. 250"
-                  />
+                <div className="grid gap-3 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label className="text-sm">Price per Unit (₹)</Label>
+                    <Input
+                      type="number"
+                      min={0}
+                      value={form.price_per_unit}
+                      onChange={(e) => setForm(f => ({ ...f, price_per_unit: Number(e.target.value) }))}
+                      placeholder="e.g. 250"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-sm">Unit</Label>
+                    <select
+                      className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                      value={form.unit}
+                      onChange={(e) => setForm(f => ({ ...f, unit: e.target.value }))}
+                    >
+                      <option value="kg">per kg</option>
+                      <option value="piece">per piece</option>
+                      <option value="bunch">per bunch</option>
+                      <option value="dozen">per dozen</option>
+                      <option value="250g">per 250g</option>
+                      <option value="500g">per 500g</option>
+                      <option value="100 flowers">per 100 flowers</option>
+                      <option value="litre">per litre</option>
+                      <option value="packet">per packet</option>
+                    </select>
+                  </div>
                 </div>
               )}
             </div>

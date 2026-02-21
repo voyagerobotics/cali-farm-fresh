@@ -34,7 +34,7 @@ interface PreOrderConfirmationRequest {
   notes?: string;
 }
 
-const ADMIN_EMAIL = "californiafarmsmail@gmail.com";
+const ADMIN_EMAILS = ["californiafarmsmail@gmail.com", "shradhatakalkhede15@gmail.com"];
 
 const handler = async (req: Request): Promise<Response> => {
   if (req.method === "OPTIONS") {
@@ -277,12 +277,12 @@ const handler = async (req: Request): Promise<Response> => {
       console.error("[PRE-ORDER] Customer email failed:", err.message);
     }
 
-    console.log(`[PRE-ORDER] Sending notification to admin: ${ADMIN_EMAIL}`);
+    console.log(`[PRE-ORDER] Sending notification to admins: ${ADMIN_EMAILS.join(", ")}`);
     let adminEmailResponse;
     try {
       adminEmailResponse = await resend.emails.send({
         from: "California Farms <orders@zomical.com>",
-        to: [ADMIN_EMAIL],
+        to: ADMIN_EMAILS,
         subject: `📋 New Pre-Order: ${escapeHtml(productName)} × ${escapeHtml(quantity)} - ${escapeHtml(customerName)}`,
         html: adminEmailHtml,
       });

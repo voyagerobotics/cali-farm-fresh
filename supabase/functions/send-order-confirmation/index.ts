@@ -41,8 +41,8 @@ interface OrderConfirmationRequest {
   customerPhone?: string;
 }
 
-// Admin email to receive order notifications
-const ADMIN_EMAIL = "californiafarmsmail@gmail.com";
+// Admin emails to receive order notifications
+const ADMIN_EMAILS = ["californiafarmsmail@gmail.com", "shradhatakalkhede15@gmail.com"];
 
 const handler = async (req: Request): Promise<Response> => {
   if (req.method === "OPTIONS") {
@@ -355,12 +355,12 @@ const handler = async (req: Request): Promise<Response> => {
     }
 
     // Send email to admin
-    console.log(`[ORDER] Attempting to send notification email to admin: ${ADMIN_EMAIL}`);
+    console.log(`[ORDER] Attempting to send notification email to admins: ${ADMIN_EMAILS.join(", ")}`);
     let adminEmailResponse;
     try {
       adminEmailResponse = await resend.emails.send({
         from: "California Farms <orders@zomical.com>",
-        to: [ADMIN_EMAIL],
+        to: ADMIN_EMAILS,
         subject: `🛒 New Order #${escapeHtml(orderNumber)} - ₹${escapeHtml(total)} - ${escapeHtml(customerName)}`,
         html: adminEmailHtml,
       });
@@ -368,14 +368,14 @@ const handler = async (req: Request): Promise<Response> => {
       if (adminEmailResponse.error) {
         console.error(`[ORDER] Resend API error for admin email:`, {
           error: adminEmailResponse.error,
-          recipientEmail: ADMIN_EMAIL,
+          recipientEmail: ADMIN_EMAILS,
           orderNumber: orderNumber,
           timestamp: new Date().toISOString()
         });
       } else {
         console.log(`[ORDER] Admin notification email sent successfully:`, {
           id: adminEmailResponse.data?.id,
-          recipientEmail: ADMIN_EMAIL,
+          recipientEmail: ADMIN_EMAILS,
           orderNumber: orderNumber,
           timestamp: new Date().toISOString()
         });
@@ -383,7 +383,7 @@ const handler = async (req: Request): Promise<Response> => {
     } catch (emailError: any) {
       console.error(`[ORDER] Admin email sending failed:`, {
         error: emailError.message,
-        recipientEmail: ADMIN_EMAIL,
+        recipientEmail: ADMIN_EMAILS,
         orderNumber: orderNumber,
         timestamp: new Date().toISOString()
       });

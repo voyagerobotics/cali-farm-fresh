@@ -8,6 +8,7 @@ import { Loader2, ShoppingBag, CreditCard } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePreOrders } from "@/hooks/usePreOrders";
 import { useNavigate } from "react-router-dom";
+import { supabase } from "@/integrations/supabase/client";
 import RazorpayPayment from "./RazorpayPayment";
 
 interface PreOrderDialogProps {
@@ -69,6 +70,26 @@ const PreOrderDialog = ({ open, onOpenChange, productName, bannerId, paymentRequ
     });
 
     if (success) {
+      // Send confirmation email (fire and forget)
+      try {
+        await supabase.functions.invoke("send-preorder-confirmation", {
+          body: {
+            email: user?.email || "",
+            customerName: form.customer_name,
+            customerPhone: form.customer_phone,
+            productName,
+            quantity: form.quantity,
+            unit,
+            pricePerUnit,
+            totalAmount: paymentRequired ? totalAmount : 0,
+            paymentStatus: paymentId ? "paid" : (paymentRequired ? "pending" : "not_required"),
+            razorpayPaymentId: paymentId,
+            notes: form.notes || undefined,
+          },
+        });
+      } catch (emailErr) {
+        console.error("Failed to send pre-order confirmation email:", emailErr);
+      }
       setForm({ customer_name: "", customer_phone: "", quantity: 1, notes: "" });
       onOpenChange(false);
       setShowPayment(false);

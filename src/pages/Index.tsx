@@ -6,6 +6,7 @@ import BenefitsSection from "@/components/BenefitsSection";
 import TestimonialsSection from "@/components/TestimonialsSection";
 import ContactSection from "@/components/ContactSection";
 import Footer from "@/components/Footer";
+import PromotionalBanners from "@/components/PromotionalBanners";
 import { usePageTracking } from "@/hooks/useAnalytics";
 
 const Index = () => {
@@ -16,6 +17,7 @@ const Index = () => {
       <Navbar />
       <main>
         <HeroSection />
+        <PromotionalBanners />
         <AboutSection />
         <ProductsSection />
         <BenefitsSection />

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Package, ShoppingBag, BarChart3, LogOut, ArrowLeft, FolderTree, Settings, Activity, Users } from "lucide-react";
+import { Package, ShoppingBag, BarChart3, LogOut, ArrowLeft, FolderTree, Settings, Activity, Users, Megaphone } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
 import { useAdminVerification } from "@/hooks/useAdminVerification";
@@ -11,8 +11,9 @@ import AdminCategories from "@/components/admin/AdminCategories";
 import AdminSettings from "@/components/admin/AdminSettings";
 import AdminLogs from "@/components/admin/AdminLogs";
 import AdminCustomers from "@/components/admin/AdminCustomers";
+import AdminBanners from "@/components/admin/AdminBanners";
 
-type TabType = "analytics" | "orders" | "products" | "categories" | "customers" | "settings" | "logs";
+type TabType = "analytics" | "orders" | "products" | "categories" | "customers" | "banners" | "settings" | "logs";
 
 const Admin = () => {
   const navigate = useNavigate();
@@ -41,6 +42,7 @@ const Admin = () => {
     { id: "products" as const, label: "Products", icon: Package },
     { id: "categories" as const, label: "Categories", icon: FolderTree },
     { id: "customers" as const, label: "Customers", icon: Users },
+    { id: "banners" as const, label: "Banners", icon: Megaphone },
     { id: "logs" as const, label: "Logs", icon: Activity },
     { id: "settings" as const, label: "Settings", icon: Settings },
   ];
@@ -94,6 +96,7 @@ const Admin = () => {
         {activeTab === "products" && <AdminProducts />}
         {activeTab === "categories" && <AdminCategories />}
         {activeTab === "customers" && <AdminCustomers />}
+        {activeTab === "banners" && <AdminBanners />}
         {activeTab === "logs" && <AdminLogs />}
         {activeTab === "settings" && <AdminSettings />}
       </div>

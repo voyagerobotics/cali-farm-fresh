@@ -103,11 +103,28 @@ export const usePreOrders = (isAdmin: boolean = false) => {
     }
   };
 
+  const deletePreOrder = async (id: string) => {
+    try {
+      const { error } = await supabase
+        .from("pre_orders" as any)
+        .delete()
+        .eq("id", id);
+
+      if (error) throw error;
+      toast({ title: "Pre-order deleted" });
+      fetchPreOrders();
+      return true;
+    } catch (error: any) {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+      return false;
+    }
+  };
+
   useEffect(() => {
     if (user || isAdmin) {
       fetchPreOrders();
     }
   }, [user, isAdmin]);
 
-  return { preOrders, isLoading, fetchPreOrders, createPreOrder, updatePreOrderStatus };
+  return { preOrders, isLoading, fetchPreOrders, createPreOrder, updatePreOrderStatus, deletePreOrder };
 };

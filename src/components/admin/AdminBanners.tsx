@@ -36,6 +36,7 @@ const AdminBanners = () => {
     text_color: "#92400E",
     is_active: true,
     payment_required: false,
+    price_per_unit: 0,
   });
 
   const resetForm = () => {
@@ -44,6 +45,7 @@ const AdminBanners = () => {
       image_url: "", badge_text: "Coming Soon", cta_text: "Pre-Order Now",
       background_color: "#FEF3C7", text_color: "#92400E", is_active: true,
       payment_required: false,
+      price_per_unit: 0,
     });
     setEditBanner(null);
     setShowForm(false);
@@ -63,6 +65,7 @@ const AdminBanners = () => {
       text_color: banner.text_color || "#92400E",
       is_active: banner.is_active,
       payment_required: banner.payment_required || false,
+      price_per_unit: (banner as any).price_per_unit || 0,
     });
     setShowForm(true);
   };
@@ -337,9 +340,21 @@ const AdminBanners = () => {
                       ? "Customer must pay via Razorpay when placing pre-order"
                       : "Customer pays later when product is in stock"}
                   </p>
-                </div>
-                <Switch checked={form.payment_required} onCheckedChange={(v) => setForm(f => ({ ...f, payment_required: v }))} />
               </div>
+              <Switch checked={form.payment_required} onCheckedChange={(v) => setForm(f => ({ ...f, payment_required: v }))} />
+              </div>
+              {form.payment_required && (
+                <div className="space-y-2">
+                  <Label className="text-sm">Price per Unit (₹)</Label>
+                  <Input
+                    type="number"
+                    min={0}
+                    value={form.price_per_unit}
+                    onChange={(e) => setForm(f => ({ ...f, price_per_unit: Number(e.target.value) }))}
+                    placeholder="e.g. 250"
+                  />
+                </div>
+              )}
             </div>
 
             <div className="grid gap-4 md:grid-cols-2">

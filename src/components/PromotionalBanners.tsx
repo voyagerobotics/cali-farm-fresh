@@ -138,6 +138,7 @@ const PromotionalBanners = () => {
           productName={selectedBanner.product_name}
           bannerId={selectedBanner.id}
           paymentRequired={selectedBanner.payment_required}
+          pricePerUnit={selectedBanner.price_per_unit || 0}
         />
       )}
     </>

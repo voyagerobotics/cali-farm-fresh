@@ -663,6 +663,7 @@ export type Database = {
           image_url: string | null
           is_active: boolean
           payment_required: boolean
+          price_per_unit: number | null
           product_name: string
           start_date: string | null
           subtitle: string | null
@@ -683,6 +684,7 @@ export type Database = {
           image_url?: string | null
           is_active?: boolean
           payment_required?: boolean
+          price_per_unit?: number | null
           product_name: string
           start_date?: string | null
           subtitle?: string | null
@@ -703,6 +705,7 @@ export type Database = {
           image_url?: string | null
           is_active?: boolean
           payment_required?: boolean
+          price_per_unit?: number | null
           product_name?: string
           start_date?: string | null
           subtitle?: string | null

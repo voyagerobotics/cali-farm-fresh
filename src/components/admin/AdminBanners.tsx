@@ -246,6 +246,15 @@ const AdminBanners = () => {
                         </Badge>
                       )}
                     </div>
+                    {po.delivery_address && (
+                      <p className="text-xs text-muted-foreground mt-1">
+                        📍 {po.delivery_address}{po.delivery_pincode ? ` - ${po.delivery_pincode}` : ''}
+                        {po.delivery_charge != null && po.delivery_charge > 0
+                          ? ` • Delivery: ₹${po.delivery_charge}`
+                          : ' • Free Delivery'}
+                        {po.delivery_distance_km != null && po.delivery_distance_km > 0 && ` (${po.delivery_distance_km} km)`}
+                      </p>
+                    )}
                     {po.notes && <p className="text-xs text-muted-foreground mt-1">Note: {po.notes}</p>}
                     <p className="text-xs text-muted-foreground">
                       {new Date(po.created_at).toLocaleDateString("en-IN", { dateStyle: "medium" })}

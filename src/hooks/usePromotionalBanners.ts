@@ -18,6 +18,7 @@ export interface PromotionalBanner {
   display_order: number;
   start_date: string | null;
   end_date: string | null;
+  payment_required: boolean;
   created_at: string;
   updated_at: string;
 }

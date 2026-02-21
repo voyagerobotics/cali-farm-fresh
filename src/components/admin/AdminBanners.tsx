@@ -1,5 +1,5 @@
 import { useState, useRef } from "react";
-import { Plus, Edit, Trash2, Eye, EyeOff, Loader2, Megaphone, ShoppingBag, Upload, X, ImageIcon } from "lucide-react";
+import { Plus, Edit, Trash2, Eye, EyeOff, Loader2, Megaphone, ShoppingBag, Upload, X, ImageIcon, Bell, CreditCard } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -12,14 +12,18 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { usePromotionalBanners, PromotionalBanner } from "@/hooks/usePromotionalBanners";
 import { usePreOrders, PreOrder } from "@/hooks/usePreOrders";
 import { useImageUpload } from "@/hooks/useImageUpload";
+import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
 
 const AdminBanners = () => {
   const { banners, isLoading, createBanner, updateBanner, deleteBanner } = usePromotionalBanners(false);
   const { preOrders, isLoading: preOrdersLoading, updatePreOrderStatus } = usePreOrders(true);
   const { uploadImage, isUploading } = useImageUpload();
+  const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [editBanner, setEditBanner] = useState<PromotionalBanner | null>(null);
   const [showForm, setShowForm] = useState(false);
+  const [notifyingProduct, setNotifyingProduct] = useState<string | null>(null);
   const [form, setForm] = useState({
     title: "",
     subtitle: "",
@@ -31,6 +35,7 @@ const AdminBanners = () => {
     background_color: "#FEF3C7",
     text_color: "#92400E",
     is_active: true,
+    payment_required: false,
   });
 
   const resetForm = () => {
@@ -38,6 +43,7 @@ const AdminBanners = () => {
       title: "", subtitle: "", description: "", product_name: "",
       image_url: "", badge_text: "Coming Soon", cta_text: "Pre-Order Now",
       background_color: "#FEF3C7", text_color: "#92400E", is_active: true,
+      payment_required: false,
     });
     setEditBanner(null);
     setShowForm(false);
@@ -56,6 +62,7 @@ const AdminBanners = () => {
       background_color: banner.background_color || "#FEF3C7",
       text_color: banner.text_color || "#92400E",
       is_active: banner.is_active,
+      payment_required: banner.payment_required || false,
     });
     setShowForm(true);
   };
@@ -64,9 +71,7 @@ const AdminBanners = () => {
     const file = e.target.files?.[0];
     if (!file) return;
     const url = await uploadImage(file, "product-images");
-    if (url) {
-      setForm(f => ({ ...f, image_url: url }));
-    }
+    if (url) setForm(f => ({ ...f, image_url: url }));
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
@@ -78,6 +83,24 @@ const AdminBanners = () => {
       await createBanner(form);
     }
     resetForm();
+  };
+
+  const handleNotifyCustomers = async (banner: PromotionalBanner) => {
+    setNotifyingProduct(banner.id);
+    try {
+      const { data, error } = await supabase.functions.invoke("notify-preorder-available", {
+        body: { product_name: banner.product_name, banner_id: banner.id },
+      });
+      if (error) throw error;
+      toast({
+        title: "Customers Notified!",
+        description: `${data.notified} customer(s) notified. ${data.emailsSent} email(s) sent.`,
+      });
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    } finally {
+      setNotifyingProduct(null);
+    }
   };
 
   const statusColors: Record<string, string> = {
@@ -94,6 +117,14 @@ const AdminBanners = () => {
       </div>
     );
   }
+
+  // Count pending pre-orders per banner
+  const pendingCountByBanner: Record<string, number> = {};
+  preOrders.forEach(po => {
+    if (po.status === "pending" && po.banner_id) {
+      pendingCountByBanner[po.banner_id] = (pendingCountByBanner[po.banner_id] || 0) + 1;
+    }
+  });
 
   return (
     <div className="space-y-6">
@@ -112,7 +143,7 @@ const AdminBanners = () => {
         {banners.map((banner) => (
           <Card key={banner.id}>
             <CardContent className="p-4">
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between flex-wrap gap-3">
                 <div className="flex items-center gap-4">
                   {banner.image_url ? (
                     <img src={banner.image_url} alt={banner.product_name} className="w-12 h-12 rounded-lg object-cover" />
@@ -127,12 +158,34 @@ const AdminBanners = () => {
                   <div>
                     <h3 className="font-semibold">{banner.title}</h3>
                     <p className="text-sm text-muted-foreground">{banner.product_name}</p>
+                    <div className="flex gap-1 mt-1">
+                      {banner.payment_required && (
+                        <Badge variant="outline" className="text-xs"><CreditCard className="w-3 h-3 mr-1" /> Payment Required</Badge>
+                      )}
+                    </div>
                   </div>
                   <Badge variant={banner.is_active ? "default" : "secondary"}>
                     {banner.is_active ? "Active" : "Inactive"}
                   </Badge>
                 </div>
                 <div className="flex items-center gap-2">
+                  {/* Notify button */}
+                  {pendingCountByBanner[banner.id] > 0 && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleNotifyCustomers(banner)}
+                      disabled={notifyingProduct === banner.id}
+                      className="text-primary border-primary"
+                    >
+                      {notifyingProduct === banner.id ? (
+                        <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+                      ) : (
+                        <Bell className="w-4 h-4 mr-1" />
+                      )}
+                      Notify ({pendingCountByBanner[banner.id]})
+                    </Button>
+                  )}
                   <Button variant="ghost" size="icon" onClick={() => updateBanner(banner.id, { is_active: !banner.is_active })}>
                     {banner.is_active ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
                   </Button>
@@ -173,12 +226,20 @@ const AdminBanners = () => {
           ) : (
             <div className="space-y-3">
               {preOrders.map((po: PreOrder) => (
-                <div key={po.id} className="flex items-center justify-between p-3 rounded-lg border bg-muted/20">
+                <div key={po.id} className="flex items-center justify-between p-3 rounded-lg border bg-muted/20 flex-wrap gap-3">
                   <div>
                     <p className="font-medium">{po.customer_name}</p>
                     <p className="text-sm text-muted-foreground">
                       {po.product_name} × {po.quantity} • {po.customer_phone}
                     </p>
+                    <div className="flex gap-2 mt-1">
+                      {po.payment_status !== "not_required" && (
+                        <Badge variant="outline" className="text-xs">
+                          Payment: {po.payment_status === "paid" ? "✅ Paid" : "⏳ " + po.payment_status}
+                          {po.payment_amount > 0 && ` (₹${po.payment_amount})`}
+                        </Badge>
+                      )}
+                    </div>
                     {po.notes && <p className="text-xs text-muted-foreground mt-1">Note: {po.notes}</p>}
                     <p className="text-xs text-muted-foreground">
                       {new Date(po.created_at).toLocaleDateString("en-IN", { dateStyle: "medium" })}
@@ -237,52 +298,47 @@ const AdminBanners = () => {
               <Textarea value={form.description} onChange={(e) => setForm(f => ({ ...f, description: e.target.value }))} rows={2} />
             </div>
 
-            {/* Image Upload Section */}
+            {/* Image Upload */}
             <div className="space-y-2">
               <Label>Banner Image</Label>
               {form.image_url ? (
                 <div className="relative w-full h-40 rounded-xl overflow-hidden border border-border">
                   <img src={form.image_url} alt="Banner preview" className="w-full h-full object-cover" />
-                  <Button
-                    variant="destructive"
-                    size="icon"
-                    className="absolute top-2 right-2 w-8 h-8 rounded-full"
-                    onClick={() => setForm(f => ({ ...f, image_url: "" }))}
-                  >
+                  <Button variant="destructive" size="icon" className="absolute top-2 right-2 w-8 h-8 rounded-full" onClick={() => setForm(f => ({ ...f, image_url: "" }))}>
                     <X className="w-4 h-4" />
                   </Button>
                 </div>
               ) : (
-                <div
-                  className="w-full h-40 rounded-xl border-2 border-dashed border-border flex flex-col items-center justify-center gap-2 cursor-pointer hover:border-primary hover:bg-muted/50 transition-colors"
-                  onClick={() => fileInputRef.current?.click()}
-                >
-                  {isUploading ? (
-                    <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
-                  ) : (
+                <div className="w-full h-40 rounded-xl border-2 border-dashed border-border flex flex-col items-center justify-center gap-2 cursor-pointer hover:border-primary hover:bg-muted/50 transition-colors" onClick={() => fileInputRef.current?.click()}>
+                  {isUploading ? <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" /> : (
                     <>
                       <ImageIcon className="w-10 h-10 text-muted-foreground" />
                       <p className="text-sm text-muted-foreground font-medium">Click to upload image</p>
-                      <p className="text-xs text-muted-foreground">JPEG, PNG, WebP up to 5MB</p>
                     </>
                   )}
                 </div>
               )}
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/jpeg,image/png,image/webp,image/gif"
-                className="hidden"
-                onChange={handleImageUpload}
-              />
+              <input ref={fileInputRef} type="file" accept="image/jpeg,image/png,image/webp,image/gif" className="hidden" onChange={handleImageUpload} />
               <div className="flex items-center gap-2 mt-1">
                 <span className="text-xs text-muted-foreground">Or paste URL:</span>
-                <Input
-                  value={form.image_url}
-                  onChange={(e) => setForm(f => ({ ...f, image_url: e.target.value }))}
-                  placeholder="https://..."
-                  className="flex-1 h-8 text-sm"
-                />
+                <Input value={form.image_url} onChange={(e) => setForm(f => ({ ...f, image_url: e.target.value }))} placeholder="https://..." className="flex-1 h-8 text-sm" />
+              </div>
+            </div>
+
+            {/* Payment Configuration */}
+            <div className="bg-muted/50 rounded-lg p-4 border border-border space-y-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <Label className="text-sm font-semibold flex items-center gap-2">
+                    <CreditCard className="w-4 h-4" /> Require Payment at Pre-Order
+                  </Label>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {form.payment_required
+                      ? "Customer must pay via Razorpay when placing pre-order"
+                      : "Customer pays later when product is in stock"}
+                  </p>
+                </div>
+                <Switch checked={form.payment_required} onCheckedChange={(v) => setForm(f => ({ ...f, payment_required: v }))} />
               </div>
             </div>
 
@@ -316,29 +372,21 @@ const AdminBanners = () => {
             </div>
 
             {/* Preview */}
-            <div
-              className="rounded-xl p-4 mt-4 relative overflow-hidden"
-              style={{ backgroundColor: form.background_color, color: form.text_color }}
-            >
+            <div className="rounded-xl p-4 mt-4 relative overflow-hidden" style={{ backgroundColor: form.background_color, color: form.text_color }}>
               <p className="text-xs font-semibold opacity-60 mb-1">PREVIEW</p>
               <div className="flex items-center gap-4">
                 <div className="flex-1">
                   {form.badge_text && <Badge className="mb-2" style={{ backgroundColor: form.text_color, color: '#fff' }}>✨ {form.badge_text}</Badge>}
                   <h4 className="font-bold text-lg">{form.title || "Banner Title"}</h4>
                   {form.subtitle && <p className="opacity-80 text-sm">{form.subtitle}</p>}
+                  {form.payment_required && <p className="text-xs opacity-70 mt-1">💳 Payment required at booking</p>}
                 </div>
-                {form.image_url && (
-                  <img src={form.image_url} alt="Preview" className="w-16 h-16 rounded-lg object-cover" />
-                )}
+                {form.image_url && <img src={form.image_url} alt="Preview" className="w-16 h-16 rounded-lg object-cover" />}
               </div>
             </div>
 
             <Button onClick={handleSave} className="w-full" disabled={isUploading}>
-              {isUploading ? (
-                <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Uploading...</>
-              ) : (
-                editBanner ? "Update Banner" : "Create Banner"
-              )}
+              {isUploading ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Uploading...</> : editBanner ? "Update Banner" : "Create Banner"}
             </Button>
           </div>
         </DialogContent>

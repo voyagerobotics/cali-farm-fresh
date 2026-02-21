@@ -168,6 +168,30 @@ const MyPreOrders = () => {
                           <p className="font-semibold">₹{po.payment_amount}</p>
                         </div>
                       )}
+                      {(po.delivery_charge != null && po.delivery_charge > 0) && (
+                        <div>
+                          <p className="text-muted-foreground">Delivery Charge</p>
+                          <p className="font-semibold">₹{po.delivery_charge}</p>
+                        </div>
+                      )}
+                      {(po.delivery_charge === 0 || po.delivery_charge === null) && po.delivery_address && (
+                        <div>
+                          <p className="text-muted-foreground">Delivery</p>
+                          <p className="font-medium text-green-600">Free</p>
+                        </div>
+                      )}
+                      {po.delivery_distance_km != null && po.delivery_distance_km > 0 && (
+                        <div>
+                          <p className="text-muted-foreground">Distance</p>
+                          <p className="font-medium">{po.delivery_distance_km} km</p>
+                        </div>
+                      )}
+                      {po.delivery_address && (
+                        <div className="col-span-2 sm:col-span-4">
+                          <p className="text-muted-foreground">Delivery Address</p>
+                          <p className="text-sm">{po.delivery_address}{po.delivery_pincode ? ` - ${po.delivery_pincode}` : ''}</p>
+                        </div>
+                      )}
                       {po.notes && (
                         <div className="col-span-2">
                           <p className="text-muted-foreground">Notes</p>

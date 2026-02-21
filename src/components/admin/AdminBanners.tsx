@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Plus, Edit, Trash2, Eye, EyeOff, Loader2, Megaphone, ShoppingBag } from "lucide-react";
+import { useState, useRef } from "react";
+import { Plus, Edit, Trash2, Eye, EyeOff, Loader2, Megaphone, ShoppingBag, Upload, X, ImageIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -11,10 +11,13 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { usePromotionalBanners, PromotionalBanner } from "@/hooks/usePromotionalBanners";
 import { usePreOrders, PreOrder } from "@/hooks/usePreOrders";
+import { useImageUpload } from "@/hooks/useImageUpload";
 
 const AdminBanners = () => {
   const { banners, isLoading, createBanner, updateBanner, deleteBanner } = usePromotionalBanners(false);
   const { preOrders, isLoading: preOrdersLoading, updatePreOrderStatus } = usePreOrders(true);
+  const { uploadImage, isUploading } = useImageUpload();
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [editBanner, setEditBanner] = useState<PromotionalBanner | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({
@@ -57,9 +60,18 @@ const AdminBanners = () => {
     setShowForm(true);
   };
 
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const url = await uploadImage(file, "product-images");
+    if (url) {
+      setForm(f => ({ ...f, image_url: url }));
+    }
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
   const handleSave = async () => {
     if (!form.title || !form.product_name) return;
-
     if (editBanner) {
       await updateBanner(editBanner.id, form);
     } else {
@@ -102,12 +114,16 @@ const AdminBanners = () => {
             <CardContent className="p-4">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-4">
-                  <div
-                    className="w-12 h-12 rounded-lg flex items-center justify-center text-2xl"
-                    style={{ backgroundColor: banner.background_color || '#FEF3C7' }}
-                  >
-                    <Megaphone className="w-6 h-6" style={{ color: banner.text_color || '#92400E' }} />
-                  </div>
+                  {banner.image_url ? (
+                    <img src={banner.image_url} alt={banner.product_name} className="w-12 h-12 rounded-lg object-cover" />
+                  ) : (
+                    <div
+                      className="w-12 h-12 rounded-lg flex items-center justify-center text-2xl"
+                      style={{ backgroundColor: banner.background_color || '#FEF3C7' }}
+                    >
+                      <Megaphone className="w-6 h-6" style={{ color: banner.text_color || '#92400E' }} />
+                    </div>
+                  )}
                   <div>
                     <h3 className="font-semibold">{banner.title}</h3>
                     <p className="text-sm text-muted-foreground">{banner.product_name}</p>
@@ -220,10 +236,56 @@ const AdminBanners = () => {
               <Label>Description</Label>
               <Textarea value={form.description} onChange={(e) => setForm(f => ({ ...f, description: e.target.value }))} rows={2} />
             </div>
+
+            {/* Image Upload Section */}
             <div className="space-y-2">
-              <Label>Image URL</Label>
-              <Input value={form.image_url} onChange={(e) => setForm(f => ({ ...f, image_url: e.target.value }))} placeholder="https://..." />
+              <Label>Banner Image</Label>
+              {form.image_url ? (
+                <div className="relative w-full h-40 rounded-xl overflow-hidden border border-border">
+                  <img src={form.image_url} alt="Banner preview" className="w-full h-full object-cover" />
+                  <Button
+                    variant="destructive"
+                    size="icon"
+                    className="absolute top-2 right-2 w-8 h-8 rounded-full"
+                    onClick={() => setForm(f => ({ ...f, image_url: "" }))}
+                  >
+                    <X className="w-4 h-4" />
+                  </Button>
+                </div>
+              ) : (
+                <div
+                  className="w-full h-40 rounded-xl border-2 border-dashed border-border flex flex-col items-center justify-center gap-2 cursor-pointer hover:border-primary hover:bg-muted/50 transition-colors"
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  {isUploading ? (
+                    <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+                  ) : (
+                    <>
+                      <ImageIcon className="w-10 h-10 text-muted-foreground" />
+                      <p className="text-sm text-muted-foreground font-medium">Click to upload image</p>
+                      <p className="text-xs text-muted-foreground">JPEG, PNG, WebP up to 5MB</p>
+                    </>
+                  )}
+                </div>
+              )}
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/jpeg,image/png,image/webp,image/gif"
+                className="hidden"
+                onChange={handleImageUpload}
+              />
+              <div className="flex items-center gap-2 mt-1">
+                <span className="text-xs text-muted-foreground">Or paste URL:</span>
+                <Input
+                  value={form.image_url}
+                  onChange={(e) => setForm(f => ({ ...f, image_url: e.target.value }))}
+                  placeholder="https://..."
+                  className="flex-1 h-8 text-sm"
+                />
+              </div>
             </div>
+
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
                 <Label>Button Text</Label>
@@ -255,17 +317,28 @@ const AdminBanners = () => {
 
             {/* Preview */}
             <div
-              className="rounded-lg p-4 mt-4"
+              className="rounded-xl p-4 mt-4 relative overflow-hidden"
               style={{ backgroundColor: form.background_color, color: form.text_color }}
             >
               <p className="text-xs font-semibold opacity-60 mb-1">PREVIEW</p>
-              {form.badge_text && <Badge className="mb-2" style={{ backgroundColor: form.text_color, color: '#fff' }}>{form.badge_text}</Badge>}
-              <h4 className="font-bold text-lg">{form.title || "Banner Title"}</h4>
-              {form.subtitle && <p className="opacity-80">{form.subtitle}</p>}
+              <div className="flex items-center gap-4">
+                <div className="flex-1">
+                  {form.badge_text && <Badge className="mb-2" style={{ backgroundColor: form.text_color, color: '#fff' }}>✨ {form.badge_text}</Badge>}
+                  <h4 className="font-bold text-lg">{form.title || "Banner Title"}</h4>
+                  {form.subtitle && <p className="opacity-80 text-sm">{form.subtitle}</p>}
+                </div>
+                {form.image_url && (
+                  <img src={form.image_url} alt="Preview" className="w-16 h-16 rounded-lg object-cover" />
+                )}
+              </div>
             </div>
 
-            <Button onClick={handleSave} className="w-full">
-              {editBanner ? "Update Banner" : "Create Banner"}
+            <Button onClick={handleSave} className="w-full" disabled={isUploading}>
+              {isUploading ? (
+                <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Uploading...</>
+              ) : (
+                editBanner ? "Update Banner" : "Create Banner"
+              )}
             </Button>
           </div>
         </DialogContent>

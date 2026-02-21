@@ -1,0 +1,1 @@
+ALTER TABLE public.promotional_banners ADD COLUMN price_per_unit numeric DEFAULT 0;

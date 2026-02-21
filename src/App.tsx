@@ -19,6 +19,7 @@ import RefundPolicy from "./pages/RefundPolicy";
 import AboutUs from "./pages/AboutUs";
 import ContactUs from "./pages/ContactUs";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
+import MyPreOrders from "./pages/MyPreOrders";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -38,6 +39,7 @@ const App = () => (
                 <Route path="/reset-password" element={<ResetPassword />} />
                 <Route path="/checkout" element={<Checkout />} />
                 <Route path="/orders" element={<Orders />} />
+                <Route path="/my-pre-orders" element={<MyPreOrders />} />
                 <Route path="/orders/:id" element={<OrderDetail />} />
                 <Route path="/admin" element={<Admin />} />
                 <Route path="/product/:id" element={<ProductDetail />} />

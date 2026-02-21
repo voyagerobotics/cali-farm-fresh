@@ -1,4 +1,4 @@
-import { Leaf, Phone, Menu, X, ShoppingCart, User, LogOut, Package } from "lucide-react";
+import { Leaf, Phone, Menu, X, ShoppingCart, User, LogOut, Package, ShoppingBag } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
@@ -124,6 +124,17 @@ const Navbar = () => {
                 </button>
               )}
 
+              {/* Pre-Orders Button */}
+              {user && (
+                <button
+                  onClick={() => navigate("/my-pre-orders")}
+                  className="p-2 hover:bg-muted rounded-lg transition-colors"
+                  title="My Pre-Orders"
+                >
+                  <ShoppingBag className="w-5 h-5 text-muted-foreground" />
+                </button>
+              )}
+
               {/* Admin Link */}
               {isAdmin && (
                 <Button variant="outline" size="sm" onClick={() => navigate("/admin")}>
@@ -215,6 +226,14 @@ const Navbar = () => {
                     className="text-sm font-medium text-muted-foreground hover:text-primary transition-colors text-left"
                   >
                     My Orders
+                  </button>
+                )}
+                {user && (
+                  <button
+                    onClick={() => { navigate("/my-pre-orders"); setIsMenuOpen(false); }}
+                    className="text-sm font-medium text-muted-foreground hover:text-primary transition-colors text-left"
+                  >
+                    My Pre-Orders
                   </button>
                 )}
 

@@ -137,6 +137,7 @@ const PromotionalBanners = () => {
           onOpenChange={setPreOrderOpen}
           productName={selectedBanner.product_name}
           bannerId={selectedBanner.id}
+          paymentRequired={selectedBanner.payment_required}
         />
       )}
     </>

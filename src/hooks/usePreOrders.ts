@@ -14,6 +14,9 @@ export interface PreOrder {
   quantity: number;
   notes: string | null;
   status: "pending" | "confirmed" | "cancelled" | "fulfilled";
+  payment_status: string;
+  payment_amount: number;
+  razorpay_payment_id: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -48,6 +51,9 @@ export const usePreOrders = (isAdmin: boolean = false) => {
     customer_email?: string;
     quantity: number;
     notes?: string;
+    payment_status?: string;
+    payment_amount?: number;
+    razorpay_payment_id?: string;
   }) => {
     if (!user) {
       toast({ title: "Please login", description: "You need to be logged in to pre-order.", variant: "destructive" });

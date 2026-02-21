@@ -368,6 +368,44 @@ export type Database = {
         }
         Relationships: []
       }
+      pre_order_notifications: {
+        Row: {
+          created_at: string
+          id: string
+          is_read: boolean
+          message: string
+          pre_order_id: string | null
+          product_name: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_read?: boolean
+          message: string
+          pre_order_id?: string | null
+          product_name: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_read?: boolean
+          message?: string
+          pre_order_id?: string | null
+          product_name?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pre_order_notifications_pre_order_id_fkey"
+            columns: ["pre_order_id"]
+            isOneToOne: false
+            referencedRelation: "pre_orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       pre_orders: {
         Row: {
           banner_id: string | null
@@ -377,8 +415,11 @@ export type Database = {
           customer_phone: string
           id: string
           notes: string | null
+          payment_amount: number | null
+          payment_status: string
           product_name: string
           quantity: number
+          razorpay_payment_id: string | null
           status: string
           updated_at: string
           user_id: string
@@ -391,8 +432,11 @@ export type Database = {
           customer_phone: string
           id?: string
           notes?: string | null
+          payment_amount?: number | null
+          payment_status?: string
           product_name: string
           quantity?: number
+          razorpay_payment_id?: string | null
           status?: string
           updated_at?: string
           user_id: string
@@ -405,8 +449,11 @@ export type Database = {
           customer_phone?: string
           id?: string
           notes?: string | null
+          payment_amount?: number | null
+          payment_status?: string
           product_name?: string
           quantity?: number
+          razorpay_payment_id?: string | null
           status?: string
           updated_at?: string
           user_id?: string
@@ -615,6 +662,7 @@ export type Database = {
           id: string
           image_url: string | null
           is_active: boolean
+          payment_required: boolean
           product_name: string
           start_date: string | null
           subtitle: string | null
@@ -634,6 +682,7 @@ export type Database = {
           id?: string
           image_url?: string | null
           is_active?: boolean
+          payment_required?: boolean
           product_name: string
           start_date?: string | null
           subtitle?: string | null
@@ -653,6 +702,7 @@ export type Database = {
           id?: string
           image_url?: string | null
           is_active?: boolean
+          payment_required?: boolean
           product_name?: string
           start_date?: string | null
           subtitle?: string | null

@@ -29,6 +29,7 @@ const MyPreOrders = () => {
   const { preOrders, isLoading } = usePreOrders();
   const { toast } = useToast();
   const [notifications, setNotifications] = useState<PreOrderNotification[]>([]);
+  const [queuePositions, setQueuePositions] = useState<Record<string, number>>({});
 
   useEffect(() => {
     if (authLoading) return;
@@ -66,6 +67,25 @@ const MyPreOrders = () => {
 
     return () => { supabase.removeChannel(channel); };
   }, [user, authLoading]);
+
+  // Fetch queue positions for active pre-orders
+  useEffect(() => {
+    if (!user || preOrders.length === 0) return;
+    const userOrders = preOrders.filter(po => po.user_id === user.id && (po.status === 'pending' || po.status === 'confirmed'));
+    if (userOrders.length === 0) return;
+
+    const fetchPositions = async () => {
+      const positions: Record<string, number> = {};
+      await Promise.all(
+        userOrders.map(async (po) => {
+          const { data } = await supabase.rpc('get_preorder_queue_position', { p_pre_order_id: po.id } as any);
+          if (data != null) positions[po.id] = data as number;
+        })
+      );
+      setQueuePositions(positions);
+    };
+    fetchPositions();
+  }, [user, preOrders]);
 
   const markAsRead = async (id: string) => {
     await supabase.from("pre_order_notifications" as any).update({ is_read: true } as any).eq("id", id);
@@ -138,11 +158,23 @@ const MyPreOrders = () => {
                 return (
                   <div key={po.id} className="bg-card rounded-xl border border-border p-4 md:p-6">
                     <div className="flex flex-wrap items-start justify-between gap-3 mb-3">
-                      <div>
-                        <h3 className="font-heading font-semibold text-lg">{po.product_name}</h3>
-                        <p className="text-sm text-muted-foreground">
-                          Booked on {new Date(po.created_at).toLocaleDateString("en-IN", { dateStyle: "medium" })}
-                        </p>
+                      <div className="flex items-start gap-3">
+                        {queuePositions[po.id] != null && (
+                          <div className="flex-shrink-0 w-10 h-10 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-sm font-bold">
+                            #{queuePositions[po.id]}
+                          </div>
+                        )}
+                        <div>
+                          <h3 className="font-heading font-semibold text-lg">{po.product_name}</h3>
+                          <p className="text-sm text-muted-foreground">
+                            Booked on {new Date(po.created_at).toLocaleDateString("en-IN", { dateStyle: "medium" })}
+                          </p>
+                          {queuePositions[po.id] != null && (
+                            <p className="text-xs text-primary font-medium mt-0.5">
+                              You are #{queuePositions[po.id]} in the delivery queue
+                            </p>
+                          )}
+                        </div>
                       </div>
                       <Badge className={`${status.color} flex items-center gap-1`}>
                         {status.icon} {status.label}

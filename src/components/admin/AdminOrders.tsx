@@ -233,50 +233,85 @@ const AdminOrders = () => {
                     )}
 
                     {/* Actions */}
-                    <div className="flex flex-wrap gap-2 pt-2">
-                      {/* Status Actions */}
-                      {order.status !== "delivered" && order.status !== "cancelled" && (
-                        <>
-                          {order.status === "pending" && (
-                            <Button size="sm" onClick={() => updateOrderStatus(order.id, "confirmed")}>
-                              Confirm Order
+                    <div className="space-y-3 pt-2">
+                      {/* Quick Actions */}
+                      <div className="flex flex-wrap gap-2">
+                        {order.status !== "delivered" && order.status !== "cancelled" && (
+                          <>
+                            {order.status === "pending" && (
+                              <Button size="sm" onClick={() => updateOrderStatus(order.id, "confirmed")}>
+                                Confirm Order
+                              </Button>
+                            )}
+                            {order.status === "confirmed" && (
+                              <Button size="sm" onClick={() => updateOrderStatus(order.id, "preparing")}>
+                                Start Preparing
+                              </Button>
+                            )}
+                            {order.status === "preparing" && (
+                              <Button size="sm" onClick={() => updateOrderStatus(order.id, "out_for_delivery")}>
+                                Out for Delivery
+                              </Button>
+                            )}
+                            {order.status === "out_for_delivery" && (
+                              <Button size="sm" onClick={() => updateOrderStatus(order.id, "delivered")}>
+                                Mark Delivered
+                              </Button>
+                            )}
+                            <Button
+                              size="sm"
+                              variant="destructive"
+                              onClick={() => updateOrderStatus(order.id, "cancelled")}
+                            >
+                              Cancel Order
                             </Button>
-                          )}
-                          {order.status === "confirmed" && (
-                            <Button size="sm" onClick={() => updateOrderStatus(order.id, "preparing")}>
-                              Start Preparing
-                            </Button>
-                          )}
-                          {order.status === "preparing" && (
-                            <Button size="sm" onClick={() => updateOrderStatus(order.id, "out_for_delivery")}>
-                              Out for Delivery
-                            </Button>
-                          )}
-                          {order.status === "out_for_delivery" && (
-                            <Button size="sm" onClick={() => updateOrderStatus(order.id, "delivered")}>
-                              Mark Delivered
-                            </Button>
-                          )}
+                          </>
+                        )}
+                        {order.payment_method === "online" && order.payment_status === "pending" && (
                           <Button
                             size="sm"
-                            variant="destructive"
-                            onClick={() => updateOrderStatus(order.id, "cancelled")}
+                            variant="outline"
+                            onClick={() => updatePaymentStatus(order.id, "paid")}
                           >
-                            Cancel Order
+                            Verify Payment
                           </Button>
-                        </>
-                      )}
+                        )}
+                      </div>
 
-                      {/* Payment Actions */}
-                      {order.payment_method === "online" && order.payment_status === "pending" && (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => updatePaymentStatus(order.id, "paid")}
-                        >
-                          Verify Payment
-                        </Button>
-                      )}
+                      {/* Manual Override Controls */}
+                      <div className="bg-muted/40 border border-border rounded-lg p-3 space-y-2">
+                        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Manual Override</p>
+                        <div className="flex flex-wrap gap-3">
+                          <div className="flex items-center gap-2">
+                            <label className="text-xs text-muted-foreground whitespace-nowrap">Order Status:</label>
+                            <select
+                              value={order.status}
+                              onChange={(e) => updateOrderStatus(order.id, e.target.value as Order["status"])}
+                              className="text-xs px-2 py-1.5 border border-border rounded-md bg-card"
+                            >
+                              <option value="pending">Pending</option>
+                              <option value="confirmed">Confirmed</option>
+                              <option value="preparing">Preparing</option>
+                              <option value="out_for_delivery">Out for Delivery</option>
+                              <option value="delivered">Delivered</option>
+                              <option value="cancelled">Cancelled</option>
+                            </select>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <label className="text-xs text-muted-foreground whitespace-nowrap">Payment:</label>
+                            <select
+                              value={order.payment_status}
+                              onChange={(e) => updatePaymentStatus(order.id, e.target.value as Order["payment_status"])}
+                              className="text-xs px-2 py-1.5 border border-border rounded-md bg-card"
+                            >
+                              <option value="pending">Pending</option>
+                              <option value="paid">Paid</option>
+                              <option value="failed">Failed</option>
+                              <option value="refunded">Refunded</option>
+                            </select>
+                          </div>
+                        </div>
+                      </div>
                     </div>
 
                     {/* Timestamps */}

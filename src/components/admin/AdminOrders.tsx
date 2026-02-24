@@ -190,7 +190,7 @@ const AdminOrders = () => {
                       <div className="space-y-2">
                         {order.order_items?.map((item) => (
                           <div key={item.id} className="flex justify-between text-sm">
-                            <span>{item.product_name} × {item.quantity}</span>
+                            <span>{item.product_name} × {item.quantity} {item.unit || 'kg'}</span>
                             <span>₹{item.total_price}</span>
                           </div>
                         ))}

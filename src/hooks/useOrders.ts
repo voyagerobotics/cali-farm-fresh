@@ -8,6 +8,7 @@ export interface OrderItem {
   quantity: number;
   unit_price: number;
   total_price: number;
+  unit?: string;
 }
 
 export interface Order {
@@ -49,7 +50,8 @@ export const useOrders = (isAdmin: boolean = false) => {
             product_name,
             quantity,
             unit_price,
-            total_price
+            total_price,
+            unit
           )
         `)
         .order("created_at", { ascending: false });

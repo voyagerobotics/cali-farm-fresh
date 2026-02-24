@@ -1,0 +1,1 @@
+ALTER TABLE public.order_items ADD COLUMN unit text DEFAULT 'kg';

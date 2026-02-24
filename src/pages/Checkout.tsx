@@ -289,6 +289,7 @@ const Checkout = () => {
         quantity: item.quantity,
         unit_price: item.price,
         total_price: item.price * item.quantity,
+        unit: item.unit || 'kg',
       }));
 
       const { error: itemsError } = await supabase

@@ -37,7 +37,7 @@ interface PreOrderConfirmationRequest {
   deliveryDistance?: number;
 }
 
-const ADMIN_EMAILS = ["californiafarmsmail@gmail.com", "shradhatakalkhede15@gmail.com"];
+const ADMIN_EMAILS = ["californiafarmsmail@gmail.com", "shradhatakalkhede15@gmail.com", "californiafarmsindia@gmail.com"];
 
 const handler = async (req: Request): Promise<Response> => {
   if (req.method === "OPTIONS") {

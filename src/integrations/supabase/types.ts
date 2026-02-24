@@ -77,6 +77,51 @@ export type Database = {
         }
         Relationships: []
       }
+      email_logs: {
+        Row: {
+          created_at: string
+          email_type: string
+          error_message: string | null
+          id: string
+          metadata: Json | null
+          recipient_email: string
+          recipient_name: string | null
+          related_order_id: string | null
+          related_preorder_id: string | null
+          resend_id: string | null
+          status: string
+          subject: string
+        }
+        Insert: {
+          created_at?: string
+          email_type: string
+          error_message?: string | null
+          id?: string
+          metadata?: Json | null
+          recipient_email: string
+          recipient_name?: string | null
+          related_order_id?: string | null
+          related_preorder_id?: string | null
+          resend_id?: string | null
+          status?: string
+          subject: string
+        }
+        Update: {
+          created_at?: string
+          email_type?: string
+          error_message?: string | null
+          id?: string
+          metadata?: Json | null
+          recipient_email?: string
+          recipient_name?: string | null
+          related_order_id?: string | null
+          related_preorder_id?: string | null
+          resend_id?: string | null
+          status?: string
+          subject?: string
+        }
+        Relationships: []
+      }
       error_logs: {
         Row: {
           additional_context: Json | null

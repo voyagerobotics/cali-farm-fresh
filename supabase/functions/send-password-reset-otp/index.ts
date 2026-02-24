@@ -12,6 +12,22 @@ interface PasswordResetOTPRequest {
   email: string;
 }
 
+async function logEmail(supabase: any, data: {
+  recipient_email: string;
+  subject: string;
+  email_type: string;
+  status: string;
+  resend_id?: string;
+  error_message?: string;
+  metadata?: any;
+}) {
+  try {
+    await supabase.from("email_logs").insert(data);
+  } catch (e) {
+    console.error("Failed to log email:", e);
+  }
+}
+
 const handler = async (req: Request): Promise<Response> => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -21,25 +37,19 @@ const handler = async (req: Request): Promise<Response> => {
     const { email }: PasswordResetOTPRequest = await req.json();
     
     if (!email) {
-      console.log("Missing email in request");
       return new Response(
         JSON.stringify({ error: "Email is required" }),
         { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
       );
     }
 
-    console.log("Processing password reset OTP for email:", email);
-
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Check if user exists
     const { data: userData, error: userError } = await supabase.auth.admin.listUsers();
     
     if (userError) {
-      console.error("Error fetching users:", userError);
-      // Return success anyway to prevent email enumeration
       return new Response(
         JSON.stringify({ success: true, message: "If an account exists, OTP has been sent" }),
         { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
@@ -49,18 +59,15 @@ const handler = async (req: Request): Promise<Response> => {
     const userExists = userData.users.some(u => u.email?.toLowerCase() === email.toLowerCase());
     
     if (!userExists) {
-      console.log("User not found, but returning success to prevent enumeration");
       return new Response(
         JSON.stringify({ success: true, message: "If an account exists, OTP has been sent" }),
         { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
       );
     }
 
-    // Generate 6-digit OTP
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
-    const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes expiry
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
 
-    // Store OTP in database
     const { error: insertError } = await supabase
       .from("password_reset_otps")
       .upsert({
@@ -74,14 +81,14 @@ const handler = async (req: Request): Promise<Response> => {
       });
 
     if (insertError) {
-      console.error("Error storing OTP:", insertError);
       return new Response(
         JSON.stringify({ error: "Failed to generate OTP" }),
         { status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } }
       );
     }
 
-    // Send OTP via email using Resend API
+    const subject = "Password Reset OTP - California Farms India";
+
     const emailResponse = await fetch("https://api.resend.com/emails", {
       method: "POST",
       headers: {
@@ -91,27 +98,22 @@ const handler = async (req: Request): Promise<Response> => {
       body: JSON.stringify({
         from: "California Farms India <noreply@zomical.com>",
         to: [email],
-        subject: "Password Reset OTP - California Farms India",
+        subject,
         html: `
           <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
             <div style="text-align: center; margin-bottom: 30px;">
               <h1 style="color: #16a34a; margin: 0;">California Farms India</h1>
             </div>
-            
             <h2 style="color: #333;">Password Reset Request</h2>
-            
             <p style="color: #666; font-size: 16px;">
               You requested to reset your password. Use the OTP code below to continue:
             </p>
-            
             <div style="background-color: #f3f4f6; border-radius: 8px; padding: 20px; text-align: center; margin: 20px 0;">
               <span style="font-size: 32px; font-weight: bold; letter-spacing: 8px; color: #16a34a;">${otp}</span>
             </div>
-            
             <p style="color: #666; font-size: 14px;">
               This code expires in <strong>10 minutes</strong>.
             </p>
-            
             <p style="color: #999; font-size: 12px; margin-top: 30px;">
               If you didn't request this password reset, please ignore this email.
             </p>
@@ -120,16 +122,30 @@ const handler = async (req: Request): Promise<Response> => {
       }),
     });
 
-    if (!emailResponse.ok) {
+    if (emailResponse.ok) {
+      const resData = await emailResponse.json();
+      await logEmail(supabase, {
+        recipient_email: email,
+        subject,
+        email_type: "password_reset_otp",
+        status: "sent",
+        resend_id: resData?.id || undefined,
+      });
+    } else {
       const errorData = await emailResponse.json();
       console.error("Error sending email:", errorData);
+      await logEmail(supabase, {
+        recipient_email: email,
+        subject,
+        email_type: "password_reset_otp",
+        status: "failed",
+        error_message: JSON.stringify(errorData),
+      });
       return new Response(
         JSON.stringify({ error: "Failed to send OTP email" }),
         { status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } }
       );
     }
-
-    console.log("Email sent successfully:", emailResponse);
 
     return new Response(
       JSON.stringify({ success: true, message: "OTP sent successfully" }),

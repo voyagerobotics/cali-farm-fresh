@@ -19,6 +19,22 @@ interface SalesReportData {
   dailyRevenue: { date: string; revenue: number; orders: number }[];
 }
 
+async function logEmail(supabase: any, data: {
+  recipient_email: string;
+  subject: string;
+  email_type: string;
+  status: string;
+  resend_id?: string;
+  error_message?: string;
+  metadata?: any;
+}) {
+  try {
+    await supabase.from("email_logs").insert(data);
+  } catch (e) {
+    console.error("Failed to log email:", e);
+  }
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -117,6 +133,7 @@ serve(async (req) => {
     // Send email if Resend API key is available
     if (resendApiKey && adminEmail) {
       const reportTitle = reportType === "weekly" ? "Weekly" : "Monthly";
+      const subject = `${reportTitle} Sales Report - ${reportData.startDate} to ${reportData.endDate}`;
       
       const topProductsHtml = topProducts.length > 0
         ? topProducts.map((p, i) => `<tr><td>${i + 1}</td><td>${p.name}</td><td>${p.quantity}</td><td>₹${p.revenue.toLocaleString()}</td></tr>`).join("")
@@ -215,14 +232,32 @@ serve(async (req) => {
         body: JSON.stringify({
           from: "Cali Farm Fresh <reports@resend.dev>",
           to: [adminEmail],
-          subject: `${reportTitle} Sales Report - ${reportData.startDate} to ${reportData.endDate}`,
+          subject,
           html: emailHtml,
         }),
       });
 
-      if (!emailRes.ok) {
+      if (emailRes.ok) {
+        const resData = await emailRes.json();
+        await logEmail(supabase, {
+          recipient_email: adminEmail,
+          subject,
+          email_type: "sales_report",
+          status: "sent",
+          resend_id: resData?.id || null,
+          metadata: { report_type: reportType },
+        });
+      } else {
         const errorText = await emailRes.text();
         console.error("Failed to send email:", errorText);
+        await logEmail(supabase, {
+          recipient_email: adminEmail,
+          subject,
+          email_type: "sales_report",
+          status: "failed",
+          error_message: errorText,
+          metadata: { report_type: reportType },
+        });
       }
     }
 

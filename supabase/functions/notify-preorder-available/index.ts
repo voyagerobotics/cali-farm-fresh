@@ -15,6 +15,23 @@ function escapeHtml(text: string | number | undefined | null): string {
   return String(text).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
+async function logEmail(supabase: any, data: {
+  recipient_email: string;
+  subject: string;
+  email_type: string;
+  status: string;
+  resend_id?: string;
+  error_message?: string;
+  related_preorder_id?: string;
+  metadata?: any;
+}) {
+  try {
+    await supabase.from("email_logs").insert(data);
+  } catch (e) {
+    console.error("Failed to log email:", e);
+  }
+}
+
 const handler = async (req: Request): Promise<Response> => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -30,7 +47,6 @@ const handler = async (req: Request): Promise<Response> => {
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
 
-    // Verify admin
     const supabaseAuth = createClient(supabaseUrl, supabaseAnonKey, {
       global: { headers: { Authorization: authHeader } }
     });
@@ -39,10 +55,8 @@ const handler = async (req: Request): Promise<Response> => {
       return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
-    // Use service role for admin operations
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Check admin
     const { data: roleData } = await supabase.from("user_roles").select("role").eq("user_id", user.id).eq("role", "admin").single();
     if (!roleData) {
       return new Response(JSON.stringify({ error: "Admin access required" }), { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } });
@@ -50,7 +64,6 @@ const handler = async (req: Request): Promise<Response> => {
 
     const { product_name, banner_id } = await req.json();
 
-    // Find all pending pre-orders for this product
     let query = supabase.from("pre_orders").select("*").eq("product_name", product_name).eq("status", "pending");
     if (banner_id) query = query.eq("banner_id", banner_id);
     
@@ -65,7 +78,6 @@ const handler = async (req: Request): Promise<Response> => {
     let notificationsCreated = 0;
 
     for (const po of preOrders) {
-      // Create in-app notification
       await supabase.from("pre_order_notifications").insert({
         user_id: po.user_id,
         pre_order_id: po.id,
@@ -74,13 +86,13 @@ const handler = async (req: Request): Promise<Response> => {
       });
       notificationsCreated++;
 
-      // Send email if available
       if (po.customer_email) {
+        const subject = `🎉 ${po.product_name} is Now Available! - California Farms`;
         try {
-          await resend.emails.send({
+          const { data: emailResult } = await resend.emails.send({
             from: "California Farms <orders@zomical.com>",
             to: [po.customer_email],
-            subject: `🎉 ${escapeHtml(po.product_name)} is Now Available! - California Farms`,
+            subject,
             html: `
               <!DOCTYPE html>
               <html>
@@ -119,12 +131,29 @@ const handler = async (req: Request): Promise<Response> => {
             `,
           });
           emailsSent++;
-        } catch (e) {
+          await logEmail(supabase, {
+            recipient_email: po.customer_email,
+            subject,
+            email_type: "preorder_available",
+            status: "sent",
+            resend_id: emailResult?.id || undefined,
+            related_preorder_id: po.id,
+            metadata: { product_name: po.product_name, customer_name: po.customer_name },
+          });
+        } catch (e: any) {
           console.error(`Failed to send email to ${po.customer_email}:`, e);
+          await logEmail(supabase, {
+            recipient_email: po.customer_email,
+            subject,
+            email_type: "preorder_available",
+            status: "failed",
+            error_message: e?.message || "Unknown error",
+            related_preorder_id: po.id,
+            metadata: { product_name: po.product_name },
+          });
         }
       }
 
-      // Update pre-order status to confirmed
       await supabase.from("pre_orders").update({ status: "confirmed" }).eq("id", po.id);
     }
 

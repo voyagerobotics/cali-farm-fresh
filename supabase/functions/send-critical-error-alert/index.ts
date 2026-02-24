@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { Resend } from "https://esm.sh/resend@2.0.0";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -14,6 +15,22 @@ interface ErrorAlertRequest {
   user_id?: string;
   session_id?: string;
   additional_context?: Record<string, unknown>;
+}
+
+async function logEmail(supabase: any, data: {
+  recipient_email: string;
+  subject: string;
+  email_type: string;
+  status: string;
+  resend_id?: string;
+  error_message?: string;
+  metadata?: any;
+}) {
+  try {
+    await supabase.from("email_logs").insert(data);
+  } catch (e) {
+    console.error("Failed to log email:", e);
+  }
 }
 
 const handler = async (req: Request): Promise<Response> => {
@@ -31,10 +48,15 @@ const handler = async (req: Request): Promise<Response> => {
       });
     }
 
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
     const resend = new Resend(resendApiKey);
     const errorData: ErrorAlertRequest = await req.json();
 
-    const adminEmail = "niraj.takalkhede@gmail.com"; // Admin email for alerts
+    const adminEmail = "niraj.takalkhede@gmail.com";
+    const subject = `🚨 Critical Error: ${errorData.error_type || "Runtime Error"} on ${errorData.page_path || "Unknown Page"}`;
 
     const timestamp = new Date().toLocaleString("en-IN", {
       dateStyle: "full",
@@ -115,20 +137,37 @@ const handler = async (req: Request): Promise<Response> => {
 </html>
     `;
 
-    const { error: emailError } = await resend.emails.send({
+    const { data: emailResult, error: emailError } = await resend.emails.send({
       from: "Cali Farm Fresh <alerts@calyxfarm.com>",
       to: [adminEmail],
-      subject: `🚨 Critical Error: ${errorData.error_type || "Runtime Error"} on ${errorData.page_path || "Unknown Page"}`,
+      subject,
       html: emailHtml,
     });
 
     if (emailError) {
       console.error("Failed to send error alert email:", emailError);
+      await logEmail(supabase, {
+        recipient_email: adminEmail,
+        subject,
+        email_type: "critical_error_alert",
+        status: "failed",
+        error_message: JSON.stringify(emailError),
+        metadata: { error_type: errorData.error_type, page_path: errorData.page_path },
+      });
       return new Response(JSON.stringify({ error: "Failed to send email" }), {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+
+    await logEmail(supabase, {
+      recipient_email: adminEmail,
+      subject,
+      email_type: "critical_error_alert",
+      status: "sent",
+      resend_id: emailResult?.id || undefined,
+      metadata: { error_type: errorData.error_type, page_path: errorData.page_path },
+    });
 
     console.log("Error alert email sent successfully");
     return new Response(JSON.stringify({ success: true }), {

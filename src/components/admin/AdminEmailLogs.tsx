@@ -1,9 +1,13 @@
 import { useState, useEffect } from "react";
+import { format } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
-import { Mail, CheckCircle, XCircle, RefreshCw, Search, Filter } from "lucide-react";
+import { Mail, CheckCircle, XCircle, RefreshCw, Search, CalendarIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import { cn } from "@/lib/utils";
 
 interface EmailLog {
   id: string;
@@ -27,6 +31,10 @@ const emailTypeConfig: Record<string, { label: string; color: string }> = {
   preorder_confirmation_customer: { label: "Pre-Order", color: "bg-purple-500/10 text-purple-600" },
   preorder_confirmation_admin: { label: "Pre-Order (Admin)", color: "bg-violet-500/10 text-violet-600" },
   weekly_reminder: { label: "Weekly Reminder", color: "bg-teal-500/10 text-teal-600" },
+  sales_report: { label: "Sales Report", color: "bg-orange-500/10 text-orange-600" },
+  critical_error_alert: { label: "Error Alert", color: "bg-red-500/10 text-red-600" },
+  preorder_available: { label: "Pre-Order Available", color: "bg-emerald-500/10 text-emerald-600" },
+  password_reset_otp: { label: "Password Reset", color: "bg-sky-500/10 text-sky-600" },
 };
 
 const AdminEmailLogs = () => {
@@ -35,16 +43,28 @@ const AdminEmailLogs = () => {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState<string>("all");
+  const [startDate, setStartDate] = useState<Date | undefined>(undefined);
+  const [endDate, setEndDate] = useState<Date | undefined>(undefined);
 
   const fetchLogs = async () => {
     setIsLoading(true);
     try {
-      const { data, error } = await supabase
+      let query = supabase
         .from("email_logs")
         .select("*")
         .order("created_at", { ascending: false })
         .limit(200);
 
+      if (startDate) {
+        query = query.gte("created_at", startDate.toISOString());
+      }
+      if (endDate) {
+        const end = new Date(endDate);
+        end.setHours(23, 59, 59, 999);
+        query = query.lte("created_at", end.toISOString());
+      }
+
+      const { data, error } = await query;
       if (error) throw error;
       setLogs((data as unknown as EmailLog[]) || []);
     } catch (err) {
@@ -56,12 +76,17 @@ const AdminEmailLogs = () => {
 
   useEffect(() => {
     fetchLogs();
-  }, []);
+  }, [startDate, endDate]);
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
     await fetchLogs();
     setIsRefreshing(false);
+  };
+
+  const clearDates = () => {
+    setStartDate(undefined);
+    setEndDate(undefined);
   };
 
   const uniqueTypes = [...new Set(logs.map((l) => l.email_type))];
@@ -109,33 +134,67 @@ const AdminEmailLogs = () => {
       </div>
 
       {/* Controls */}
-      <div className="flex flex-col sm:flex-row gap-3">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <Input
-            placeholder="Search by email, name, or subject..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="pl-10"
-          />
+      <div className="flex flex-col gap-3">
+        <div className="flex flex-col sm:flex-row gap-3">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <Input
+              placeholder="Search by email, name, or subject..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="pl-10"
+            />
+          </div>
+          <div className="flex gap-2">
+            <select
+              value={typeFilter}
+              onChange={(e) => setTypeFilter(e.target.value)}
+              className="px-3 py-2 border border-border rounded-lg bg-card text-sm"
+            >
+              <option value="all">All Types</option>
+              {uniqueTypes.map((type) => (
+                <option key={type} value={type}>
+                  {emailTypeConfig[type]?.label || type}
+                </option>
+              ))}
+            </select>
+            <Button variant="outline" size="sm" onClick={handleRefresh} disabled={isRefreshing}>
+              <RefreshCw className={`w-4 h-4 mr-1 ${isRefreshing ? "animate-spin" : ""}`} />
+              Refresh
+            </Button>
+          </div>
         </div>
-        <div className="flex gap-2">
-          <select
-            value={typeFilter}
-            onChange={(e) => setTypeFilter(e.target.value)}
-            className="px-3 py-2 border border-border rounded-lg bg-card text-sm"
-          >
-            <option value="all">All Types</option>
-            {uniqueTypes.map((type) => (
-              <option key={type} value={type}>
-                {emailTypeConfig[type]?.label || type}
-              </option>
-            ))}
-          </select>
-          <Button variant="outline" size="sm" onClick={handleRefresh} disabled={isRefreshing}>
-            <RefreshCw className={`w-4 h-4 mr-1 ${isRefreshing ? "animate-spin" : ""}`} />
-            Refresh
-          </Button>
+
+        {/* Date Range Filters */}
+        <div className="flex flex-wrap items-center gap-2">
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline" size="sm" className={cn("text-xs", !startDate && "text-muted-foreground")}>
+                <CalendarIcon className="w-3.5 h-3.5 mr-1" />
+                {startDate ? format(startDate, "dd MMM yyyy") : "From date"}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0" align="start">
+              <Calendar mode="single" selected={startDate} onSelect={setStartDate} initialFocus className="p-3 pointer-events-auto" />
+            </PopoverContent>
+          </Popover>
+          <span className="text-xs text-muted-foreground">to</span>
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline" size="sm" className={cn("text-xs", !endDate && "text-muted-foreground")}>
+                <CalendarIcon className="w-3.5 h-3.5 mr-1" />
+                {endDate ? format(endDate, "dd MMM yyyy") : "To date"}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0" align="start">
+              <Calendar mode="single" selected={endDate} onSelect={setEndDate} initialFocus className="p-3 pointer-events-auto" />
+            </PopoverContent>
+          </Popover>
+          {(startDate || endDate) && (
+            <Button variant="ghost" size="sm" className="text-xs" onClick={clearDates}>
+              Clear dates
+            </Button>
+          )}
         </div>
       </div>
 
@@ -192,6 +251,7 @@ const AdminEmailLogs = () => {
                       {new Date(log.created_at).toLocaleDateString("en-IN", {
                         day: "numeric",
                         month: "short",
+                        year: "numeric",
                         hour: "2-digit",
                         minute: "2-digit",
                       })}

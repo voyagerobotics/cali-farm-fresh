@@ -30,6 +30,7 @@ interface OrderStatusUpdateRequest {
 }
 
 const statusMessages: Record<string, { title: string; emoji: string; message: string; color: string }> = {
+  pending: { title: "Order Set to Pending", emoji: "⏳", message: "Your order has been set back to pending. This may be due to a payment or processing update. Please contact us if you have any questions.", color: "#d97706" },
   confirmed: { title: "Order Confirmed!", emoji: "✅", message: "Great news! Your order has been confirmed and we're preparing it with care.", color: "#2563eb" },
   preparing: { title: "Order Being Prepared", emoji: "👨‍🍳", message: "Your order is now being prepared. We're carefully packing fresh produce for you.", color: "#7c3aed" },
   out_for_delivery: { title: "Out for Delivery!", emoji: "🚚", message: "Exciting! Your order is on its way. Our delivery partner will reach you soon.", color: "#059669" },

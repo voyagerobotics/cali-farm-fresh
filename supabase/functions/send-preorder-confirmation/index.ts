@@ -39,6 +39,32 @@ interface PreOrderConfirmationRequest {
 
 const ADMIN_EMAILS = ["californiafarmsmail@gmail.com", "shradhatakalkhede15@gmail.com", "californiafarmsindia@gmail.com"];
 
+async function logEmail(supabase: any, data: {
+  recipient_email: string;
+  recipient_name?: string;
+  subject: string;
+  email_type: string;
+  status: string;
+  resend_id?: string;
+  error_message?: string;
+  metadata?: any;
+}) {
+  try {
+    await supabase.from("email_logs").insert({
+      recipient_email: data.recipient_email,
+      recipient_name: data.recipient_name || null,
+      subject: data.subject,
+      email_type: data.email_type,
+      status: data.status,
+      resend_id: data.resend_id || null,
+      error_message: data.error_message || null,
+      metadata: data.metadata || null,
+    });
+  } catch (e) {
+    console.error("Failed to log email:", e);
+  }
+}
+
 const handler = async (req: Request): Promise<Response> => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -47,15 +73,14 @@ const handler = async (req: Request): Promise<Response> => {
   try {
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
-      return new Response(
-        JSON.stringify({ error: "Authentication required" }),
-        { status: 401, headers: { "Content-Type": "application/json", ...corsHeaders } }
-      );
+      return new Response(JSON.stringify({ error: "Authentication required" }),
+        { status: 401, headers: { "Content-Type": "application/json", ...corsHeaders } });
     }
 
     const token = authHeader.replace("Bearer ", "");
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
+    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
     const supabaseAuth = createClient(supabaseUrl, supabaseAnonKey, {
       global: { headers: { Authorization: authHeader } }
@@ -63,34 +88,21 @@ const handler = async (req: Request): Promise<Response> => {
 
     const { data: { user }, error: authError } = await supabaseAuth.auth.getUser(token);
     if (authError || !user) {
-      return new Response(
-        JSON.stringify({ error: "Invalid authentication" }),
-        { status: 401, headers: { "Content-Type": "application/json", ...corsHeaders } }
-      );
+      return new Response(JSON.stringify({ error: "Invalid authentication" }),
+        { status: 401, headers: { "Content-Type": "application/json", ...corsHeaders } });
     }
 
+    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
+
     const {
-      email,
-      customerName,
-      customerPhone,
-      productName,
-      quantity,
-      unit,
-      pricePerUnit,
-      totalAmount,
-      paymentStatus,
-      razorpayPaymentId,
-      notes,
-      deliveryAddress,
-      deliveryCharge,
-      deliveryDistance,
+      email, customerName, customerPhone, productName, quantity, unit,
+      pricePerUnit, totalAmount, paymentStatus, razorpayPaymentId,
+      notes, deliveryAddress, deliveryCharge, deliveryDistance,
     }: PreOrderConfirmationRequest = await req.json();
 
     if (!email || !productName) {
-      return new Response(
-        JSON.stringify({ error: "Email and product name are required" }),
-        { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
-      );
+      return new Response(JSON.stringify({ error: "Email and product name are required" }),
+        { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } });
     }
 
     const preOrderId = `PRE-${Date.now()}`;
@@ -131,78 +143,33 @@ const handler = async (req: Request): Promise<Response> => {
             <p>Pre-Order Confirmation</p>
           </div>
           <div class="content">
-            <div style="text-align: center;">
-              <div class="badge">📋 Pre-Order ${isPaid ? 'Confirmed & Paid' : 'Received'}!</div>
-            </div>
-            
+            <div style="text-align: center;"><div class="badge">📋 Pre-Order ${isPaid ? 'Confirmed & Paid' : 'Received'}!</div></div>
             <p>Dear <strong>${escapeHtml(customerName)}</strong>,</p>
-            <p>Thank you for your pre-order! We've reserved the following product for you. We'll notify you as soon as it's in stock and ready for delivery.</p>
-            
+            <p>Thank you for your pre-order! We've reserved the following product for you.</p>
             <div class="info-box">
               <p><strong>Pre-Order ID:</strong> ${escapeHtml(preOrderId)}</p>
               <p><strong>Date:</strong> ${orderDate}</p>
               ${deliveryAddress ? `<p><strong>Delivery Address:</strong> ${escapeHtml(deliveryAddress)}</p>` : ''}
               ${deliveryDistance ? `<p><strong>Distance:</strong> ${escapeHtml(deliveryDistance?.toFixed(1))} km</p>` : ''}
             </div>
-            
             <h3 style="color: #2d5a3d;">📦 Pre-Order Invoice</h3>
             <table class="invoice-table">
-              <thead>
-                <tr>
-                  <th>Product</th>
-                  <th>Qty</th>
-                  <th>Rate</th>
-                  <th>Amount</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <td>${escapeHtml(productName)}</td>
-                  <td style="text-align: center;">${escapeHtml(quantity)} ${escapeHtml(unit)}</td>
-                  <td style="text-align: right;">₹${escapeHtml(pricePerUnit)}/${escapeHtml(unit)}</td>
-                  <td style="text-align: right;">₹${escapeHtml(totalAmount)}</td>
-                </tr>
-              </tbody>
+              <thead><tr><th>Product</th><th>Qty</th><th>Rate</th><th>Amount</th></tr></thead>
+              <tbody><tr>
+                <td>${escapeHtml(productName)}</td>
+                <td style="text-align: center;">${escapeHtml(quantity)} ${escapeHtml(unit)}</td>
+                <td style="text-align: right;">₹${escapeHtml(pricePerUnit)}/${escapeHtml(unit)}</td>
+                <td style="text-align: right;">₹${escapeHtml(totalAmount)}</td>
+              </tr></tbody>
             </table>
-            
-            ${(deliveryCharge != null && deliveryCharge > 0) ? `
-            <div style="display: flex; justify-content: space-between; padding: 8px 0; font-size: 14px; color: #666;">
-              <span>Delivery Charge</span>
-              <span>₹${escapeHtml(deliveryCharge)}</span>
-            </div>
-            ` : (deliveryAddress ? `
-            <div style="display: flex; justify-content: space-between; padding: 8px 0; font-size: 14px; color: #16a34a;">
-              <span>Delivery</span>
-              <span>🎉 Free</span>
-            </div>
-            ` : '')}
-
-            <div class="total-row">
-              <span>Total Amount</span>
-              <span>₹${escapeHtml(totalAmount)}</span>
-            </div>
-            
+            ${(deliveryCharge != null && deliveryCharge > 0) ? `<div style="display: flex; justify-content: space-between; padding: 8px 0; font-size: 14px; color: #666;"><span>Delivery Charge</span><span>₹${escapeHtml(deliveryCharge)}</span></div>` : (deliveryAddress ? `<div style="display: flex; justify-content: space-between; padding: 8px 0; font-size: 14px; color: #16a34a;"><span>Delivery</span><span>🎉 Free</span></div>` : '')}
+            <div class="total-row"><span>Total Amount</span><span>₹${escapeHtml(totalAmount)}</span></div>
             <div class="payment-info">
-              <h4 style="margin: 0 0 10px; color: ${isPaid ? '#16a34a' : '#d97706'};">
-                ${isPaid ? '✅ Payment Successful' : '⏳ Payment Pending'}
-              </h4>
-              ${isPaid ? `
-                <p style="margin: 4px 0; color: #555;">Payment ID: ${escapeHtml(razorpayPaymentId)}</p>
-                <p style="margin: 4px 0; color: #555;">Amount Paid: ₹${escapeHtml(totalAmount)}</p>
-              ` : `
-                <p style="margin: 4px 0; color: #555;">Payment will be collected when the product is in stock.</p>
-              `}
+              <h4 style="margin: 0 0 10px; color: ${isPaid ? '#16a34a' : '#d97706'};">${isPaid ? '✅ Payment Successful' : '⏳ Payment Pending'}</h4>
+              ${isPaid ? `<p style="margin: 4px 0; color: #555;">Payment ID: ${escapeHtml(razorpayPaymentId)}</p><p style="margin: 4px 0; color: #555;">Amount Paid: ₹${escapeHtml(totalAmount)}</p>` : `<p style="margin: 4px 0; color: #555;">Payment will be collected when the product is in stock.</p>`}
             </div>
-
-            ${notes ? `
-              <div style="background: #f9fafb; padding: 15px; border-radius: 8px; margin-top: 15px;">
-                <p style="margin: 0; color: #666; font-size: 14px;"><strong>Your Notes:</strong> ${escapeHtml(notes)}</p>
-              </div>
-            ` : ''}
-            
-            <p style="margin-top: 30px; color: #666; font-size: 14px;">
-              We'll send you a notification when your pre-ordered product is available. Stay tuned! 🌿
-            </p>
+            ${notes ? `<div style="background: #f9fafb; padding: 15px; border-radius: 8px; margin-top: 15px;"><p style="margin: 0; color: #666; font-size: 14px;"><strong>Your Notes:</strong> ${escapeHtml(notes)}</p></div>` : ''}
+            <p style="margin-top: 30px; color: #666; font-size: 14px;">We'll send you a notification when your pre-ordered product is available. Stay tuned! 🌿</p>
           </div>
           <div class="footer">
             <p>Thank you for choosing California Farms India!</p>
@@ -232,12 +199,6 @@ const handler = async (req: Request): Promise<Response> => {
           .customer-info strong { color: #5b21b6; }
           .info-box { background: #f5f5f5; padding: 20px; border-radius: 8px; margin-bottom: 20px; }
           .info-box p { margin: 8px 0; }
-          .invoice-table { width: 100%; border-collapse: collapse; margin: 20px 0; }
-          .invoice-table th { background: #7c3aed; color: white; padding: 12px; text-align: left; }
-          .invoice-table th:last-child, .invoice-table th:nth-child(2), .invoice-table th:nth-child(3) { text-align: right; }
-          .invoice-table th:nth-child(2) { text-align: center; }
-          .invoice-table td { padding: 12px; border-bottom: 1px solid #e0e0e0; }
-          .total-row { display: flex; justify-content: space-between; padding: 12px 0; font-size: 18px; font-weight: bold; color: #7c3aed; border-top: 2px solid #7c3aed; margin-top: 10px; }
           .footer { background: #333; color: white; padding: 20px; text-align: center; font-size: 12px; }
         </style>
       </head>
@@ -248,17 +209,13 @@ const handler = async (req: Request): Promise<Response> => {
             <p>California Farms India - Admin Notification</p>
           </div>
           <div class="content">
-            <div style="text-align: center;">
-              <div class="badge">🛒 Pre-Order: ${escapeHtml(productName)}</div>
-            </div>
-            
+            <div style="text-align: center;"><div class="badge">🛒 Pre-Order: ${escapeHtml(productName)}</div></div>
             <div class="customer-info">
               <h4 style="margin: 0 0 10px; color: #5b21b6;">👤 Customer Details</h4>
               <p><strong>Name:</strong> ${escapeHtml(customerName)}</p>
               <p><strong>Email:</strong> ${escapeHtml(email)}</p>
               <p><strong>Phone:</strong> ${escapeHtml(customerPhone)}</p>
             </div>
-            
             <div class="info-box">
               <p><strong>Product:</strong> ${escapeHtml(productName)}</p>
               <p><strong>Quantity:</strong> ${escapeHtml(quantity)} ${escapeHtml(unit)}</p>
@@ -281,57 +238,72 @@ const handler = async (req: Request): Promise<Response> => {
       </html>
     `;
 
-    console.log(`[PRE-ORDER] Sending confirmation to customer: ${email}`);
+    const customerSubject = `Pre-Order Confirmed! ${escapeHtml(productName)} - California Farms India`;
+    const adminSubject = `📋 New Pre-Order: ${escapeHtml(productName)} × ${escapeHtml(quantity)} - ${escapeHtml(customerName)}`;
 
+    // Send to customer
     let customerEmailResponse;
     try {
       customerEmailResponse = await resend.emails.send({
         from: "California Farms <orders@zomical.com>",
         to: [email],
-        subject: `Pre-Order Confirmed! ${escapeHtml(productName)} - California Farms India`,
+        subject: customerSubject,
         html: customerEmailHtml,
       });
-      if (customerEmailResponse.error) {
-        console.error("[PRE-ORDER] Customer email error:", customerEmailResponse.error);
-      } else {
-        console.log("[PRE-ORDER] Customer email sent:", customerEmailResponse.data?.id);
-      }
+      await logEmail(supabaseAdmin, {
+        recipient_email: email, recipient_name: customerName, subject: customerSubject,
+        email_type: "preorder_confirmation_customer",
+        status: customerEmailResponse.error ? "failed" : "sent",
+        resend_id: customerEmailResponse.data?.id,
+        error_message: customerEmailResponse.error ? JSON.stringify(customerEmailResponse.error) : undefined,
+        metadata: { productName, quantity },
+      });
     } catch (err: any) {
-      console.error("[PRE-ORDER] Customer email failed:", err.message);
+      await logEmail(supabaseAdmin, {
+        recipient_email: email, recipient_name: customerName, subject: customerSubject,
+        email_type: "preorder_confirmation_customer", status: "failed", error_message: err.message,
+        metadata: { productName, quantity },
+      });
     }
 
-    console.log(`[PRE-ORDER] Sending notification to admins: ${ADMIN_EMAILS.join(", ")}`);
+    // Send to admins
     let adminEmailResponse;
     try {
       adminEmailResponse = await resend.emails.send({
         from: "California Farms <orders@zomical.com>",
         to: ADMIN_EMAILS,
-        subject: `📋 New Pre-Order: ${escapeHtml(productName)} × ${escapeHtml(quantity)} - ${escapeHtml(customerName)}`,
+        subject: adminSubject,
         html: adminEmailHtml,
       });
-      if (adminEmailResponse.error) {
-        console.error("[PRE-ORDER] Admin email error:", adminEmailResponse.error);
-      } else {
-        console.log("[PRE-ORDER] Admin email sent:", adminEmailResponse.data?.id);
+      for (const adminEmail of ADMIN_EMAILS) {
+        await logEmail(supabaseAdmin, {
+          recipient_email: adminEmail, subject: adminSubject,
+          email_type: "preorder_confirmation_admin",
+          status: adminEmailResponse.error ? "failed" : "sent",
+          resend_id: adminEmailResponse.data?.id,
+          error_message: adminEmailResponse.error ? JSON.stringify(adminEmailResponse.error) : undefined,
+          metadata: { productName, customerName, quantity },
+        });
       }
     } catch (err: any) {
-      console.error("[PRE-ORDER] Admin email failed:", err.message);
+      for (const adminEmail of ADMIN_EMAILS) {
+        await logEmail(supabaseAdmin, {
+          recipient_email: adminEmail, subject: adminSubject,
+          email_type: "preorder_confirmation_admin", status: "failed", error_message: err.message,
+          metadata: { productName, customerName },
+        });
+      }
     }
 
-    return new Response(
-      JSON.stringify({
-        success: true,
-        customerEmailSent: !customerEmailResponse?.error,
-        adminEmailSent: !adminEmailResponse?.error,
-      }),
-      { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
-    );
+    return new Response(JSON.stringify({
+      success: true,
+      customerEmailSent: !customerEmailResponse?.error,
+      adminEmailSent: !adminEmailResponse?.error,
+    }), { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } });
   } catch (error: any) {
     console.error("[PRE-ORDER] Error:", error.message);
-    return new Response(
-      JSON.stringify({ error: "An error occurred while sending the pre-order confirmation." }),
-      { status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } }
-    );
+    return new Response(JSON.stringify({ error: "An error occurred while sending the pre-order confirmation." }),
+      { status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } });
   }
 };
 

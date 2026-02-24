@@ -9,7 +9,6 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-// HTML escape function to prevent XSS attacks in email templates
 function escapeHtml(text: string | number | undefined | null): string {
   if (text === null || text === undefined) return '';
   if (typeof text === 'number') return text.toString();
@@ -41,8 +40,35 @@ interface OrderConfirmationRequest {
   customerPhone?: string;
 }
 
-// Admin emails to receive order notifications
 const ADMIN_EMAILS = ["californiafarmsmail@gmail.com", "shradhatakalkhede15@gmail.com", "californiafarmsindia@gmail.com"];
+
+async function logEmail(supabase: any, data: {
+  recipient_email: string;
+  recipient_name?: string;
+  subject: string;
+  email_type: string;
+  status: string;
+  resend_id?: string;
+  error_message?: string;
+  related_order_id?: string;
+  metadata?: any;
+}) {
+  try {
+    await supabase.from("email_logs").insert({
+      recipient_email: data.recipient_email,
+      recipient_name: data.recipient_name || null,
+      subject: data.subject,
+      email_type: data.email_type,
+      status: data.status,
+      resend_id: data.resend_id || null,
+      error_message: data.error_message || null,
+      related_order_id: data.related_order_id || null,
+      metadata: data.metadata || null,
+    });
+  } catch (e) {
+    console.error("Failed to log email:", e);
+  }
+}
 
 const handler = async (req: Request): Promise<Response> => {
   if (req.method === "OPTIONS") {
@@ -50,10 +76,8 @@ const handler = async (req: Request): Promise<Response> => {
   }
 
   try {
-    // AUTHENTICATION CHECK: Verify JWT token
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
-      console.log("Missing Authorization header");
       return new Response(
         JSON.stringify({ error: "Authentication required" }),
         { status: 401, headers: { "Content-Type": "application/json", ...corsHeaders } }
@@ -61,27 +85,25 @@ const handler = async (req: Request): Promise<Response> => {
     }
 
     const token = authHeader.replace("Bearer ", "");
-    
-    // Create Supabase client with user's token to verify authentication
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
+    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     
     const supabaseAuth = createClient(supabaseUrl, supabaseAnonKey, {
       global: { headers: { Authorization: authHeader } }
     });
 
-    // Verify the user is authenticated
     const { data: { user }, error: authError } = await supabaseAuth.auth.getUser(token);
     
     if (authError || !user) {
-      console.log("Invalid authentication:", authError?.message);
       return new Response(
         JSON.stringify({ error: "Invalid authentication" }),
         { status: 401, headers: { "Content-Type": "application/json", ...corsHeaders } }
       );
     }
 
-    console.log(`Authenticated user ${user.id} requesting order confirmation`);
+    // Service role client for logging
+    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
 
     const {
       email,
@@ -96,8 +118,6 @@ const handler = async (req: Request): Promise<Response> => {
       customerPhone,
     }: OrderConfirmationRequest = await req.json();
 
-    console.log("Sending order confirmation to:", email);
-
     if (!email || !orderNumber) {
       return new Response(
         JSON.stringify({ error: "Email and order number are required" }),
@@ -105,7 +125,6 @@ const handler = async (req: Request): Promise<Response> => {
       );
     }
 
-    // Generate items HTML with escaped values to prevent XSS
     const itemsHtml = items.map(item => `
       <tr>
         <td style="padding: 12px; border-bottom: 1px solid #e0e0e0;">${escapeHtml(item.product_name)}</td>
@@ -115,7 +134,6 @@ const handler = async (req: Request): Promise<Response> => {
       </tr>
     `).join("");
 
-    // Customer email HTML template
     const customerEmailHtml = `
       <!DOCTYPE html>
       <html>
@@ -155,51 +173,29 @@ const handler = async (req: Request): Promise<Response> => {
             <div style="text-align: center;">
               <div class="success-badge">✓ Order Confirmed!</div>
             </div>
-            
             <p>Dear <strong>${escapeHtml(customerName)}</strong>,</p>
             <p>Thank you for your order! We've received your order and it's being prepared with care.</p>
-            
             <div class="order-info">
               <p><strong>Order Number:</strong> ${escapeHtml(orderNumber)}</p>
               <p><strong>Expected Delivery:</strong> ${escapeHtml(deliveryDate)}</p>
               <p><strong>Delivery Time:</strong> 12:00 PM - 3:00 PM</p>
             </div>
-            
             <h3 style="color: #2d5a3d;">Order Details</h3>
             <table class="items-table">
               <thead>
-                <tr>
-                  <th>Product</th>
-                  <th>Qty</th>
-                  <th>Price</th>
-                  <th>Total</th>
-                </tr>
+                <tr><th>Product</th><th>Qty</th><th>Price</th><th>Total</th></tr>
               </thead>
-              <tbody>
-                ${itemsHtml}
-              </tbody>
+              <tbody>${itemsHtml}</tbody>
             </table>
-            
             <div class="totals">
-              <div class="totals-row">
-                <span>Subtotal</span>
-                <span>₹${escapeHtml(subtotal)}</span>
-              </div>
-              <div class="totals-row">
-                <span>Delivery Charge</span>
-                <span>${deliveryCharge === 0 ? 'FREE' : `₹${escapeHtml(deliveryCharge)}`}</span>
-              </div>
-              <div class="totals-row total">
-                <span>Total Amount</span>
-                <span>₹${escapeHtml(total)}</span>
-              </div>
+              <div class="totals-row"><span>Subtotal</span><span>₹${escapeHtml(subtotal)}</span></div>
+              <div class="totals-row"><span>Delivery Charge</span><span>${deliveryCharge === 0 ? 'FREE' : `₹${escapeHtml(deliveryCharge)}`}</span></div>
+              <div class="totals-row total"><span>Total Amount</span><span>₹${escapeHtml(total)}</span></div>
             </div>
-            
             <div class="delivery-info">
               <h4 style="margin: 0 0 10px; color: #2d5a3d;">📍 Delivery Address</h4>
               <p style="margin: 0; color: #555;">${escapeHtml(deliveryAddress)}</p>
             </div>
-            
             <p style="margin-top: 30px; color: #666; font-size: 14px;">
               You'll receive updates about your order status. For any queries, please contact us.
             </p>
@@ -213,7 +209,6 @@ const handler = async (req: Request): Promise<Response> => {
       </html>
     `;
 
-    // Admin notification email HTML template
     const adminEmailHtml = `
       <!DOCTYPE html>
       <html>
@@ -255,56 +250,34 @@ const handler = async (req: Request): Promise<Response> => {
             <div style="text-align: center;">
               <div class="new-order-badge">📦 New Order: ${escapeHtml(orderNumber)}</div>
             </div>
-            
             <div class="customer-info">
               <h4 style="margin: 0 0 10px; color: #92400e;">👤 Customer Details</h4>
               <p><strong>Name:</strong> ${escapeHtml(customerName)}</p>
               <p><strong>Email:</strong> ${escapeHtml(email)}</p>
               ${customerPhone ? `<p><strong>Phone:</strong> ${escapeHtml(customerPhone)}</p>` : ''}
             </div>
-            
             <div class="order-info">
               <p><strong>Order Number:</strong> ${escapeHtml(orderNumber)}</p>
               <p><strong>Order Date:</strong> ${new Date().toLocaleString('en-IN', { dateStyle: 'full', timeStyle: 'short' })}</p>
               <p><strong>Delivery Date:</strong> ${escapeHtml(deliveryDate)}</p>
               <p><strong>Delivery Time:</strong> 12:00 PM - 3:00 PM</p>
             </div>
-            
             <h3 style="color: #d97706;">Order Items</h3>
             <table class="items-table">
               <thead>
-                <tr>
-                  <th>Product</th>
-                  <th>Qty</th>
-                  <th>Price</th>
-                  <th>Total</th>
-                </tr>
+                <tr><th>Product</th><th>Qty</th><th>Price</th><th>Total</th></tr>
               </thead>
-              <tbody>
-                ${itemsHtml}
-              </tbody>
+              <tbody>${itemsHtml}</tbody>
             </table>
-            
             <div class="totals">
-              <div class="totals-row">
-                <span>Subtotal</span>
-                <span>₹${escapeHtml(subtotal)}</span>
-              </div>
-              <div class="totals-row">
-                <span>Delivery Charge</span>
-                <span>${deliveryCharge === 0 ? 'FREE' : `₹${escapeHtml(deliveryCharge)}`}</span>
-              </div>
-              <div class="totals-row total">
-                <span>Total Amount</span>
-                <span>₹${escapeHtml(total)}</span>
-              </div>
+              <div class="totals-row"><span>Subtotal</span><span>₹${escapeHtml(subtotal)}</span></div>
+              <div class="totals-row"><span>Delivery Charge</span><span>${deliveryCharge === 0 ? 'FREE' : `₹${escapeHtml(deliveryCharge)}`}</span></div>
+              <div class="totals-row total"><span>Total Amount</span><span>₹${escapeHtml(total)}</span></div>
             </div>
-            
             <div class="delivery-info">
               <h4 style="margin: 0 0 10px; color: #92400e;">📍 Delivery Address</h4>
               <p style="margin: 0; color: #555;">${escapeHtml(deliveryAddress)}</p>
             </div>
-            
             <p style="margin-top: 30px; color: #666; font-size: 14px; text-align: center;">
               <strong>Action Required:</strong> Please prepare this order for delivery.
             </p>
@@ -318,75 +291,75 @@ const handler = async (req: Request): Promise<Response> => {
       </html>
     `;
 
-    console.log(`[ORDER] Attempting to send confirmation email to customer: ${email}`);
-    
+    const customerSubject = `Order Confirmed! #${escapeHtml(orderNumber)} - California Farms India`;
+    const adminSubject = `🛒 New Order #${escapeHtml(orderNumber)} - ₹${escapeHtml(total)} - ${escapeHtml(customerName)}`;
+
     // Send email to customer
     let customerEmailResponse;
     try {
       customerEmailResponse = await resend.emails.send({
         from: "California Farms <orders@zomical.com>",
         to: [email],
-        subject: `Order Confirmed! #${escapeHtml(orderNumber)} - California Farms India`,
+        subject: customerSubject,
         html: customerEmailHtml,
       });
 
-      if (customerEmailResponse.error) {
-        console.error(`[ORDER] Resend API error for customer email:`, {
-          error: customerEmailResponse.error,
-          recipientEmail: email,
-          orderNumber: orderNumber,
-          timestamp: new Date().toISOString()
-        });
-      } else {
-        console.log(`[ORDER] Customer confirmation email sent successfully:`, {
-          id: customerEmailResponse.data?.id,
-          recipientEmail: email,
-          orderNumber: orderNumber,
-          timestamp: new Date().toISOString()
-        });
-      }
+      await logEmail(supabaseAdmin, {
+        recipient_email: email,
+        recipient_name: customerName,
+        subject: customerSubject,
+        email_type: "order_confirmation_customer",
+        status: customerEmailResponse.error ? "failed" : "sent",
+        resend_id: customerEmailResponse.data?.id,
+        error_message: customerEmailResponse.error ? JSON.stringify(customerEmailResponse.error) : undefined,
+        metadata: { orderNumber },
+      });
     } catch (emailError: any) {
-      console.error(`[ORDER] Customer email sending failed:`, {
-        error: emailError.message,
-        recipientEmail: email,
-        orderNumber: orderNumber,
-        timestamp: new Date().toISOString()
+      console.error(`[ORDER] Customer email sending failed:`, emailError.message);
+      await logEmail(supabaseAdmin, {
+        recipient_email: email,
+        recipient_name: customerName,
+        subject: customerSubject,
+        email_type: "order_confirmation_customer",
+        status: "failed",
+        error_message: emailError.message,
+        metadata: { orderNumber },
       });
     }
 
-    // Send email to admin
-    console.log(`[ORDER] Attempting to send notification email to admins: ${ADMIN_EMAILS.join(", ")}`);
+    // Send email to admins
     let adminEmailResponse;
     try {
       adminEmailResponse = await resend.emails.send({
         from: "California Farms <orders@zomical.com>",
         to: ADMIN_EMAILS,
-        subject: `🛒 New Order #${escapeHtml(orderNumber)} - ₹${escapeHtml(total)} - ${escapeHtml(customerName)}`,
+        subject: adminSubject,
         html: adminEmailHtml,
       });
 
-      if (adminEmailResponse.error) {
-        console.error(`[ORDER] Resend API error for admin email:`, {
-          error: adminEmailResponse.error,
-          recipientEmail: ADMIN_EMAILS,
-          orderNumber: orderNumber,
-          timestamp: new Date().toISOString()
-        });
-      } else {
-        console.log(`[ORDER] Admin notification email sent successfully:`, {
-          id: adminEmailResponse.data?.id,
-          recipientEmail: ADMIN_EMAILS,
-          orderNumber: orderNumber,
-          timestamp: new Date().toISOString()
+      for (const adminEmail of ADMIN_EMAILS) {
+        await logEmail(supabaseAdmin, {
+          recipient_email: adminEmail,
+          subject: adminSubject,
+          email_type: "order_confirmation_admin",
+          status: adminEmailResponse.error ? "failed" : "sent",
+          resend_id: adminEmailResponse.data?.id,
+          error_message: adminEmailResponse.error ? JSON.stringify(adminEmailResponse.error) : undefined,
+          metadata: { orderNumber, customerName },
         });
       }
     } catch (emailError: any) {
-      console.error(`[ORDER] Admin email sending failed:`, {
-        error: emailError.message,
-        recipientEmail: ADMIN_EMAILS,
-        orderNumber: orderNumber,
-        timestamp: new Date().toISOString()
-      });
+      console.error(`[ORDER] Admin email sending failed:`, emailError.message);
+      for (const adminEmail of ADMIN_EMAILS) {
+        await logEmail(supabaseAdmin, {
+          recipient_email: adminEmail,
+          subject: adminSubject,
+          email_type: "order_confirmation_admin",
+          status: "failed",
+          error_message: emailError.message,
+          metadata: { orderNumber },
+        });
+      }
     }
 
     return new Response(
@@ -399,14 +372,7 @@ const handler = async (req: Request): Promise<Response> => {
       { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
     );
   } catch (error: any) {
-    // Log full error details server-side for debugging
-    console.error("Error sending order confirmation:", {
-      message: error.message,
-      name: error.name,
-      stack: error.stack,
-      timestamp: new Date().toISOString()
-    });
-    // Return generic message to client to prevent information leakage
+    console.error("Error sending order confirmation:", error.message);
     return new Response(
       JSON.stringify({ error: "An error occurred while sending the order confirmation. Please try again." }),
       { status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } }

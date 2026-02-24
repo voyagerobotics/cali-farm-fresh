@@ -80,7 +80,7 @@ export const useOrders = (isAdmin: boolean = false) => {
       toast({ title: "Order status updated" });
       
       // Send status update email notification for key status changes
-      if (order && ['confirmed', 'preparing', 'out_for_delivery', 'delivered', 'cancelled'].includes(status)) {
+      if (order && ['pending', 'confirmed', 'preparing', 'out_for_delivery', 'delivered', 'cancelled'].includes(status)) {
         try {
           const response = await supabase.functions.invoke('send-order-status-update', {
             body: {

@@ -48,13 +48,69 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       lower.includes("failed to fetch") ||
       lower.includes("network request failed") ||
       lower.includes("networkerror") ||
-      lower.includes("load failed")
+      lower.includes("load failed") ||
+      lower.includes("timeout") ||
+      lower.includes("timed out")
     );
   };
 
-  const clearLocalAuthSession = async () => {
+  const withTimeout = async <T,>(
+    promise: Promise<T>,
+    timeoutMs: number,
+    timeoutMessage: string,
+  ): Promise<T> => {
+    let timeoutId: ReturnType<typeof setTimeout> | undefined;
+
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      timeoutId = setTimeout(() => {
+        reject(new Error(timeoutMessage));
+      }, timeoutMs);
+    });
+
     try {
-      await supabase.auth.signOut({ scope: "local" });
+      return await Promise.race([promise, timeoutPromise]);
+    } finally {
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+    }
+  };
+
+  const clearSupabaseAuthStorage = () => {
+    if (typeof window === "undefined") return;
+
+    const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
+    const projectScopedPrefixes = projectId
+      ? [`sb-${projectId}-auth-token`, `sb-${projectId}-code-verifier`]
+      : [];
+
+    const keysToRemove: string[] = [];
+
+    for (let i = 0; i < localStorage.length; i += 1) {
+      const key = localStorage.key(i);
+      if (!key) continue;
+
+      const isProjectScoped = projectScopedPrefixes.some((prefix) => key.startsWith(prefix));
+      const looksLikeSupabaseAuthKey =
+        key.startsWith("sb-") && (key.includes("auth-token") || key.includes("code-verifier"));
+
+      if (isProjectScoped || looksLikeSupabaseAuthKey) {
+        keysToRemove.push(key);
+      }
+    }
+
+    keysToRemove.forEach((key) => localStorage.removeItem(key));
+  };
+
+  const clearLocalAuthSession = async () => {
+    clearSupabaseAuthStorage();
+
+    try {
+      await withTimeout(
+        supabase.auth.signOut({ scope: "local" }),
+        2500,
+        "Local auth cleanup timed out",
+      );
     } catch (error) {
       console.warn("Failed clearing local auth session:", error);
     } finally {
@@ -141,14 +197,28 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       // First try the custom sign-in edge function (handles custom passwords)
       const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-      const response = await fetch(`${supabaseUrl}/functions/v1/custom-sign-in`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
-        },
-        body: JSON.stringify({ email, password }),
-      });
+      const controller = new AbortController();
+      const requestTimeout = setTimeout(() => controller.abort(), 12000);
+
+      let response: Response;
+      try {
+        response = await fetch(`${supabaseUrl}/functions/v1/custom-sign-in`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+          },
+          body: JSON.stringify({ email, password }),
+          signal: controller.signal,
+        });
+      } catch (error) {
+        if (error instanceof DOMException && error.name === "AbortError") {
+          return { error: new Error("Connection timed out. Please try again.") };
+        }
+        throw error;
+      } finally {
+        clearTimeout(requestTimeout);
+      }
 
       const result: CustomAuthResponse = await response.json().catch(() => ({}));
 
@@ -178,10 +248,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       // If custom auth returned a session directly (standard auth fallback)
       if (result.session) {
-        const { error: setSessionError } = await supabase.auth.setSession({
-          access_token: result.session.access_token,
-          refresh_token: result.session.refresh_token,
-        });
+        let setSessionError: Error | null = null;
+
+        try {
+          const sessionResult = await withTimeout(
+            supabase.auth.setSession({
+              access_token: result.session.access_token,
+              refresh_token: result.session.refresh_token,
+            }),
+            8000,
+            "Session setup timed out",
+          );
+
+          setSessionError = sessionResult.error;
+        } catch (error) {
+          setSessionError = error instanceof Error ? error : new Error("Session setup failed");
+        }
 
         if (setSessionError) {
           if (isNetworkIssue(setSessionError)) {

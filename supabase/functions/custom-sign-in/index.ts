@@ -31,10 +31,10 @@ async function getUserByEmail(
 ): Promise<{ user: AdminUser | null; error: string | null }> {
   const targetEmail = email.toLowerCase();
   const perPage = 200;
-  const maxPages = 20;
+  const maxLookupPages = 500;
   let page = 1;
 
-  while (page <= maxPages) {
+  for (let scannedPages = 0; scannedPages < maxLookupPages; scannedPages += 1) {
     const { data, error } = await supabaseAdmin.auth.admin.listUsers({ page, perPage });
 
     if (error) {
@@ -49,7 +49,7 @@ async function getUserByEmail(
     }
 
     const nextPage = data?.nextPage;
-    if (!nextPage || users.length < perPage) {
+    if (!nextPage || nextPage === page || users.length === 0) {
       break;
     }
 

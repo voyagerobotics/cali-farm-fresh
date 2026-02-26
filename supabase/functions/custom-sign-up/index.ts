@@ -32,6 +32,45 @@ function generateRandomPassword(): string {
   return password;
 }
 
+interface AdminUser {
+  id: string;
+  email?: string | null;
+}
+
+async function findUserByEmail(
+  supabaseAdmin: ReturnType<typeof createClient>,
+  email: string,
+): Promise<{ user: AdminUser | null; error: string | null }> {
+  const targetEmail = email.toLowerCase();
+  const perPage = 200;
+  const maxLookupPages = 500;
+  let page = 1;
+
+  for (let scannedPages = 0; scannedPages < maxLookupPages; scannedPages += 1) {
+    const { data, error } = await supabaseAdmin.auth.admin.listUsers({ page, perPage });
+
+    if (error) {
+      return { user: null, error: error.message };
+    }
+
+    const users = data?.users ?? [];
+    const foundUser = users.find((candidate) => candidate.email?.toLowerCase() === targetEmail) ?? null;
+
+    if (foundUser) {
+      return { user: foundUser, error: null };
+    }
+
+    const nextPage = data?.nextPage;
+    if (!nextPage || nextPage === page || users.length === 0) {
+      break;
+    }
+
+    page = nextPage;
+  }
+
+  return { user: null, error: null };
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -54,9 +93,16 @@ serve(async (req) => {
       { auth: { autoRefreshToken: false, persistSession: false } }
     );
 
-    const { data: existingUsers } = await supabaseAdmin.auth.admin.listUsers();
-    const existingUser = existingUsers?.users.find(u => u.email?.toLowerCase() === email.toLowerCase());
-    
+    const { user: existingUser, error: lookupError } = await findUserByEmail(supabaseAdmin, email);
+
+    if (lookupError) {
+      console.error("Error looking up user by email:", lookupError);
+      return new Response(
+        JSON.stringify({ error: "Failed to validate account. Please try again." }),
+        { status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      );
+    }
+
     if (existingUser) {
       return new Response(
         JSON.stringify({ error: "An account with this email already exists" }),
@@ -65,7 +111,7 @@ serve(async (req) => {
     }
 
     const randomPassword = generateRandomPassword();
-    
+
     const { data: newUser, error: createError } = await supabaseAdmin.auth.admin.createUser({
       email,
       password: randomPassword,
@@ -77,10 +123,16 @@ serve(async (req) => {
     });
 
     if (createError || !newUser.user) {
+      const createErrorMessage = createError?.message?.toLowerCase() ?? "";
+      const isExistingAccountError =
+        createErrorMessage.includes("already") ||
+        createErrorMessage.includes("exists") ||
+        createErrorMessage.includes("registered");
+
       console.error("Error creating user:", createError);
       return new Response(
-        JSON.stringify({ error: createError?.message || "Failed to create account" }),
-        { status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } }
+        JSON.stringify({ error: isExistingAccountError ? "An account with this email already exists" : (createError?.message || "Failed to create account") }),
+        { status: isExistingAccountError ? 400 : 500, headers: { "Content-Type": "application/json", ...corsHeaders } }
       );
     }
 

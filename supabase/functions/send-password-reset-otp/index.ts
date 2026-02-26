@@ -28,6 +28,45 @@ async function logEmail(supabase: any, data: {
   }
 }
 
+interface AdminUser {
+  id: string;
+  email?: string | null;
+}
+
+async function findUserByEmail(
+  supabase: ReturnType<typeof createClient>,
+  email: string,
+): Promise<{ user: AdminUser | null; error: string | null }> {
+  const targetEmail = email.toLowerCase();
+  const perPage = 200;
+  const maxLookupPages = 500;
+  let page = 1;
+
+  for (let scannedPages = 0; scannedPages < maxLookupPages; scannedPages += 1) {
+    const { data, error } = await supabase.auth.admin.listUsers({ page, perPage });
+
+    if (error) {
+      return { user: null, error: error.message };
+    }
+
+    const users = data?.users ?? [];
+    const foundUser = users.find((candidate) => candidate.email?.toLowerCase() === targetEmail) ?? null;
+
+    if (foundUser) {
+      return { user: foundUser, error: null };
+    }
+
+    const nextPage = data?.nextPage;
+    if (!nextPage || nextPage === page || users.length === 0) {
+      break;
+    }
+
+    page = nextPage;
+  }
+
+  return { user: null, error: null };
+}
+
 const handler = async (req: Request): Promise<Response> => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -47,18 +86,16 @@ const handler = async (req: Request): Promise<Response> => {
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    const { data: userData, error: userError } = await supabase.auth.admin.listUsers();
-    
-    if (userError) {
+    const { user, error: userLookupError } = await findUserByEmail(supabase, email);
+
+    if (userLookupError) {
       return new Response(
         JSON.stringify({ success: true, message: "If an account exists, OTP has been sent" }),
         { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
       );
     }
 
-    const userExists = userData.users.some(u => u.email?.toLowerCase() === email.toLowerCase());
-    
-    if (!userExists) {
+    if (!user) {
       return new Response(
         JSON.stringify({ success: true, message: "If an account exists, OTP has been sent" }),
         { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }

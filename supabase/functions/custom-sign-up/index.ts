@@ -3,7 +3,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
 interface SignUpRequest {
@@ -13,7 +13,6 @@ interface SignUpRequest {
   phone: string;
 }
 
-// Hash password using Web Crypto API
 async function hashPassword(password: string): Promise<string> {
   const encoder = new TextEncoder();
   const data = encoder.encode(password);
@@ -22,7 +21,6 @@ async function hashPassword(password: string): Promise<string> {
   return hashArray.map(b => b.toString(16).padStart(2, "0")).join("");
 }
 
-// Generate a random strong password for Supabase
 function generateRandomPassword(): string {
   const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*";
   let password = "";
@@ -30,45 +28,6 @@ function generateRandomPassword(): string {
     password += chars.charAt(Math.floor(Math.random() * chars.length));
   }
   return password;
-}
-
-interface AdminUser {
-  id: string;
-  email?: string | null;
-}
-
-async function findUserByEmail(
-  supabaseAdmin: ReturnType<typeof createClient>,
-  email: string,
-): Promise<{ user: AdminUser | null; error: string | null }> {
-  const targetEmail = email.toLowerCase();
-  const perPage = 200;
-  const maxLookupPages = 500;
-  let page = 1;
-
-  for (let scannedPages = 0; scannedPages < maxLookupPages; scannedPages += 1) {
-    const { data, error } = await supabaseAdmin.auth.admin.listUsers({ page, perPage });
-
-    if (error) {
-      return { user: null, error: error.message };
-    }
-
-    const users = data?.users ?? [];
-    const foundUser = users.find((candidate) => candidate.email?.toLowerCase() === targetEmail) ?? null;
-
-    if (foundUser) {
-      return { user: foundUser, error: null };
-    }
-
-    const nextPage = data?.nextPage;
-    if (!nextPage || nextPage === page || users.length === 0) {
-      break;
-    }
-
-    page = nextPage;
-  }
-
-  return { user: null, error: null };
 }
 
 serve(async (req) => {
@@ -93,15 +52,25 @@ serve(async (req) => {
       { auth: { autoRefreshToken: false, persistSession: false } }
     );
 
-    const { user: existingUser, error: lookupError } = await findUserByEmail(supabaseAdmin, email);
+    const targetEmail = email.toLowerCase();
 
-    if (lookupError) {
-      console.error("Error looking up user by email:", lookupError);
+    // Quick check: does this email already have a custom password?
+    const { data: existingPw } = await supabaseAdmin
+      .from("user_passwords")
+      .select("id")
+      .eq("email", targetEmail)
+      .maybeSingle();
+
+    if (existingPw) {
       return new Response(
-        JSON.stringify({ error: "Failed to validate account. Please try again." }),
-        { status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } }
+        JSON.stringify({ error: "An account with this email already exists" }),
+        { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
       );
     }
+
+    // Also check auth.users via a small listUsers call
+    const { data: usersData } = await supabaseAdmin.auth.admin.listUsers({ page: 1, perPage: 50 });
+    const existingUser = (usersData?.users ?? []).find(u => u.email?.toLowerCase() === targetEmail);
 
     if (existingUser) {
       return new Response(
@@ -113,7 +82,7 @@ serve(async (req) => {
     const randomPassword = generateRandomPassword();
 
     const { data: newUser, error: createError } = await supabaseAdmin.auth.admin.createUser({
-      email,
+      email: targetEmail,
       password: randomPassword,
       email_confirm: true,
       user_metadata: {
@@ -123,16 +92,11 @@ serve(async (req) => {
     });
 
     if (createError || !newUser.user) {
-      const createErrorMessage = createError?.message?.toLowerCase() ?? "";
-      const isExistingAccountError =
-        createErrorMessage.includes("already") ||
-        createErrorMessage.includes("exists") ||
-        createErrorMessage.includes("registered");
-
-      console.error("Error creating user:", createError);
+      const msg = createError?.message?.toLowerCase() ?? "";
+      const isExisting = msg.includes("already") || msg.includes("exists") || msg.includes("registered");
       return new Response(
-        JSON.stringify({ error: isExistingAccountError ? "An account with this email already exists" : (createError?.message || "Failed to create account") }),
-        { status: isExistingAccountError ? 400 : 500, headers: { "Content-Type": "application/json", ...corsHeaders } }
+        JSON.stringify({ error: isExisting ? "An account with this email already exists" : (createError?.message || "Failed to create account") }),
+        { status: isExisting ? 400 : 500, headers: { "Content-Type": "application/json", ...corsHeaders } }
       );
     }
 
@@ -145,6 +109,7 @@ serve(async (req) => {
       .insert({
         user_id: newUser.user.id,
         password_hash: passwordHash,
+        email: targetEmail,
       });
 
     if (passwordError) {
@@ -160,14 +125,13 @@ serve(async (req) => {
 
     const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
       type: "magiclink",
-      email: email,
+      email: targetEmail,
     });
 
     if (linkError || !linkData) {
-      console.error("Error generating magic link:", linkError);
       return new Response(
-        JSON.stringify({ 
-          success: true, 
+        JSON.stringify({
+          success: true,
           message: "Account created successfully. Please sign in.",
           requiresSignIn: true
         }),
@@ -175,14 +139,12 @@ serve(async (req) => {
       );
     }
 
-    const tokenHash = linkData.properties.hashed_token;
-
     return new Response(
       JSON.stringify({
         success: true,
-        token_hash: tokenHash,
+        token_hash: linkData.properties.hashed_token,
         type: "magiclink",
-        email,
+        email: targetEmail,
       }),
       { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
     );

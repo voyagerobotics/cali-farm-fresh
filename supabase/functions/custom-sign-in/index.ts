@@ -3,7 +3,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
 interface SignInRequest {
@@ -11,52 +11,12 @@ interface SignInRequest {
   password: string;
 }
 
-// Hash password using Web Crypto API
 async function hashPassword(password: string): Promise<string> {
   const encoder = new TextEncoder();
   const data = encoder.encode(password);
   const hashBuffer = await crypto.subtle.digest("SHA-256", data);
   const hashArray = Array.from(new Uint8Array(hashBuffer));
   return hashArray.map(b => b.toString(16).padStart(2, "0")).join("");
-}
-
-interface AdminUser {
-  id: string;
-  email?: string | null;
-}
-
-async function getUserByEmail(
-  supabaseAdmin: ReturnType<typeof createClient>,
-  email: string,
-): Promise<{ user: AdminUser | null; error: string | null }> {
-  const targetEmail = email.toLowerCase();
-  const perPage = 200;
-  const maxLookupPages = 500;
-  let page = 1;
-
-  for (let scannedPages = 0; scannedPages < maxLookupPages; scannedPages += 1) {
-    const { data, error } = await supabaseAdmin.auth.admin.listUsers({ page, perPage });
-
-    if (error) {
-      return { user: null, error: error.message };
-    }
-
-    const users = data?.users ?? [];
-    const foundUser = users.find((candidate) => candidate.email?.toLowerCase() === targetEmail) ?? null;
-
-    if (foundUser) {
-      return { user: foundUser, error: null };
-    }
-
-    const nextPage = data?.nextPage;
-    if (!nextPage || nextPage === page || users.length === 0) {
-      break;
-    }
-
-    page = nextPage;
-  }
-
-  return { user: null, error: null };
 }
 
 serve(async (req) => {
@@ -79,11 +39,6 @@ serve(async (req) => {
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 
     if (!supabaseUrl || !serviceRoleKey) {
-      console.error("Missing required env vars", {
-        hasSupabaseUrl: Boolean(supabaseUrl),
-        hasServiceRoleKey: Boolean(serviceRoleKey),
-      });
-
       return new Response(
         JSON.stringify({ error: "Server configuration error" }),
         { status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } }
@@ -96,51 +51,35 @@ serve(async (req) => {
       { auth: { autoRefreshToken: false, persistSession: false } }
     );
 
-    const { user, error: userLookupError } = await getUserByEmail(supabaseAdmin, email);
+    const targetEmail = email.toLowerCase();
 
-    if (userLookupError) {
-      console.error("Error fetching user by email:", userLookupError);
-      return new Response(
-        JSON.stringify({ error: "Authentication failed" }),
-        { status: 401, headers: { "Content-Type": "application/json", ...corsHeaders } }
-      );
-    }
-
-    if (!user) {
-      console.log("User not found:", email);
-      return new Response(
-        JSON.stringify({ error: "No account found with this email. Please sign up first." }),
-        { status: 404, headers: { "Content-Type": "application/json", ...corsHeaders } }
-      );
-    }
-
-    const { data: customPassword, error: passwordError } = await supabaseAdmin
+    // O(1) lookup: check if user has a custom password via email column
+    const { data: customPassword, error: cpError } = await supabaseAdmin
       .from("user_passwords")
-      .select("password_hash")
-      .eq("user_id", user.id)
-      .single();
+      .select("user_id, password_hash, email")
+      .eq("email", targetEmail)
+      .maybeSingle();
 
-    if (passwordError && passwordError.code !== "PGRST116") {
-      console.error("Error fetching custom password:", passwordError);
+    if (cpError && cpError.code !== "PGRST116") {
+      console.error("Error checking custom password:", cpError);
     }
 
+    // If custom password found via email, verify it directly (fast path)
     if (customPassword) {
-      console.log("Verifying custom password for user:", user.id);
+      console.log("Found custom password for user via email lookup:", customPassword.user_id);
       const inputHash = await hashPassword(password);
-      
+
       if (inputHash !== customPassword.password_hash) {
-        console.log("Custom password verification failed");
         return new Response(
           JSON.stringify({ error: "Invalid email or password" }),
           { status: 401, headers: { "Content-Type": "application/json", ...corsHeaders } }
         );
       }
 
-      console.log("Custom password verified, generating magic link");
-      
+      // Generate magic link for verified custom password user
       const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
         type: "magiclink",
-        email: user.email!,
+        email: targetEmail,
       });
 
       if (linkError || !linkData) {
@@ -151,28 +90,80 @@ serve(async (req) => {
         );
       }
 
-      const tokenHash = linkData.properties.hashed_token;
-
       return new Response(
         JSON.stringify({
           success: true,
-          token_hash: tokenHash,
+          token_hash: linkData.properties.hashed_token,
           type: "magiclink",
-          email: user.email,
+          email: targetEmail,
         }),
         { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
       );
     }
 
-    // No custom password - try normal Supabase auth
-    console.log("No custom password found, trying Supabase auth");
+    // No custom password found by email — check if there's a legacy entry without email column
+    // by doing a single-page user lookup (limited fallback for old records)
+    const { data: legacyCheck } = await supabaseAdmin.auth.admin.listUsers({ page: 1, perPage: 50 });
+    const legacyUser = (legacyCheck?.users ?? []).find(u => u.email?.toLowerCase() === targetEmail);
+
+    if (legacyUser) {
+      const { data: legacyPw } = await supabaseAdmin
+        .from("user_passwords")
+        .select("password_hash")
+        .eq("user_id", legacyUser.id)
+        .is("email", null)
+        .maybeSingle();
+
+      if (legacyPw) {
+        console.log("Found legacy custom password (no email column), migrating...");
+        const inputHash = await hashPassword(password);
+
+        if (inputHash !== legacyPw.password_hash) {
+          return new Response(
+            JSON.stringify({ error: "Invalid email or password" }),
+            { status: 401, headers: { "Content-Type": "application/json", ...corsHeaders } }
+          );
+        }
+
+        // Backfill email for this user so future logins are O(1)
+        await supabaseAdmin
+          .from("user_passwords")
+          .update({ email: targetEmail })
+          .eq("user_id", legacyUser.id);
+
+        const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
+          type: "magiclink",
+          email: targetEmail,
+        });
+
+        if (linkError || !linkData) {
+          return new Response(
+            JSON.stringify({ error: "Authentication failed" }),
+            { status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } }
+          );
+        }
+
+        return new Response(
+          JSON.stringify({
+            success: true,
+            token_hash: linkData.properties.hashed_token,
+            type: "magiclink",
+            email: targetEmail,
+          }),
+          { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
+        );
+      }
+    }
+
+    // No custom password at all — try standard Supabase auth (instant)
+    console.log("No custom password found, trying standard auth");
     const { data: authData, error: authError } = await supabaseAdmin.auth.signInWithPassword({
-      email,
+      email: targetEmail,
       password,
     });
 
     if (authError) {
-      console.log("Supabase auth failed:", authError.message);
+      console.log("Standard auth failed:", authError.message);
       return new Response(
         JSON.stringify({ error: "Invalid email or password" }),
         { status: 401, headers: { "Content-Type": "application/json", ...corsHeaders } }
@@ -180,7 +171,7 @@ serve(async (req) => {
     }
 
     return new Response(
-      JSON.stringify({ 
+      JSON.stringify({
         success: true,
         session: authData.session,
         user: authData.user

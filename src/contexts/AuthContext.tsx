@@ -19,11 +19,50 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+interface CustomAuthResponse {
+  success?: boolean;
+  error?: string;
+  token_hash?: string;
+  type?: "magiclink";
+  email?: string;
+  session?: Session;
+  user?: User;
+}
+
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [role, setRole] = useState<UserRole | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+
+  const isNetworkIssue = (error: unknown) => {
+    const message =
+      error instanceof Error
+        ? error.message
+        : typeof error === "object" && error && "message" in error
+          ? String((error as { message?: unknown }).message ?? "")
+          : String(error ?? "");
+
+    const lower = message.toLowerCase();
+    return (
+      lower.includes("failed to fetch") ||
+      lower.includes("network request failed") ||
+      lower.includes("networkerror") ||
+      lower.includes("load failed")
+    );
+  };
+
+  const clearLocalAuthSession = async () => {
+    try {
+      await supabase.auth.signOut({ scope: "local" });
+    } catch (error) {
+      console.warn("Failed clearing local auth session:", error);
+    } finally {
+      setUser(null);
+      setSession(null);
+      setRole(null);
+    }
+  };
 
   const fetchUserRole = async (userId: string) => {
     const { data, error } = await supabase
@@ -42,39 +81,64 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   useEffect(() => {
     // Set up auth state listener FIRST
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, session) => {
-        setSession(session);
-        setUser(session?.user ?? null);
-        
-        // Defer role fetching with setTimeout to avoid deadlock
-        if (session?.user) {
-          setTimeout(() => {
-            fetchUserRole(session.user.id);
-          }, 0);
-        } else {
-          setRole(null);
-        }
-        setIsLoading(false);
-      }
-    );
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+      setSession(nextSession);
+      setUser(nextSession?.user ?? null);
 
-    // THEN check for existing session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      
-      if (session?.user) {
-        fetchUserRole(session.user.id);
+      // Defer role fetching with setTimeout to avoid deadlock
+      if (nextSession?.user) {
+        setTimeout(() => {
+          fetchUserRole(nextSession.user.id);
+        }, 0);
+      } else {
+        setRole(null);
       }
       setIsLoading(false);
     });
+
+    // THEN check for existing session
+    const initializeSession = async () => {
+      try {
+        const {
+          data: { session: initialSession },
+          error,
+        } = await supabase.auth.getSession();
+
+        if (error) {
+          if (isNetworkIssue(error)) {
+            await clearLocalAuthSession();
+          }
+        } else {
+          setSession(initialSession);
+          setUser(initialSession?.user ?? null);
+
+          if (initialSession?.user) {
+            fetchUserRole(initialSession.user.id);
+          } else {
+            setRole(null);
+          }
+        }
+      } catch (error) {
+        if (isNetworkIssue(error)) {
+          await clearLocalAuthSession();
+        }
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    initializeSession();
 
     return () => subscription.unsubscribe();
   }, []);
 
   const signIn = async (email: string, password: string) => {
     try {
+      // Clear potentially corrupt local auth state before a fresh login attempt
+      await clearLocalAuthSession();
+
       // First try the custom sign-in edge function (handles custom passwords)
       const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
       const response = await fetch(`${supabaseUrl}/functions/v1/custom-sign-in`, {
@@ -86,7 +150,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         body: JSON.stringify({ email, password }),
       });
 
-      const result = await response.json();
+      const result: CustomAuthResponse = await response.json().catch(() => ({}));
 
       if (!response.ok) {
         console.error("Custom sign in failed:", result);
@@ -95,7 +159,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       // If custom auth returned a magic link token, verify it
       if (result.token_hash && result.type === "magiclink") {
-        const { data, error } = await supabase.auth.verifyOtp({
+        const { error } = await supabase.auth.verifyOtp({
           token_hash: result.token_hash,
           type: "magiclink",
         });
@@ -108,31 +172,47 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         // Session will be automatically persisted by the Supabase client
         // The onAuthStateChange listener will update our state
         console.log("Magic link verified successfully, session persisted");
-        
+
         return { error: null };
       }
 
       // If custom auth returned a session directly (standard auth fallback)
       if (result.session) {
-        // IMPORTANT: Set session on the Supabase client so it persists
         const { error: setSessionError } = await supabase.auth.setSession({
           access_token: result.session.access_token,
           refresh_token: result.session.refresh_token,
         });
 
         if (setSessionError) {
+          if (isNetworkIssue(setSessionError)) {
+            // Fallback: keep the fresh session in memory to unblock login when token refresh endpoint is flaky
+            const optimisticSession = result.session;
+            const optimisticUser = result.user ?? result.session.user;
+            setSession(optimisticSession);
+            setUser(optimisticUser);
+            if (optimisticUser?.id) {
+              setTimeout(() => {
+                fetchUserRole(optimisticUser.id);
+              }, 0);
+            }
+            return { error: null };
+          }
+
           console.error("Failed to set session:", setSessionError);
           return { error: new Error("Authentication failed. Please try again.") };
         }
 
         console.log("Session set successfully and will be persisted");
-        
+
         return { error: null };
       }
 
       return { error: new Error("Authentication failed. Please try again.") };
     } catch (err) {
       console.error("Sign in error:", err);
+      if (isNetworkIssue(err)) {
+        await clearLocalAuthSession();
+      }
       return { error: err instanceof Error ? err : new Error("Sign in failed") };
     }
   };

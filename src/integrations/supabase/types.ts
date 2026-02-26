@@ -1037,6 +1037,7 @@ export type Database = {
       user_passwords: {
         Row: {
           created_at: string
+          email: string | null
           id: string
           password_hash: string
           updated_at: string
@@ -1044,6 +1045,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          email?: string | null
           id?: string
           password_hash: string
           updated_at?: string
@@ -1051,6 +1053,7 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          email?: string | null
           id?: string
           password_hash?: string
           updated_at?: string

@@ -201,7 +201,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       let customSignInNetworkFailure = false;
 
       const controller = new AbortController();
-      const requestTimeout = setTimeout(() => controller.abort(), 7000);
+      const requestTimeout = setTimeout(() => controller.abort(), 20000);
 
       try {
         const response = await fetch(`${supabaseUrl}/functions/v1/custom-sign-in`, {
@@ -294,7 +294,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (customSignInNetworkFailure) {
         const directAuth = await withTimeout(
           supabase.auth.signInWithPassword({ email, password }),
-          8000,
+          15000,
           "Connection timed out. Please try again.",
         );
 

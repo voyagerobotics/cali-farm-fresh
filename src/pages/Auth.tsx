@@ -17,7 +17,7 @@ const nameSchema = z.string().min(2, "Name must be at least 2 characters").max(1
 
 const isNetworkError = (msg: string) => {
   const lower = msg.toLowerCase();
-  return lower.includes("failed to fetch") || lower.includes("networkerror") || lower.includes("network request failed") || lower === "load failed";
+  return lower.includes("failed to fetch") || lower.includes("networkerror") || lower.includes("network request failed") || lower === "load failed" || lower.includes("timeout") || lower.includes("timed out");
 };
 
 const Auth = () => {

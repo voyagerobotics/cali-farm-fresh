@@ -20,6 +20,41 @@ async function hashPassword(password: string): Promise<string> {
   return hashArray.map(b => b.toString(16).padStart(2, "0")).join("");
 }
 
+interface AdminUser {
+  id: string;
+  email?: string | null;
+}
+
+async function getUserByEmail(
+  supabaseUrl: string,
+  serviceRoleKey: string,
+  email: string,
+): Promise<{ user: AdminUser | null; error: string | null }> {
+  const response = await fetch(`${supabaseUrl}/auth/v1/admin/users?email=${encodeURIComponent(email)}`, {
+    method: "GET",
+    headers: {
+      apikey: serviceRoleKey,
+      Authorization: `Bearer ${serviceRoleKey}`,
+      "Content-Type": "application/json",
+    },
+  });
+
+  const payload = await response.json().catch(() => ({}));
+
+  if (!response.ok) {
+    const message = typeof payload?.msg === "string"
+      ? payload.msg
+      : `User lookup failed with status ${response.status}`;
+    return { user: null, error: message };
+  }
+
+  const user = Array.isArray((payload as any)?.users)
+    ? ((payload as any).users[0] ?? null)
+    : ((payload as any)?.user ?? null);
+
+  return { user, error: null };
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -36,22 +71,37 @@ serve(async (req) => {
       );
     }
 
+    const supabaseUrl = Deno.env.get("SUPABASE_URL");
+    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+
+    if (!supabaseUrl || !serviceRoleKey) {
+      console.error("Missing required env vars", {
+        hasSupabaseUrl: Boolean(supabaseUrl),
+        hasServiceRoleKey: Boolean(serviceRoleKey),
+      });
+
+      return new Response(
+        JSON.stringify({ error: "Server configuration error" }),
+        { status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      );
+    }
+
     const supabaseAdmin = createClient(
-      Deno.env.get("SUPABASE_URL") ?? "",
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
+      supabaseUrl,
+      serviceRoleKey,
       { auth: { autoRefreshToken: false, persistSession: false } }
     );
 
-    const { data: userData, error: userError } = await supabaseAdmin.auth.admin.listUsers();
-    if (userError) {
-      console.error("Error listing users:", userError);
+    const { user, error: userLookupError } = await getUserByEmail(supabaseUrl, serviceRoleKey, email);
+
+    if (userLookupError) {
+      console.error("Error fetching user by email:", userLookupError);
       return new Response(
         JSON.stringify({ error: "Authentication failed" }),
         { status: 401, headers: { "Content-Type": "application/json", ...corsHeaders } }
       );
     }
 
-    const user = userData.users.find(u => u.email?.toLowerCase() === email.toLowerCase());
     if (!user) {
       console.log("User not found:", email);
       return new Response(

@@ -6,7 +6,6 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { CartProvider } from "@/contexts/CartContext";
 import ErrorBoundary from "@/components/ErrorBoundary";
-import NetworkStatusBanner from "@/components/NetworkStatusBanner";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import ResetPassword from "./pages/ResetPassword";
@@ -44,7 +43,6 @@ const App = () => (
       <AuthProvider>
         <CartProvider>
           <TooltipProvider>
-            <NetworkStatusBanner />
             <Toaster />
             <Sonner />
             <BrowserRouter>

@@ -38,3 +38,6 @@ verify_jwt = false
 
 [functions.send-preorder-confirmation]
 verify_jwt = false
+
+[functions.api-proxy]
+verify_jwt = false

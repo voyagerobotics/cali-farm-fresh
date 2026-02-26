@@ -195,14 +195,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // Clear potentially corrupt local auth state before a fresh login attempt
       await clearLocalAuthSession();
 
-      // First try the custom sign-in edge function (handles custom passwords)
+      // First try the custom sign-in endpoint (handles custom passwords)
       const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-      const controller = new AbortController();
-      const requestTimeout = setTimeout(() => controller.abort(), 12000);
+      let result: CustomAuthResponse | null = null;
+      let customSignInNetworkFailure = false;
 
-      let response: Response;
+      const controller = new AbortController();
+      const requestTimeout = setTimeout(() => controller.abort(), 7000);
+
       try {
-        response = await fetch(`${supabaseUrl}/functions/v1/custom-sign-in`, {
+        const response = await fetch(`${supabaseUrl}/functions/v1/custom-sign-in`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -211,24 +213,27 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           body: JSON.stringify({ email, password }),
           signal: controller.signal,
         });
+
+        result = await response.json().catch(() => ({}));
+
+        if (!response.ok) {
+          console.error("Custom sign in failed:", result);
+          return { error: new Error(result?.error || "Invalid email or password") };
+        }
       } catch (error) {
         if (error instanceof DOMException && error.name === "AbortError") {
-          return { error: new Error("Connection timed out. Please try again.") };
+          customSignInNetworkFailure = true;
+        } else if (isNetworkIssue(error)) {
+          customSignInNetworkFailure = true;
+        } else {
+          throw error;
         }
-        throw error;
       } finally {
         clearTimeout(requestTimeout);
       }
 
-      const result: CustomAuthResponse = await response.json().catch(() => ({}));
-
-      if (!response.ok) {
-        console.error("Custom sign in failed:", result);
-        return { error: new Error(result.error || "Invalid email or password") };
-      }
-
       // If custom auth returned a magic link token, verify it
-      if (result.token_hash && result.type === "magiclink") {
+      if (result?.token_hash && result.type === "magiclink") {
         const { error } = await supabase.auth.verifyOtp({
           token_hash: result.token_hash,
           type: "magiclink",
@@ -239,15 +244,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           return { error: new Error("Authentication failed. Please try again.") };
         }
 
-        // Session will be automatically persisted by the Supabase client
-        // The onAuthStateChange listener will update our state
         console.log("Magic link verified successfully, session persisted");
-
         return { error: null };
       }
 
       // If custom auth returned a session directly (standard auth fallback)
-      if (result.session) {
+      if (result?.session) {
         let setSessionError: Error | null = null;
 
         try {
@@ -285,6 +287,37 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
 
         console.log("Session set successfully and will be persisted");
+        return { error: null };
+      }
+
+      // If custom sign-in could not be reached, try direct auth as a network fallback
+      if (customSignInNetworkFailure) {
+        const directAuth = await withTimeout(
+          supabase.auth.signInWithPassword({ email, password }),
+          8000,
+          "Connection timed out. Please try again.",
+        );
+
+        if (directAuth.error) {
+          const isLikelyFallbackCredentialMismatch =
+            directAuth.error.message.toLowerCase().includes("invalid login credentials");
+
+          if (isLikelyFallbackCredentialMismatch) {
+            return { error: new Error("Connection problem. Please retry in a moment.") };
+          }
+
+          return { error: new Error(directAuth.error.message || "Login failed") };
+        }
+
+        if (directAuth.data.session) {
+          setSession(directAuth.data.session);
+          setUser(directAuth.data.user);
+          if (directAuth.data.user?.id) {
+            setTimeout(() => {
+              fetchUserRole(directAuth.data.user.id);
+            }, 0);
+          }
+        }
 
         return { error: null };
       }

@@ -26,33 +26,37 @@ interface AdminUser {
 }
 
 async function getUserByEmail(
-  supabaseUrl: string,
-  serviceRoleKey: string,
+  supabaseAdmin: ReturnType<typeof createClient>,
   email: string,
 ): Promise<{ user: AdminUser | null; error: string | null }> {
-  const response = await fetch(`${supabaseUrl}/auth/v1/admin/users?email=${encodeURIComponent(email)}`, {
-    method: "GET",
-    headers: {
-      apikey: serviceRoleKey,
-      Authorization: `Bearer ${serviceRoleKey}`,
-      "Content-Type": "application/json",
-    },
-  });
+  const targetEmail = email.toLowerCase();
+  const perPage = 200;
+  const maxPages = 20;
+  let page = 1;
 
-  const payload = await response.json().catch(() => ({}));
+  while (page <= maxPages) {
+    const { data, error } = await supabaseAdmin.auth.admin.listUsers({ page, perPage });
 
-  if (!response.ok) {
-    const message = typeof payload?.msg === "string"
-      ? payload.msg
-      : `User lookup failed with status ${response.status}`;
-    return { user: null, error: message };
+    if (error) {
+      return { user: null, error: error.message };
+    }
+
+    const users = data?.users ?? [];
+    const foundUser = users.find((candidate) => candidate.email?.toLowerCase() === targetEmail) ?? null;
+
+    if (foundUser) {
+      return { user: foundUser, error: null };
+    }
+
+    const nextPage = data?.nextPage;
+    if (!nextPage || users.length < perPage) {
+      break;
+    }
+
+    page = nextPage;
   }
 
-  const user = Array.isArray((payload as any)?.users)
-    ? ((payload as any).users[0] ?? null)
-    : ((payload as any)?.user ?? null);
-
-  return { user, error: null };
+  return { user: null, error: null };
 }
 
 serve(async (req) => {
@@ -92,7 +96,7 @@ serve(async (req) => {
       { auth: { autoRefreshToken: false, persistSession: false } }
     );
 
-    const { user, error: userLookupError } = await getUserByEmail(supabaseUrl, serviceRoleKey, email);
+    const { user, error: userLookupError } = await getUserByEmail(supabaseAdmin, email);
 
     if (userLookupError) {
       console.error("Error fetching user by email:", userLookupError);

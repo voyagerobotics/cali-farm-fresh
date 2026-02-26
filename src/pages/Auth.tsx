@@ -15,6 +15,11 @@ const passwordSchema = z.string().min(4, "Password must be at least 4 characters
 const phoneSchema = z.string().min(10, "Please enter a valid phone number").max(15);
 const nameSchema = z.string().min(2, "Name must be at least 2 characters").max(100);
 
+const isNetworkError = (msg: string) => {
+  const lower = msg.toLowerCase();
+  return lower.includes("failed to fetch") || lower.includes("networkerror") || lower.includes("network request failed") || lower === "load failed";
+};
+
 const Auth = () => {
   const [searchParams] = useSearchParams();
   const isAdminLogin = searchParams.get("type") === "admin";
@@ -41,7 +46,6 @@ const Auth = () => {
   const { toast } = useToast();
   const { logActivity } = useActivityLogger();
   
-  // Track page visit
   usePageTracking();
 
   useEffect(() => {
@@ -213,14 +217,32 @@ const Auth = () => {
         if (error) {
           const msg = error.message || "Login failed";
 
-          toast({
-            title: "Login Failed",
-            description:
-              msg === "Invalid login credentials"
-                ? "Email or password is incorrect. If you created your account earlier, use ‘Forgot password?’ once to set a new password."
-                : msg,
-            variant: "destructive",
-          });
+          if (isNetworkError(msg)) {
+            toast({
+              title: "Connection Problem",
+              description: "Unable to reach our servers. Please check your internet connection and try again.",
+              variant: "destructive",
+              action: (
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => handleSubmit({ preventDefault: () => {} } as React.FormEvent)}
+                >
+                  Retry
+                </Button>
+              ),
+              duration: 10000,
+            });
+          } else {
+            toast({
+              title: "Login Failed",
+              description:
+                msg === "Invalid login credentials"
+                  ? "Email or password is incorrect. If you created your account earlier, use 'Forgot password?' once to set a new password."
+                  : msg,
+              variant: "destructive",
+            });
+          }
         } else {
           toast({
             title: "Welcome back!",
@@ -237,8 +259,23 @@ const Auth = () => {
         if (error) {
           const errorMsg = error.message.toLowerCase();
           
-          // Check if account already exists - switch to login mode with email prefilled
-          if (errorMsg.includes("already") || 
+          if (isNetworkError(error.message)) {
+            toast({
+              title: "Connection Problem",
+              description: "Unable to reach our servers. Please check your internet connection and try again.",
+              variant: "destructive",
+              action: (
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => handleSubmit({ preventDefault: () => {} } as React.FormEvent)}
+                >
+                  Retry
+                </Button>
+              ),
+              duration: 10000,
+            });
+          } else if (errorMsg.includes("already") || 
               errorMsg.includes("exists") ||
               errorMsg.includes("registered")) {
             toast({
@@ -247,16 +284,13 @@ const Auth = () => {
             });
             setIsLogin(true);
             setFormData(prev => ({ ...prev, password: "" }));
-          } 
-          // Handle weak/pwned password errors with friendly message
-          else if (errorMsg.includes("weak") || errorMsg.includes("pwned") || errorMsg.includes("easy to guess")) {
+          } else if (errorMsg.includes("weak") || errorMsg.includes("pwned") || errorMsg.includes("easy to guess")) {
             toast({
               title: "Please Choose a Stronger Password",
               description: "This password is too common or has been exposed in data breaches. Try a unique password with at least 6 characters.",
               variant: "destructive",
             });
-          }
-          else {
+          } else {
             toast({
               title: "Registration Failed",
               description: error.message,
@@ -266,7 +300,7 @@ const Auth = () => {
         } else {
           toast({
             title: "Account Created!",
-            description: "Welcome! If you’re not logged in yet, please check your email (or just try logging in).",
+            description: "Welcome! If you're not logged in yet, please check your email (or just try logging in).",
           });
         }
       }
@@ -275,7 +309,6 @@ const Auth = () => {
     }
   };
 
-  // Forgot Password View
   if (showForgotPassword) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-primary/5 via-background to-secondary/5 flex items-center justify-center p-4">
@@ -388,7 +421,7 @@ const Auth = () => {
                       value={newPassword}
                       onChange={(e) => setNewPassword(e.target.value)}
                       className="w-full pl-10 pr-12 py-3 rounded-lg border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
-                      placeholder="••••••••"
+                      placeholder="Enter new password"
                     />
                     <button
                       type="button"
@@ -415,7 +448,7 @@ const Auth = () => {
                       value={confirmPassword}
                       onChange={(e) => setConfirmPassword(e.target.value)}
                       className="w-full pl-10 pr-4 py-3 rounded-lg border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
-                      placeholder="••••••••"
+                      placeholder="Confirm new password"
                     />
                   </div>
                   {errors.confirmPassword && (
@@ -437,7 +470,6 @@ const Auth = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-primary/5 via-background to-secondary/5 flex items-center justify-center p-4">
       <div className="w-full max-w-md">
-        {/* Back Button */}
         <Button
           variant="ghost"
           className="mb-6"
@@ -448,7 +480,6 @@ const Auth = () => {
         </Button>
 
         <div className="bg-card rounded-2xl border border-border shadow-elevated p-8">
-          {/* Logo */}
           <div className="flex items-center justify-center gap-2 mb-6">
             <div className="w-12 h-12 rounded-full bg-primary flex items-center justify-center">
               <Leaf className="w-6 h-6 text-primary-foreground" />
@@ -461,7 +492,6 @@ const Auth = () => {
             </div>
           </div>
 
-          {/* Title */}
           <h2 className="font-heading text-2xl font-bold text-foreground text-center mb-2">
             {isAdminLogin ? "Admin Login" : isLogin ? "Welcome Back" : "Create Account"}
           </h2>
@@ -546,7 +576,7 @@ const Auth = () => {
                   value={formData.password}
                   onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                   className="w-full pl-10 pr-12 py-3 rounded-lg border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
-                  placeholder="••••••••"
+                  placeholder="Enter your password"
                 />
                 <button
                   type="button"

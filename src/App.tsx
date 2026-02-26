@@ -6,6 +6,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { CartProvider } from "@/contexts/CartContext";
 import ErrorBoundary from "@/components/ErrorBoundary";
+import NetworkStatusBanner from "@/components/NetworkStatusBanner";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import ResetPassword from "./pages/ResetPassword";
@@ -22,7 +23,20 @@ import PrivacyPolicy from "./pages/PrivacyPolicy";
 import MyPreOrders from "./pages/MyPreOrders";
 import NotFound from "./pages/NotFound";
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: 3,
+      retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 8000),
+      staleTime: 30000,
+      refetchOnWindowFocus: true,
+    },
+    mutations: {
+      retry: 2,
+      retryDelay: 1000,
+    },
+  },
+});
 
 const App = () => (
   <ErrorBoundary>
@@ -30,6 +44,7 @@ const App = () => (
       <AuthProvider>
         <CartProvider>
           <TooltipProvider>
+            <NetworkStatusBanner />
             <Toaster />
             <Sonner />
             <BrowserRouter>

@@ -41,25 +41,40 @@ export const useOrders = (isAdmin: boolean = false) => {
   const fetchOrders = async () => {
     setIsLoading(true);
     try {
-      const { data, error } = await supabase
-        .from("orders")
-        .select(`
-          *,
-          order_items (
-            id,
-            product_name,
-            quantity,
-            unit_price,
-            total_price,
-            unit
-          )
-        `)
-        .order("created_at", { ascending: false });
+      let attempts = 0;
+      let lastError: any = null;
+      let data: any[] | null = null;
 
-      if (error) throw error;
+      while (attempts < 2) {
+        attempts += 1;
+        const response = await supabase
+          .from("orders")
+          .select(`
+            *,
+            order_items (
+              id,
+              product_name,
+              quantity,
+              unit_price,
+              total_price,
+              unit
+            )
+          `)
+          .order("created_at", { ascending: false });
+
+        if (!response.error) {
+          data = response.data;
+          break;
+        }
+
+        lastError = response.error;
+      }
+
+      if (lastError && !data) throw lastError;
       setOrders(data || []);
     } catch (error: any) {
       console.error("Error fetching orders:", error);
+      toast({ title: "Failed to load orders", description: "Please retry in a few seconds.", variant: "destructive" });
     } finally {
       setIsLoading(false);
     }

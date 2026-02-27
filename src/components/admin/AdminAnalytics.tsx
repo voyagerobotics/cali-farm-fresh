@@ -50,7 +50,7 @@ interface AnalyticsData {
 type ChartRange = "7days" | "30days" | "90days";
 
 const AdminAnalytics = () => {
-  const { user } = useAuth();
+  const { user, isAdmin } = useAuth();
   const [analytics, setAnalytics] = useState<AnalyticsData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -59,42 +59,52 @@ const AdminAnalytics = () => {
 
   useEffect(() => {
     const fetchAnalytics = async () => {
-      // Secondary server-side check: verify admin role before fetching data
-      if (!user) return;
-      
-      const { data: roleCheck } = await supabase
-        .from("user_roles")
-        .select("role")
-        .eq("user_id", user.id)
-        .eq("role", "admin")
-        .maybeSingle();
-      
-      if (!roleCheck) {
+      if (!user) {
         setIsLoading(false);
         return;
       }
 
       setIsLoading(true);
       try {
-        // Fetch user count from profiles table
-        const { count: userCount } = await supabase
-          .from("profiles")
-          .select("*", { count: "exact", head: true });
+        // Trust authenticated admin context first; DB role check only as fallback
+        let canAccessAdminData = isAdmin;
 
-        // Fetch all orders
-        const { data: orders } = await supabase
-          .from("orders")
-          .select("*");
+        if (!canAccessAdminData) {
+          const { data: roleCheck, error: roleError } = await supabase
+            .from("user_roles")
+            .select("role")
+            .eq("user_id", user.id)
+            .eq("role", "admin")
+            .maybeSingle();
 
-        // Fetch order items for top products
-        const { data: orderItems } = await supabase
-          .from("order_items")
-          .select("product_name, quantity, total_price");
+          if (roleError) {
+            throw roleError;
+          }
 
-        // Fetch products for stock info
-        const { data: products } = await supabase
-          .from("products")
-          .select("name, stock_quantity, is_available");
+          canAccessAdminData = !!roleCheck;
+        }
+
+        if (!canAccessAdminData) {
+          setAnalytics(null);
+          return;
+        }
+
+        const [usersRes, ordersRes, orderItemsRes, productsRes] = await Promise.all([
+          supabase.from("profiles").select("*", { count: "exact", head: true }),
+          supabase.from("orders").select("*"),
+          supabase.from("order_items").select("product_name, quantity, total_price"),
+          supabase.from("products").select("name, stock_quantity, is_available"),
+        ]);
+
+        if (usersRes.error) throw usersRes.error;
+        if (ordersRes.error) throw ordersRes.error;
+        if (orderItemsRes.error) throw orderItemsRes.error;
+        if (productsRes.error) throw productsRes.error;
+
+        const userCount = usersRes.count;
+        const orders = ordersRes.data;
+        const orderItems = orderItemsRes.data;
+        const products = productsRes.data;
 
         const today = new Date().toISOString().split("T")[0];
 
@@ -210,7 +220,7 @@ const AdminAnalytics = () => {
       supabase.removeChannel(profilesChannel);
       supabase.removeChannel(productsChannel);
     };
-  }, [user]);
+  }, [user, isAdmin]);
 
   const exportToCSV = (data: any[], filename: string) => {
     if (data.length === 0) {

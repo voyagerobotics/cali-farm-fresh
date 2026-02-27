@@ -4,9 +4,9 @@ import {
   isBackendNetworkError,
 } from "@/lib/backend-connectivity";
 
-const FETCH_TIMEOUT_MS = 9000;
-const MAX_ATTEMPTS = 2;
-const RETRY_DELAY_MS = 500;
+const FETCH_TIMEOUT_MS = 20000;
+const MAX_ATTEMPTS = 3;
+const RETRY_DELAY_MS = 700;
 
 const BACKEND_PATH_PREFIXES = ["/auth/v1/", "/rest/v1/", "/storage/v1/", "/functions/v1/"];
 const RETRY_SAFE_FUNCTION_PATHS = new Set(["/functions/v1/custom-sign-in", "/functions/v1/custom-sign-up"]);
@@ -121,24 +121,6 @@ window.fetch = async (input: RequestInfo | URL, init?: RequestInit): Promise<Res
       controller.abort();
     }, FETCH_TIMEOUT_MS);
 
-    let sourceSignal: AbortSignal | undefined;
-    let cleanupSourceAbortListener: (() => void) | undefined;
-
-    if (init?.signal) {
-      sourceSignal = init.signal;
-    } else if (input instanceof Request) {
-      sourceSignal = input.signal;
-    }
-
-    if (sourceSignal) {
-      if (sourceSignal.aborted) {
-        controller.abort();
-      } else {
-        const onSourceAbort = () => controller.abort();
-        sourceSignal.addEventListener("abort", onSourceAbort, { once: true });
-        cleanupSourceAbortListener = () => sourceSignal?.removeEventListener("abort", onSourceAbort);
-      }
-    }
 
     try {
       const attemptInput = createAttemptInput(input, inputUrl);
@@ -186,7 +168,6 @@ window.fetch = async (input: RequestInfo | URL, init?: RequestInit): Promise<Res
       await sleep(RETRY_DELAY_MS * attempt);
     } finally {
       window.clearTimeout(timeoutId);
-      cleanupSourceAbortListener?.();
     }
   }
 

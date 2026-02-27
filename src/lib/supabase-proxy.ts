@@ -40,6 +40,14 @@ const proxyBaseUrl =
 const proxyUrlObject = proxyBaseUrl ? new URL(proxyBaseUrl) : null;
 const proxyHost = proxyUrlObject?.host ?? null;
 
+const FALLBACK_AUTH_TOKEN_KEY = "cfi-fallback-access-token";
+const anonAuthTokens = [
+  (import.meta.env as Record<string, string | undefined>).VITE_SUPABASE_PUBLISHABLE_KEY,
+  (import.meta.env as Record<string, string | undefined>).VITE_SUPABASE_ANON_KEY,
+]
+  .filter((token): token is string => Boolean(token && token.trim().length > 0))
+  .map((token) => token.trim().toLowerCase());
+
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 const isBackendPath = (pathname: string) =>
@@ -61,6 +69,54 @@ const canRetry = (method: string, pathname: string) => {
 // Convert HEAD to GET for proxy compatibility — some Cloudflare Workers don't forward HEAD properly
 const shouldConvertHeadToGet = (method: string, backendRequest: boolean) =>
   backendRequest && method === "HEAD" && proxyUrlObject !== null;
+
+const shouldInjectFallbackAuthorization = (pathname: string) =>
+  pathname.startsWith("/rest/v1/") || pathname.startsWith("/storage/v1/") || pathname === "/auth/v1/user";
+
+const normalizeAuthHeader = (value: string) => value.replace(/\s+/g, " ").trim().toLowerCase();
+
+const needsFallbackAuthorization = (authorizationHeader: string | null) => {
+  if (!authorizationHeader) return true;
+  const normalized = normalizeAuthHeader(authorizationHeader);
+  return anonAuthTokens.some((token) => normalized === `bearer ${token}`);
+};
+
+const readFallbackAccessToken = () => {
+  if (typeof window === "undefined") return null;
+
+  try {
+    const token = localStorage.getItem(FALLBACK_AUTH_TOKEN_KEY);
+    if (!token) return null;
+    const trimmed = token.trim();
+    return trimmed.length > 0 ? trimmed : null;
+  } catch {
+    return null;
+  }
+};
+
+const getAttemptHeaders = (
+  input: RequestInfo | URL,
+  init: RequestInit | undefined,
+  backendRequest: boolean,
+  pathname: string,
+) => {
+  const headers = new Headers(init?.headers ?? (input instanceof Request ? input.headers : undefined));
+
+  if (!backendRequest || !shouldInjectFallbackAuthorization(pathname)) {
+    return headers;
+  }
+
+  const fallbackAccessToken = readFallbackAccessToken();
+  if (!fallbackAccessToken) {
+    return headers;
+  }
+
+  if (needsFallbackAuthorization(headers.get("authorization"))) {
+    headers.set("authorization", `Bearer ${fallbackAccessToken}`);
+  }
+
+  return headers;
+};
 
 const resolveBackendRequest = (rawUrl: string) => {
   try {
@@ -133,9 +189,11 @@ window.fetch = async (input: RequestInfo | URL, init?: RequestInit): Promise<Res
     try {
       const attemptInput = createAttemptInput(input, inputUrl);
       const convertHead = shouldConvertHeadToGet(requestMethod, backendRequest);
+      const attemptHeaders = getAttemptHeaders(input, init, backendRequest, pathname);
       const attemptInit = {
         ...init,
         signal: controller.signal,
+        headers: attemptHeaders,
         ...(convertHead ? { method: "GET" } : {}),
       };
       const response = await originalFetch(attemptInput, attemptInit);
@@ -159,7 +217,12 @@ window.fetch = async (input: RequestInfo | URL, init?: RequestInit): Promise<Res
           const directController = new AbortController();
           const directTimeout = window.setTimeout(() => directController.abort(), FETCH_TIMEOUT_MS);
           const directInput = createAttemptInput(input, originalDirectUrl);
-          const response = await originalFetch(directInput, { ...init, signal: directController.signal });
+          const directHeaders = getAttemptHeaders(input, init, backendRequest, pathname);
+          const response = await originalFetch(directInput, {
+            ...init,
+            signal: directController.signal,
+            headers: directHeaders,
+          });
           window.clearTimeout(directTimeout);
           window.dispatchEvent(new CustomEvent(BACKEND_CONNECTIVITY_RECOVERED_EVENT));
           return response;

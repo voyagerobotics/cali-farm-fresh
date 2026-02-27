@@ -30,6 +30,8 @@ interface CustomAuthResponse {
   role?: UserRole;
 }
 
+const FALLBACK_AUTH_TOKEN_KEY = "cfi-fallback-access-token";
+
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
@@ -81,6 +83,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const clearSupabaseAuthStorage = () => {
     if (typeof window === "undefined") return;
 
+    localStorage.removeItem(FALLBACK_AUTH_TOKEN_KEY);
+
     const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
     const projectScopedPrefixes = projectId
       ? [`sb-${projectId}-auth-token`, `sb-${projectId}-code-verifier`]
@@ -102,6 +106,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
 
     keysToRemove.forEach((key) => localStorage.removeItem(key));
+  };
+
+  const storeFallbackAccessToken = (accessToken?: string | null) => {
+    if (typeof window === "undefined") return;
+
+    if (accessToken && accessToken.trim().length > 0) {
+      localStorage.setItem(FALLBACK_AUTH_TOKEN_KEY, accessToken);
+      return;
+    }
+
+    localStorage.removeItem(FALLBACK_AUTH_TOKEN_KEY);
   };
 
   const clearLocalAuthSession = async () => {
@@ -286,7 +301,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       // If custom auth returned a session directly (standard auth fallback)
       if (result?.session) {
+        storeFallbackAccessToken(result.session.access_token);
+
         let setSessionError: Error | null = null;
+        let establishedSession: Session | null = null;
 
         try {
           const sessionResult = await withTimeout(
@@ -299,6 +317,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           );
 
           setSessionError = sessionResult.error;
+          establishedSession = sessionResult.data.session ?? null;
         } catch (error) {
           setSessionError = error instanceof Error ? error : new Error("Session setup failed");
         }
@@ -310,6 +329,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             const optimisticUser = result.user ?? result.session.user;
             setSession(optimisticSession);
             setUser(optimisticUser);
+            storeFallbackAccessToken(optimisticSession.access_token);
             if (optimisticUser?.id) {
               setTimeout(() => fetchUserRole(optimisticUser.id), 0);
             }
@@ -318,6 +338,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
           console.error("Failed to set session:", setSessionError);
           return { error: new Error("Authentication failed. Please try again.") };
+        }
+
+        if (establishedSession?.access_token) {
+          storeFallbackAccessToken(establishedSession.access_token);
         }
 
         return { error: null };
@@ -345,6 +369,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (directAuth.data.session) {
           setSession(directAuth.data.session);
           setUser(directAuth.data.user);
+          storeFallbackAccessToken(directAuth.data.session.access_token);
           if (directAuth.data.user?.id) {
             setTimeout(() => fetchUserRole(directAuth.data.user.id), 0);
           }

@@ -1,5 +1,5 @@
-import { useState, useEffect } from "react";
-import { TrendingUp, ShoppingBag, DollarSign, Users, Package, Calendar, Download, BarChart3, Trash2 } from "lucide-react";
+import { useState, useEffect, useCallback } from "react";
+import { TrendingUp, ShoppingBag, DollarSign, Users, Package, Calendar, Download, BarChart3, Trash2, RefreshCw } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
@@ -53,174 +53,163 @@ const AdminAnalytics = () => {
   const { user, isAdmin } = useAuth();
   const [analytics, setAnalytics] = useState<AnalyticsData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [chartRange, setChartRange] = useState<ChartRange>("7days");
   const { toast } = useToast();
 
-  useEffect(() => {
-    const fetchAnalytics = async () => {
-      if (!user) {
-        setIsLoading(false);
-        return;
-      }
+  const fetchAnalytics = useCallback(async () => {
+    if (!user) {
+      setIsLoading(false);
+      return;
+    }
 
-      setIsLoading(true);
-      try {
-        // Trust authenticated admin context first; DB role check only as fallback
-        let canAccessAdminData = isAdmin;
+    setIsLoading(true);
+    setLoadError(null);
 
-        if (!canAccessAdminData) {
-          const { data: roleCheck, error: roleError } = await supabase
+    try {
+      // Trust AuthContext admin flag; only fall back to DB if not set
+      let canAccessAdminData = isAdmin;
+
+      if (!canAccessAdminData) {
+        try {
+          const { data: roleCheck } = await supabase
             .from("user_roles")
             .select("role")
             .eq("user_id", user.id)
             .eq("role", "admin")
             .maybeSingle();
 
-          if (roleError) {
-            throw roleError;
-          }
-
           canAccessAdminData = !!roleCheck;
+        } catch (roleErr) {
+          // If role check fails due to network, still allow if context says admin
+          console.warn("Role check failed, using context:", roleErr);
         }
-
-        if (!canAccessAdminData) {
-          setAnalytics(null);
-          return;
-        }
-
-        const [usersRes, ordersRes, orderItemsRes, productsRes] = await Promise.all([
-          supabase.from("profiles").select("*", { count: "exact", head: true }),
-          supabase.from("orders").select("*"),
-          supabase.from("order_items").select("product_name, quantity, total_price"),
-          supabase.from("products").select("name, stock_quantity, is_available"),
-        ]);
-
-        if (usersRes.error) throw usersRes.error;
-        if (ordersRes.error) throw ordersRes.error;
-        if (orderItemsRes.error) throw orderItemsRes.error;
-        if (productsRes.error) throw productsRes.error;
-
-        const userCount = usersRes.count;
-        const orders = ordersRes.data;
-        const orderItems = orderItemsRes.data;
-        const products = productsRes.data;
-
-        const today = new Date().toISOString().split("T")[0];
-
-        const totalOrders = orders?.length || 0;
-        const totalRevenue = orders?.reduce((sum, o) => sum + (o.total || 0), 0) || 0;
-        const pendingOrders = orders?.filter(o => o.status === "pending").length || 0;
-        const deliveredOrders = orders?.filter(o => o.status === "delivered").length || 0;
-        const todayOrders = orders?.filter(o => o.created_at.startsWith(today)).length || 0;
-        const todayRevenue = orders?.filter(o => o.created_at.startsWith(today))
-          .reduce((sum, o) => sum + (o.total || 0), 0) || 0;
-
-        // Recent orders with delivery info
-        const recentOrders = orders
-          ?.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-          .slice(0, 5)
-          .map(o => ({
-            order_number: o.order_number,
-            total: o.total,
-            status: o.status,
-            created_at: o.created_at,
-            delivery_name: o.delivery_name,
-            delivery_address: o.delivery_address,
-          })) || [];
-
-        // Calculate product sales
-        const productStats: Record<string, { quantity: number; revenue: number }> = {};
-        orderItems?.forEach(item => {
-          if (!productStats[item.product_name]) {
-            productStats[item.product_name] = { quantity: 0, revenue: 0 };
-          }
-          productStats[item.product_name].quantity += item.quantity;
-          productStats[item.product_name].revenue += item.total_price;
-        });
-
-        const topProducts = Object.entries(productStats)
-          .map(([name, stats]) => ({
-            product_name: name,
-            total_quantity: stats.quantity,
-            total_revenue: stats.revenue,
-          }))
-          .sort((a, b) => b.total_quantity - a.total_quantity)
-          .slice(0, 5);
-
-        // Product stock with sold quantities
-        const productStock = products?.map(p => ({
-          name: p.name,
-          stock_quantity: p.stock_quantity ?? 0,
-          is_available: p.is_available ?? true,
-          sold_quantity: productStats[p.name]?.quantity || 0,
-        })).sort((a, b) => b.sold_quantity - a.sold_quantity) || [];
-
-        setAnalytics({
-          totalUsers: userCount || 0,
-          totalOrders,
-          totalRevenue,
-          pendingOrders,
-          deliveredOrders,
-          todayOrders,
-          todayRevenue,
-          recentOrders,
-          topProducts,
-          productStock,
-        });
-      } catch (error) {
-        console.error("Error fetching analytics:", error);
-      } finally {
-        setIsLoading(false);
       }
-    };
 
+      if (!canAccessAdminData) {
+        setAnalytics(null);
+        setLoadError("Admin access not verified. Please re-login.");
+        return;
+      }
+
+      // Fetch all data in parallel for speed
+      const [usersRes, ordersRes, orderItemsRes, productsRes] = await Promise.all([
+        supabase.from("profiles").select("*", { count: "exact", head: true }),
+        supabase.from("orders").select("*"),
+        supabase.from("order_items").select("product_name, quantity, total_price"),
+        supabase.from("products").select("name, stock_quantity, is_available"),
+      ]);
+
+      // Check for errors - if ANY query fails, show specific error
+      const errors = [
+        usersRes.error && `Profiles: ${usersRes.error.message}`,
+        ordersRes.error && `Orders: ${ordersRes.error.message}`,
+        orderItemsRes.error && `Order Items: ${orderItemsRes.error.message}`,
+        productsRes.error && `Products: ${productsRes.error.message}`,
+      ].filter(Boolean);
+
+      if (errors.length > 0) {
+        throw new Error(errors.join("; "));
+      }
+
+      const userCount = usersRes.count;
+      const orders = ordersRes.data;
+      const orderItems = orderItemsRes.data;
+      const products = productsRes.data;
+
+      const today = new Date().toISOString().split("T")[0];
+
+      const totalOrders = orders?.length || 0;
+      const totalRevenue = orders?.reduce((sum, o) => sum + (o.total || 0), 0) || 0;
+      const pendingOrders = orders?.filter(o => o.status === "pending").length || 0;
+      const deliveredOrders = orders?.filter(o => o.status === "delivered").length || 0;
+      const todayOrders = orders?.filter(o => o.created_at.startsWith(today)).length || 0;
+      const todayRevenue = orders?.filter(o => o.created_at.startsWith(today))
+        .reduce((sum, o) => sum + (o.total || 0), 0) || 0;
+
+      const recentOrders = orders
+        ?.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+        .slice(0, 5)
+        .map(o => ({
+          order_number: o.order_number,
+          total: o.total,
+          status: o.status,
+          created_at: o.created_at,
+          delivery_name: o.delivery_name,
+          delivery_address: o.delivery_address,
+        })) || [];
+
+      const productStats: Record<string, { quantity: number; revenue: number }> = {};
+      orderItems?.forEach(item => {
+        if (!productStats[item.product_name]) {
+          productStats[item.product_name] = { quantity: 0, revenue: 0 };
+        }
+        productStats[item.product_name].quantity += item.quantity;
+        productStats[item.product_name].revenue += item.total_price;
+      });
+
+      const topProducts = Object.entries(productStats)
+        .map(([name, stats]) => ({
+          product_name: name,
+          total_quantity: stats.quantity,
+          total_revenue: stats.revenue,
+        }))
+        .sort((a, b) => b.total_quantity - a.total_quantity)
+        .slice(0, 5);
+
+      const productStock = products?.map(p => ({
+        name: p.name,
+        stock_quantity: p.stock_quantity ?? 0,
+        is_available: p.is_available ?? true,
+        sold_quantity: productStats[p.name]?.quantity || 0,
+      })).sort((a, b) => b.sold_quantity - a.sold_quantity) || [];
+
+      setAnalytics({
+        totalUsers: userCount || 0,
+        totalOrders,
+        totalRevenue,
+        pendingOrders,
+        deliveredOrders,
+        todayOrders,
+        todayRevenue,
+        recentOrders,
+        topProducts,
+        productStock,
+      });
+      setLoadError(null);
+    } catch (error: any) {
+      console.error("Error fetching analytics:", error);
+      setLoadError(error?.message || "Connection failed. Please retry.");
+    } finally {
+      setIsLoading(false);
+    }
+  }, [user, isAdmin]);
+
+  useEffect(() => {
     fetchAnalytics();
 
-    // Set up real-time subscriptions for orders, profiles, and products
     const ordersChannel = supabase
       .channel('admin-analytics-orders')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'orders' },
-        () => {
-          console.log('Orders changed, refreshing analytics...');
-          fetchAnalytics();
-        }
-      )
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => fetchAnalytics())
       .subscribe();
 
     const profilesChannel = supabase
       .channel('admin-analytics-profiles')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'profiles' },
-        () => {
-          console.log('Profiles changed, refreshing analytics...');
-          fetchAnalytics();
-        }
-      )
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, () => fetchAnalytics())
       .subscribe();
 
     const productsChannel = supabase
       .channel('admin-analytics-products')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'products' },
-        () => {
-          console.log('Products changed, refreshing analytics...');
-          fetchAnalytics();
-        }
-      )
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'products' }, () => fetchAnalytics())
       .subscribe();
 
-    // Cleanup subscriptions on unmount
     return () => {
       supabase.removeChannel(ordersChannel);
       supabase.removeChannel(profilesChannel);
       supabase.removeChannel(productsChannel);
     };
-  }, [user, isAdmin]);
+  }, [fetchAnalytics]);
 
   const exportToCSV = (data: any[], filename: string) => {
     if (data.length === 0) {
@@ -234,7 +223,6 @@ const AdminAnalytics = () => {
       ...data.map(row => 
         headers.map(header => {
           const value = row[header];
-          // Escape quotes and wrap in quotes if contains comma
           const stringValue = String(value ?? "");
           if (stringValue.includes(",") || stringValue.includes('"')) {
             return `"${stringValue.replace(/"/g, '""')}"`;
@@ -262,36 +250,26 @@ const AdminAnalytics = () => {
       .from("orders")
       .select("order_number, delivery_name, delivery_phone, delivery_address, subtotal, delivery_charge, total, status, payment_method, payment_status, order_date, created_at")
       .order("created_at", { ascending: false });
-    
-    if (orders) {
-      exportToCSV(orders, "orders");
-    }
+    if (orders) exportToCSV(orders, "orders");
   };
 
   const exportProducts = async () => {
     const { data: products } = await supabase
       .from("products")
       .select("name, price, unit, category, stock_quantity, is_available, created_at");
-    
-    if (products) {
-      exportToCSV(products, "products_inventory");
-    }
+    if (products) exportToCSV(products, "products_inventory");
   };
 
   const exportUsers = async () => {
     const { data: profiles } = await supabase
       .from("profiles")
       .select("full_name, phone, address, city, pincode, created_at");
-    
-    if (profiles) {
-      exportToCSV(profiles, "users");
-    }
+    if (profiles) exportToCSV(profiles, "users");
   };
 
   const deleteAllOrders = async () => {
     setIsDeleting(true);
     try {
-      // First delete order items, then orders
       await supabase.from("order_items").delete().neq("id", "00000000-0000-0000-0000-000000000000");
       await supabase.from("orders").delete().neq("id", "00000000-0000-0000-0000-000000000000");
       toast({ title: "All orders deleted successfully" });
@@ -307,7 +285,6 @@ const AdminAnalytics = () => {
   const deleteAllProducts = async () => {
     setIsDeleting(true);
     try {
-      // Delete variants first due to FK constraint
       await supabase.from("product_variants").delete().neq("id", "00000000-0000-0000-0000-000000000000");
       await supabase.from("products").delete().neq("id", "00000000-0000-0000-0000-000000000000");
       toast({ title: "All products deleted successfully" });
@@ -328,8 +305,15 @@ const AdminAnalytics = () => {
     );
   }
 
-  if (!analytics) {
-    return <div className="text-center py-12 text-muted-foreground">Failed to load analytics</div>;
+  if (loadError || !analytics) {
+    return (
+      <div className="text-center py-12 space-y-4">
+        <p className="text-muted-foreground">{loadError || "Failed to load analytics"}</p>
+        <Button onClick={fetchAnalytics} variant="outline" className="gap-2">
+          <RefreshCw className="w-4 h-4" /> Retry
+        </Button>
+      </div>
+    );
   }
 
   const statCards = [
@@ -354,6 +338,9 @@ const AdminAnalytics = () => {
           </Button>
           <Button variant="outline" size="sm" onClick={exportUsers}>
             <Download className="w-4 h-4 mr-2" /> Export Users
+          </Button>
+          <Button variant="outline" size="sm" onClick={fetchAnalytics}>
+            <RefreshCw className="w-4 h-4 mr-2" /> Refresh
           </Button>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -475,16 +462,13 @@ const AdminAnalytics = () => {
             <div className="space-y-3">
               {analytics.topProducts.map((product, index) => (
                 <div key={index} className="flex items-center justify-between py-2 border-b border-border last:border-0">
-                  <div className="flex items-center gap-3">
-                    <span className="w-6 h-6 rounded-full bg-primary/10 text-primary text-xs flex items-center justify-center font-bold">
-                      {index + 1}
-                    </span>
+                  <div>
                     <p className="font-medium">{product.product_name}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {product.total_quantity} units sold
+                    </p>
                   </div>
-                  <div className="text-right">
-                    <p className="font-bold">{product.total_quantity} sold</p>
-                    <p className="text-xs text-muted-foreground">₹{product.total_revenue}</p>
-                  </div>
+                  <p className="font-bold">₹{product.total_revenue.toLocaleString()}</p>
                 </div>
               ))}
             </div>
@@ -492,39 +476,33 @@ const AdminAnalytics = () => {
         </div>
       </div>
 
-      {/* Stock Overview */}
+      {/* Product Stock */}
       <div className="bg-card border border-border rounded-xl p-6">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="font-heading font-semibold text-lg">Inventory Status</h3>
-          <div className="flex items-center gap-2">
-            <BarChart3 className="w-4 h-4 text-muted-foreground" />
-            <span className="text-sm text-muted-foreground">Real-time stock levels</span>
-          </div>
-        </div>
+        <h3 className="font-heading font-semibold text-lg mb-4">Product Inventory</h3>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border">
-                <th className="text-left py-3 px-2 font-medium">Product</th>
-                <th className="text-right py-3 px-2 font-medium">Sold</th>
-                <th className="text-right py-3 px-2 font-medium">Remaining</th>
-                <th className="text-center py-3 px-2 font-medium">Status</th>
+                <th className="text-left py-2 font-medium text-muted-foreground">Product</th>
+                <th className="text-right py-2 font-medium text-muted-foreground">Stock</th>
+                <th className="text-right py-2 font-medium text-muted-foreground">Sold</th>
+                <th className="text-right py-2 font-medium text-muted-foreground">Status</th>
               </tr>
             </thead>
             <tbody>
-              {analytics.productStock.map((product, index) => (
+              {analytics.productStock.slice(0, 10).map((product, index) => (
                 <tr key={index} className="border-b border-border last:border-0">
-                  <td className="py-3 px-2">{product.name}</td>
-                  <td className="text-right py-3 px-2 font-medium">{product.sold_quantity}</td>
-                  <td className="text-right py-3 px-2 font-medium">{product.stock_quantity}</td>
-                  <td className="text-center py-3 px-2">
-                    {product.stock_quantity === 0 ? (
-                      <span className="text-xs bg-destructive/10 text-destructive px-2 py-1 rounded-full">Out of Stock</span>
-                    ) : product.stock_quantity <= 10 ? (
-                      <span className="text-xs bg-yellow-500/10 text-yellow-600 px-2 py-1 rounded-full">Low Stock</span>
-                    ) : (
-                      <span className="text-xs bg-green-500/10 text-green-600 px-2 py-1 rounded-full">In Stock</span>
-                    )}
+                  <td className="py-2">{product.name}</td>
+                  <td className="py-2 text-right">{product.stock_quantity}</td>
+                  <td className="py-2 text-right">{product.sold_quantity}</td>
+                  <td className="py-2 text-right">
+                    <span className={`text-xs px-2 py-0.5 rounded-full ${
+                      product.is_available && product.stock_quantity > 0
+                        ? "bg-green-500/10 text-green-600"
+                        : "bg-destructive/10 text-destructive"
+                    }`}>
+                      {product.is_available && product.stock_quantity > 0 ? "In Stock" : "Out of Stock"}
+                    </span>
                   </td>
                 </tr>
               ))}

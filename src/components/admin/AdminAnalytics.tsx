@@ -94,8 +94,9 @@ const AdminAnalytics = () => {
       }
 
       // Fetch all data in parallel for speed
+      // Use GET with limit(0) instead of HEAD for count — Cloudflare Worker doesn't proxy HEAD properly
       const [usersRes, ordersRes, orderItemsRes, productsRes] = await Promise.all([
-        supabase.from("profiles").select("*", { count: "exact", head: true }),
+        supabase.from("profiles").select("id", { count: "exact" }).limit(0),
         supabase.from("orders").select("*"),
         supabase.from("order_items").select("product_name, quantity, total_price"),
         supabase.from("products").select("name, stock_quantity, is_available"),

@@ -34,20 +34,9 @@ const isSupabaseHost = (host: string | null) => Boolean(host && host.endsWith(".
 
 const DEFAULT_PROXY_BASE_URL = "https://restless-silence-58cd.voyagerobotics.workers.dev";
 
-// On lovable.app preview domains, supabase.co is directly accessible (no ISP blocking)
-// Only use the proxy on the production domain where ISP blocking occurs
-const isPreviewDomain = window.location.hostname.endsWith(".lovable.app") && 
-  window.location.hostname.includes("preview--");
-const isLovableDomain = window.location.hostname.endsWith(".lovableproject.com") || isPreviewDomain;
-
-// Determine if proxy should be used
-const shouldUseProxy = !isLovableDomain;
-
 const proxyBaseUrl =
   proxyBaseUrlFromEnv ??
-  (shouldUseProxy 
-    ? (configuredHost && !isSupabaseHost(configuredHost) ? configuredBaseUrl : DEFAULT_PROXY_BASE_URL)
-    : null);
+  (configuredHost && !isSupabaseHost(configuredHost) ? configuredBaseUrl : DEFAULT_PROXY_BASE_URL);
 
 const proxyUrlObject = proxyBaseUrl ? new URL(proxyBaseUrl) : null;
 const proxyHost = proxyUrlObject?.host ?? null;

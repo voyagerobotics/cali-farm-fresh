@@ -3,6 +3,7 @@ import { Search, X } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Product } from "@/hooks/useProducts";
 import { cn } from "@/lib/utils";
+import { proxyImageUrl } from "@/lib/proxy-image-url";
 
 interface ProductSearchProps {
   products: Product[];
@@ -112,9 +113,9 @@ const ProductSearch = ({ products, onSearch, onSelectProduct }: ProductSearchPro
               onClick={() => handleSuggestionClick(product)}
               className="w-full flex items-center gap-4 p-3 hover:bg-accent/50 transition-colors text-left"
             >
-              {product.image_url ? (
+              {proxyImageUrl(product.image_url) ? (
                 <img
-                  src={product.image_url}
+                  src={proxyImageUrl(product.image_url)!}
                   alt={product.name}
                   className="w-12 h-12 rounded-lg object-cover"
                 />

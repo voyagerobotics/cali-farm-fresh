@@ -3,6 +3,7 @@ import { ChevronLeft, ChevronRight, X, ZoomIn, Package } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
+import { proxyImageUrls, proxyImageUrl } from "@/lib/proxy-image-url";
 
 interface ProductImageGalleryProps {
   imageUrl: string | null;
@@ -18,10 +19,12 @@ const ProductImageGallery = ({ imageUrl, imageUrls, productName }: ProductImageG
 
   // Combine all images, prioritizing image_urls, fallback to image_url
   const allImages: string[] = [];
-  if (imageUrls && imageUrls.length > 0) {
-    allImages.push(...imageUrls);
-  } else if (imageUrl) {
-    allImages.push(imageUrl);
+  const proxiedUrls = proxyImageUrls(imageUrls);
+  const proxiedUrl = proxyImageUrl(imageUrl);
+  if (proxiedUrls && proxiedUrls.length > 0) {
+    allImages.push(...proxiedUrls);
+  } else if (proxiedUrl) {
+    allImages.push(proxiedUrl);
   }
 
   const hasMultipleImages = allImages.length > 1;

@@ -188,6 +188,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } = supabase.auth.onAuthStateChange((_event, nextSession) => {
       setSession(nextSession);
       setUser(nextSession?.user ?? null);
+      storeFallbackAccessToken(nextSession?.access_token ?? null);
 
       if (nextSession?.user) {
         setTimeout(() => {
@@ -215,6 +216,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         } else {
           setSession(initialSession);
           setUser(initialSession?.user ?? null);
+          storeFallbackAccessToken(initialSession?.access_token ?? null);
 
           if (initialSession?.user) {
             fetchUserRole(initialSession.user.id);
@@ -286,14 +288,43 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       // If custom auth returned a magic link token, verify it
       if (result?.token_hash && result.type === "magiclink") {
-        const { error } = await supabase.auth.verifyOtp({
-          token_hash: result.token_hash,
-          type: "magiclink",
-        });
+        let otpData: { user: User | null; session: Session | null } | null = null;
+        let otpError: Error | null = null;
 
-        if (error) {
-          console.error("Token verification failed:", error);
+        try {
+          const verificationResult = await withTimeout(
+            supabase.auth.verifyOtp({
+              token_hash: result.token_hash,
+              type: "magiclink",
+            }),
+            12000,
+            "Authentication timed out",
+          );
+
+          otpData = verificationResult.data;
+          otpError = verificationResult.error;
+        } catch (error) {
+          if (isNetworkIssue(error)) {
+            return { error: new Error("Connection problem. Please retry in a moment.") };
+          }
+
+          return { error: error instanceof Error ? error : new Error("Authentication failed. Please try again.") };
+        }
+
+        if (otpError) {
+          console.error("Token verification failed:", otpError);
           return { error: new Error("Authentication failed. Please try again.") };
+        }
+
+        if (otpData?.session) {
+          setSession(otpData.session);
+          setUser(otpData.user ?? otpData.session.user ?? null);
+          storeFallbackAccessToken(otpData.session.access_token);
+        }
+
+        const resolvedUserId = otpData?.user?.id ?? otpData?.session?.user?.id;
+        if (resolvedUserId) {
+          setTimeout(() => fetchUserRole(resolvedUserId), 0);
         }
 
         return { error: null };
@@ -420,6 +451,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
         setSession(data.session);
         setUser(data.session?.user ?? null);
+        storeFallbackAccessToken(data.session?.access_token ?? null);
+        setRole("customer");
         return { error: null };
       }
 

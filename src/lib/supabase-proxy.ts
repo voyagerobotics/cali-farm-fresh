@@ -54,10 +54,13 @@ const getRequestMethod = (input: RequestInfo | URL, init?: RequestInit) => {
 // All backend GET/HEAD/OPTIONS can retry, plus safe POST endpoints
 const canRetry = (method: string, pathname: string) => {
   if (["GET", "HEAD", "OPTIONS"].includes(method)) return true;
-  // POST to auth token (login) is also retriable
   if (method === "POST" && pathname.startsWith("/auth/v1/token")) return true;
   return method === "POST" && RETRY_SAFE_FUNCTION_PATHS.has(pathname);
 };
+
+// Convert HEAD to GET for proxy compatibility — some Cloudflare Workers don't forward HEAD properly
+const shouldConvertHeadToGet = (method: string, backendRequest: boolean) =>
+  backendRequest && method === "HEAD" && proxyUrlObject !== null;
 
 const resolveBackendRequest = (rawUrl: string) => {
   try {
@@ -129,7 +132,12 @@ window.fetch = async (input: RequestInfo | URL, init?: RequestInit): Promise<Res
 
     try {
       const attemptInput = createAttemptInput(input, inputUrl);
-      const attemptInit = { ...init, signal: controller.signal };
+      const convertHead = shouldConvertHeadToGet(requestMethod, backendRequest);
+      const attemptInit = {
+        ...init,
+        signal: controller.signal,
+        ...(convertHead ? { method: "GET" } : {}),
+      };
       const response = await originalFetch(attemptInput, attemptInit);
 
       if (backendRequest) {

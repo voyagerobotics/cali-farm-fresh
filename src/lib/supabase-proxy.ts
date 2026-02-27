@@ -32,7 +32,7 @@ const projectHost = projectId ? `${projectId}.supabase.co` : null;
 
 const isSupabaseHost = (host: string | null) => Boolean(host && host.endsWith(".supabase.co"));
 
-const DEFAULT_PROXY_BASE_URL = "https://api.zomical.com";
+const DEFAULT_PROXY_BASE_URL = "https://restless-silence-58cd.voyagerobotics.workers.dev";
 
 const proxyBaseUrl =
   proxyBaseUrlFromEnv ??

@@ -62,6 +62,7 @@ const resolveBackendRequest = (rawUrl: string) => {
     const parsed = new URL(rawUrl, window.location.origin);
 
     const hostMatchesKnownBackend =
+      isSupabaseHost(parsed.host) ||
       (projectHost !== null && parsed.host === projectHost) ||
       (configuredHost !== null && parsed.host === configuredHost) ||
       (proxyHost !== null && parsed.host === proxyHost);

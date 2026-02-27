@@ -27,6 +27,7 @@ interface CustomAuthResponse {
   email?: string;
   session?: Session;
   user?: User;
+  role?: UserRole;
 }
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -121,17 +122,35 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const fetchUserRole = async (userId: string) => {
-    const { data, error } = await supabase
-      .from("user_roles")
-      .select("role")
-      .eq("user_id", userId)
-      .maybeSingle();
+    const maxAttempts = 2;
 
-    if (!error && data) {
-      setRole(data.role as UserRole);
-    } else {
-      // Default to customer if role can't be fetched (e.g. missing policy/record)
-      setRole("customer");
+    for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+      const { data, error } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", userId)
+        .maybeSingle();
+
+      if (!error && data?.role) {
+        setRole(data.role as UserRole);
+        return;
+      }
+
+      if (!error && !data) {
+        setRole((previousRole) => (previousRole === "admin" ? "admin" : "customer"));
+        return;
+      }
+
+      const networkFailure = isNetworkIssue(error?.message ?? "");
+      const canRetry = networkFailure && attempt < maxAttempts;
+
+      if (canRetry) {
+        await new Promise((resolve) => setTimeout(resolve, 250 * attempt));
+        continue;
+      }
+
+      setRole((previousRole) => (previousRole === "admin" ? "admin" : "customer"));
+      return;
     }
   };
 
@@ -230,6 +249,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
       } finally {
         clearTimeout(requestTimeout);
+      }
+
+      const roleFromSignIn = result?.role;
+      if (roleFromSignIn === "admin" || roleFromSignIn === "customer") {
+        setRole(roleFromSignIn);
       }
 
       // If custom auth returned a magic link token, verify it

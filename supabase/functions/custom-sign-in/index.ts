@@ -11,6 +11,26 @@ interface SignInRequest {
   password: string;
 }
 
+type UserRole = "admin" | "customer";
+
+const resolveUserRole = async (
+  supabaseAdmin: ReturnType<typeof createClient>,
+  userId: string,
+): Promise<UserRole> => {
+  const { data, error } = await supabaseAdmin
+    .from("user_roles")
+    .select("role")
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (error) {
+    console.error("Error resolving user role:", error);
+    return "customer";
+  }
+
+  return data?.role === "admin" ? "admin" : "customer";
+};
+
 async function hashPassword(password: string): Promise<string> {
   const encoder = new TextEncoder();
   const data = encoder.encode(password);
@@ -90,12 +110,15 @@ serve(async (req) => {
         );
       }
 
+      const role = await resolveUserRole(supabaseAdmin, customPassword.user_id);
+
       return new Response(
         JSON.stringify({
           success: true,
           token_hash: linkData.properties.hashed_token,
           type: "magiclink",
           email: targetEmail,
+          role,
         }),
         { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
       );
@@ -143,12 +166,15 @@ serve(async (req) => {
           );
         }
 
+        const role = await resolveUserRole(supabaseAdmin, legacyUser.id);
+
         return new Response(
           JSON.stringify({
             success: true,
             token_hash: linkData.properties.hashed_token,
             type: "magiclink",
             email: targetEmail,
+            role,
           }),
           { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
         );
@@ -170,11 +196,14 @@ serve(async (req) => {
       );
     }
 
+    const role = await resolveUserRole(supabaseAdmin, authData.user.id);
+
     return new Response(
       JSON.stringify({
         success: true,
         session: authData.session,
-        user: authData.user
+        user: authData.user,
+        role,
       }),
       { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
     );

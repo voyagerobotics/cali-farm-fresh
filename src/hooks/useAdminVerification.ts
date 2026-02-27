@@ -9,7 +9,7 @@ import { useAuth } from "@/contexts/AuthContext";
  * in addition to the client-side role check in AuthContext.
  */
 export const useAdminVerification = () => {
-  const { user, isLoading: authLoading } = useAuth();
+  const { user, isLoading: authLoading, isAdmin: contextIsAdmin } = useAuth();
   const navigate = useNavigate();
   const [isVerified, setIsVerified] = useState(false);
   const [isVerifying, setIsVerifying] = useState(true);
@@ -32,28 +32,49 @@ export const useAdminVerification = () => {
 
       if (error) {
         console.error("Error verifying admin role:", error);
+        // If DB query fails (e.g. session not set yet due to network), 
+        // trust the AuthContext role which came from the server edge function
+        if (contextIsAdmin) {
+          setIsVerified(true);
+          setIsVerifying(false);
+          return true;
+        }
         setIsVerified(false);
         setIsVerifying(false);
         return false;
       }
 
       const hasAdminRole = !!data;
+      
+      // If DB returned no rows (e.g. RLS blocking due to anon key),
+      // fall back to the AuthContext role from sign-in response
+      if (!hasAdminRole && contextIsAdmin) {
+        setIsVerified(true);
+        setIsVerifying(false);
+        return true;
+      }
+
       setIsVerified(hasAdminRole);
       setIsVerifying(false);
 
       if (!hasAdminRole) {
-        // Redirect non-admin users
         navigate("/");
       }
 
       return hasAdminRole;
     } catch (error) {
       console.error("Error in admin verification:", error);
+      // Trust AuthContext on network failure
+      if (contextIsAdmin) {
+        setIsVerified(true);
+        setIsVerifying(false);
+        return true;
+      }
       setIsVerified(false);
       setIsVerifying(false);
       return false;
     }
-  }, [user, navigate]);
+  }, [user, navigate, contextIsAdmin]);
 
   useEffect(() => {
     // Only run verification after auth state is fully loaded

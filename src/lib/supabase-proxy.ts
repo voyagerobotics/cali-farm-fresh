@@ -59,10 +59,10 @@ const getRequestMethod = (input: RequestInfo | URL, init?: RequestInit) => {
   return "GET";
 };
 
-// All backend GET/HEAD/OPTIONS can retry, plus safe POST endpoints
+// All backend GET/HEAD/OPTIONS can retry, plus safe auth/function POST endpoints
 const canRetry = (method: string, pathname: string) => {
   if (["GET", "HEAD", "OPTIONS"].includes(method)) return true;
-  if (method === "POST" && pathname.startsWith("/auth/v1/token")) return true;
+  if (method === "POST" && (pathname.startsWith("/auth/v1/token") || pathname.startsWith("/auth/v1/verify"))) return true;
   return method === "POST" && RETRY_SAFE_FUNCTION_PATHS.has(pathname);
 };
 

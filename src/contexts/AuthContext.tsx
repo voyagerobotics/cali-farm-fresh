@@ -292,14 +292,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         let otpError: Error | null = null;
 
         try {
-          const verificationResult = await withTimeout(
-            supabase.auth.verifyOtp({
-              token_hash: result.token_hash,
-              type: "magiclink",
-            }),
-            12000,
-            "Authentication timed out",
-          );
+          const verificationResult = await supabase.auth.verifyOtp({
+            token_hash: result.token_hash,
+            type: "magiclink",
+          });
 
           otpData = verificationResult.data;
           otpError = verificationResult.error;

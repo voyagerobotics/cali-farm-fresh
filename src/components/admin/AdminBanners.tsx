@@ -1,5 +1,6 @@
 import { useState, useRef } from "react";
 import { Plus, Edit, Trash2, Eye, EyeOff, Loader2, Megaphone, ShoppingBag, Upload, X, ImageIcon, Bell, CreditCard } from "lucide-react";
+import { proxyImageUrl } from "@/lib/proxy-image-url";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -162,7 +163,7 @@ const AdminBanners = () => {
               <div className="flex items-center justify-between flex-wrap gap-3">
                 <div className="flex items-center gap-4">
                   {banner.image_url ? (
-                    <img src={banner.image_url} alt={banner.product_name} className="w-12 h-12 rounded-lg object-cover" />
+                    <img src={proxyImageUrl(banner.image_url)!} alt={banner.product_name} className="w-12 h-12 rounded-lg object-cover" />
                   ) : (
                     <div
                       className="w-12 h-12 rounded-lg flex items-center justify-center text-2xl"
@@ -363,7 +364,7 @@ const AdminBanners = () => {
               <Label>Banner Image</Label>
               {form.image_url ? (
                 <div className="relative w-full h-40 rounded-xl overflow-hidden border border-border">
-                  <img src={form.image_url} alt="Banner preview" className="w-full h-full object-cover" />
+                  <img src={proxyImageUrl(form.image_url)!} alt="Banner preview" className="w-full h-full object-cover" />
                   <Button variant="destructive" size="icon" className="absolute top-2 right-2 w-8 h-8 rounded-full" onClick={() => setForm(f => ({ ...f, image_url: "" }))}>
                     <X className="w-4 h-4" />
                   </Button>
@@ -473,7 +474,7 @@ const AdminBanners = () => {
                   {form.subtitle && <p className="opacity-80 text-sm">{form.subtitle}</p>}
                   {form.payment_required && <p className="text-xs opacity-70 mt-1">💳 Payment required at booking</p>}
                 </div>
-                {form.image_url && <img src={form.image_url} alt="Preview" className="w-16 h-16 rounded-lg object-cover" />}
+                {form.image_url && <img src={proxyImageUrl(form.image_url)!} alt="Preview" className="w-16 h-16 rounded-lg object-cover" />}
               </div>
             </div>
 

@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
+import { proxyImageUrl } from "@/lib/proxy-image-url";
 import { ArrowLeft, ShoppingCart, Minus, Plus, Truck, Clock, Leaf, AlertCircle, CheckCircle, Package } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
@@ -304,7 +305,7 @@ const ProductDetail = () => {
                 <Link key={relatedProduct.id} to={`/product/${relatedProduct.id}`} className="bg-card rounded-xl p-5 border border-border hover:shadow-elevated transition-all duration-300 hover:-translate-y-1">
                   {relatedProduct.image_url ? (
                     <div className="aspect-square bg-muted/50 rounded-lg overflow-hidden mb-4">
-                      <img src={relatedProduct.image_url} alt={relatedProduct.name} className="w-full h-full object-cover" />
+                      <img src={proxyImageUrl(relatedProduct.image_url)!} alt={relatedProduct.name} className="w-full h-full object-cover" />
                     </div>
                   ) : (
                     <div className="aspect-square bg-muted/50 rounded-lg flex items-center justify-center mb-4">

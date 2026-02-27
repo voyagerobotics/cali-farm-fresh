@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ShoppingBag, Sparkles } from "lucide-react";
 import PreOrderDialog from "./PreOrderDialog";
+import { proxyImageUrl } from "@/lib/proxy-image-url";
 
 const PromotionalBanners = () => {
   const { banners, isLoading } = usePromotionalBanners(true);
@@ -104,10 +105,10 @@ const PromotionalBanners = () => {
                   </div>
 
                   {/* Image */}
-                  {banner.image_url && (
+                  {proxyImageUrl(banner.image_url) && (
                     <div className="w-48 h-48 md:w-64 md:h-64 lg:w-72 lg:h-72 rounded-3xl overflow-hidden flex-shrink-0 shadow-2xl ring-4 ring-white/30 group-hover:scale-105 transition-transform duration-500 z-10">
                       <img
-                        src={banner.image_url}
+                        src={proxyImageUrl(banner.image_url)!}
                         alt={banner.product_name}
                         className="w-full h-full object-cover"
                         loading="lazy"
@@ -116,7 +117,7 @@ const PromotionalBanners = () => {
                   )}
 
                   {/* Fallback emoji display when no image */}
-                  {!banner.image_url && (
+                  {!proxyImageUrl(banner.image_url) && (
                     <div
                       className="w-48 h-48 md:w-64 md:h-64 rounded-3xl flex items-center justify-center text-8xl md:text-9xl flex-shrink-0 shadow-2xl ring-4 ring-white/30 z-10"
                       style={{ backgroundColor: `${banner.text_color || '#92400E'}15` }}

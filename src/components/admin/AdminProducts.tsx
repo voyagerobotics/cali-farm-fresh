@@ -1,5 +1,6 @@
 import { useState, useRef, useMemo } from "react";
 import { Plus, Edit, Trash2, Eye, EyeOff, X, Image as ImageIcon, Settings2, Percent, Tag, Sparkles, Loader2, Filter, Search } from "lucide-react";
+import { proxyImageUrl } from "@/lib/proxy-image-url";
 import { Button } from "@/components/ui/button";
 import { useProducts, useProductMutations, Product } from "@/hooks/useProducts";
 import { useImageUpload } from "@/hooks/useImageUpload";
@@ -708,7 +709,7 @@ const AdminProducts = () => {
             {/* Product Image */}
             <div className="w-16 h-16 rounded-lg bg-muted/50 flex-shrink-0 overflow-hidden relative">
               {product.image_url ? (
-                <img src={product.image_url} alt={product.name} className="w-full h-full object-cover" />
+                <img src={proxyImageUrl(product.image_url)!} alt={product.name} className="w-full h-full object-cover" />
               ) : (
                 <div className="w-full h-full flex items-center justify-center">
                   <ImageIcon className="w-6 h-6 text-muted-foreground/50" />

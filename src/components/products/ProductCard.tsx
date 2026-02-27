@@ -7,6 +7,7 @@ import { useProductVariants, ProductVariant, calculateDiscountedPrice } from "@/
 import VariantSelector from "./VariantSelector";
 import DiscountBadge from "./DiscountBadge";
 import { cn } from "@/lib/utils";
+import { proxyImageUrl } from "@/lib/proxy-image-url";
 
 interface ProductCardProps {
   product: Product & {
@@ -90,9 +91,9 @@ const ProductCard = ({ product, onAddToCart }: ProductCardProps) => {
     >
       {/* Image container */}
       <Link to={`/product/${product.id}`} className="block relative aspect-square overflow-hidden bg-muted/30">
-        {product.image_url ? (
+        {proxyImageUrl(product.image_url) ? (
           <img
-            src={product.image_url}
+            src={proxyImageUrl(product.image_url)!}
             alt={product.name}
             className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
             loading="lazy"

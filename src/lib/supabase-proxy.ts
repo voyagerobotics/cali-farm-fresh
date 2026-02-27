@@ -4,9 +4,9 @@ import {
   isBackendNetworkError,
 } from "@/lib/backend-connectivity";
 
-const FETCH_TIMEOUT_MS = 20000;
+const FETCH_TIMEOUT_MS = 30000;
 const MAX_ATTEMPTS = 3;
-const RETRY_DELAY_MS = 700;
+const RETRY_DELAY_MS = 800;
 
 const BACKEND_PATH_PREFIXES = ["/auth/v1/", "/rest/v1/", "/storage/v1/", "/functions/v1/"];
 const RETRY_SAFE_FUNCTION_PATHS = new Set(["/functions/v1/custom-sign-in", "/functions/v1/custom-sign-up"]);
@@ -15,7 +15,6 @@ const originalFetch = window.fetch.bind(window);
 
 const normalizeBaseUrl = (value?: string): string | null => {
   if (!value) return null;
-
   try {
     const parsed = new URL(value.trim());
     return parsed.toString().replace(/\/$/, "");
@@ -52,8 +51,11 @@ const getRequestMethod = (input: RequestInfo | URL, init?: RequestInit) => {
   return "GET";
 };
 
+// All backend GET/HEAD/OPTIONS can retry, plus safe POST endpoints
 const canRetry = (method: string, pathname: string) => {
   if (["GET", "HEAD", "OPTIONS"].includes(method)) return true;
+  // POST to auth token (login) is also retriable
+  if (method === "POST" && pathname.startsWith("/auth/v1/token")) return true;
   return method === "POST" && RETRY_SAFE_FUNCTION_PATHS.has(pathname);
 };
 
@@ -69,6 +71,9 @@ const resolveBackendRequest = (rawUrl: string) => {
 
     const backendRequest = hostMatchesKnownBackend && isBackendPath(parsed.pathname);
 
+    // Store the original direct URL before rewriting
+    const originalDirectUrl = parsed.toString();
+
     if (backendRequest && proxyUrlObject && parsed.host !== proxyHost) {
       parsed.protocol = proxyUrlObject.protocol;
       parsed.host = proxyUrlObject.host;
@@ -76,7 +81,7 @@ const resolveBackendRequest = (rawUrl: string) => {
 
     return {
       inputUrl: parsed.toString(),
-      originalDirectUrl: rawUrl,
+      originalDirectUrl,
       pathname: parsed.pathname,
       backendRequest,
     };
@@ -97,11 +102,9 @@ const createAttemptInput = (
   if (input instanceof Request) {
     return new Request(rewrittenUrl, input);
   }
-
   if (input instanceof URL) {
     return new URL(rewrittenUrl);
   }
-
   return rewrittenUrl;
 };
 
@@ -116,11 +119,13 @@ window.fetch = async (input: RequestInfo | URL, init?: RequestInit): Promise<Res
     const controller = new AbortController();
     let timedOut = false;
 
+    // Progressive timeout: first attempt 30s, subsequent attempts 15s
+    const attemptTimeout = attempt === 1 ? FETCH_TIMEOUT_MS : FETCH_TIMEOUT_MS / 2;
+
     const timeoutId = window.setTimeout(() => {
       timedOut = true;
       controller.abort();
-    }, FETCH_TIMEOUT_MS);
-
+    }, attemptTimeout);
 
     try {
       const attemptInput = createAttemptInput(input, inputUrl);
@@ -135,12 +140,12 @@ window.fetch = async (input: RequestInfo | URL, init?: RequestInit): Promise<Res
     } catch (error) {
       const normalizedError =
         timedOut && !isBackendNetworkError(error)
-          ? new Error(`Request timed out after ${FETCH_TIMEOUT_MS}ms`)
+          ? new Error(`Request timed out after ${attemptTimeout}ms`)
           : error;
 
       lastError = normalizedError;
 
-      // If proxy failed and we have a direct URL different from proxy URL, try direct as fallback
+      // On final attempt, try direct connection as ultimate fallback
       if (backendRequest && proxyUrlObject && inputUrl !== originalDirectUrl && attempt === MAX_ATTEMPTS) {
         try {
           const directController = new AbortController();
@@ -151,7 +156,7 @@ window.fetch = async (input: RequestInfo | URL, init?: RequestInit): Promise<Res
           window.dispatchEvent(new CustomEvent(BACKEND_CONNECTIVITY_RECOVERED_EVENT));
           return response;
         } catch {
-          // Direct fallback also failed, continue with original error
+          // Direct fallback also failed
         }
       }
 

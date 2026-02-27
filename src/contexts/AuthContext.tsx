@@ -51,7 +51,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       lower.includes("networkerror") ||
       lower.includes("load failed") ||
       lower.includes("timeout") ||
-      lower.includes("timed out")
+      lower.includes("timed out") ||
+      lower.includes("aborted")
     );
   };
 
@@ -122,35 +123,46 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const fetchUserRole = async (userId: string) => {
-    const maxAttempts = 2;
+    const maxAttempts = 3;
 
     for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
-      const { data, error } = await supabase
-        .from("user_roles")
-        .select("role")
-        .eq("user_id", userId)
-        .maybeSingle();
+      try {
+        const { data, error } = await supabase
+          .from("user_roles")
+          .select("role")
+          .eq("user_id", userId)
+          .maybeSingle();
 
-      if (!error && data?.role) {
-        setRole(data.role as UserRole);
+        if (!error && data?.role) {
+          setRole(data.role as UserRole);
+          return;
+        }
+
+        if (!error && !data) {
+          // No row found - preserve existing admin role or default to customer
+          setRole((previousRole) => (previousRole === "admin" ? "admin" : "customer"));
+          return;
+        }
+
+        const networkFailure = isNetworkIssue(error?.message ?? "");
+        const canRetry = networkFailure && attempt < maxAttempts;
+
+        if (canRetry) {
+          await new Promise((resolve) => setTimeout(resolve, 500 * attempt));
+          continue;
+        }
+
+        // On final failure, preserve existing role
+        setRole((previousRole) => (previousRole === "admin" ? "admin" : "customer"));
         return;
-      }
-
-      if (!error && !data) {
+      } catch (err) {
+        if (attempt < maxAttempts && isNetworkIssue(err)) {
+          await new Promise((resolve) => setTimeout(resolve, 500 * attempt));
+          continue;
+        }
         setRole((previousRole) => (previousRole === "admin" ? "admin" : "customer"));
         return;
       }
-
-      const networkFailure = isNetworkIssue(error?.message ?? "");
-      const canRetry = networkFailure && attempt < maxAttempts;
-
-      if (canRetry) {
-        await new Promise((resolve) => setTimeout(resolve, 250 * attempt));
-        continue;
-      }
-
-      setRole((previousRole) => (previousRole === "admin" ? "admin" : "customer"));
-      return;
     }
   };
 
@@ -162,7 +174,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setSession(nextSession);
       setUser(nextSession?.user ?? null);
 
-      // Defer role fetching with setTimeout to avoid deadlock
       if (nextSession?.user) {
         setTimeout(() => {
           fetchUserRole(nextSession.user.id);
@@ -183,7 +194,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
         if (error) {
           if (isNetworkIssue(error)) {
-            await clearLocalAuthSession();
+            // Don't clear session on network issues during init - user may have valid cached session
+            console.warn("Network issue during session init, keeping existing state");
           }
         } else {
           setSession(initialSession);
@@ -197,7 +209,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
       } catch (error) {
         if (isNetworkIssue(error)) {
-          await clearLocalAuthSession();
+          console.warn("Network issue during session init");
         }
       } finally {
         setIsLoading(false);
@@ -220,7 +232,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       let customSignInNetworkFailure = false;
 
       const controller = new AbortController();
-      const requestTimeout = setTimeout(() => controller.abort(), 20000);
+      const requestTimeout = setTimeout(() => controller.abort(), 25000);
 
       try {
         const response = await fetch(`${supabaseUrl}/functions/v1/custom-sign-in`, {
@@ -251,6 +263,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         clearTimeout(requestTimeout);
       }
 
+      // Set role from sign-in response immediately
       const roleFromSignIn = result?.role;
       if (roleFromSignIn === "admin" || roleFromSignIn === "customer") {
         setRole(roleFromSignIn);
@@ -268,7 +281,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           return { error: new Error("Authentication failed. Please try again.") };
         }
 
-        console.log("Magic link verified successfully, session persisted");
         return { error: null };
       }
 
@@ -282,7 +294,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               access_token: result.session.access_token,
               refresh_token: result.session.refresh_token,
             }),
-            8000,
+            12000,
             "Session setup timed out",
           );
 
@@ -299,9 +311,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             setSession(optimisticSession);
             setUser(optimisticUser);
             if (optimisticUser?.id) {
-              setTimeout(() => {
-                fetchUserRole(optimisticUser.id);
-              }, 0);
+              setTimeout(() => fetchUserRole(optimisticUser.id), 0);
             }
             return { error: null };
           }
@@ -310,15 +320,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           return { error: new Error("Authentication failed. Please try again.") };
         }
 
-        console.log("Session set successfully and will be persisted");
         return { error: null };
       }
 
-      // If custom sign-in could not be reached, try direct auth as a network fallback
+      // If custom sign-in could not be reached, try direct auth
       if (customSignInNetworkFailure) {
         const directAuth = await withTimeout(
           supabase.auth.signInWithPassword({ email, password }),
-          15000,
+          20000,
           "Connection timed out. Please try again.",
         );
 
@@ -337,9 +346,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setSession(directAuth.data.session);
           setUser(directAuth.data.user);
           if (directAuth.data.user?.id) {
-            setTimeout(() => {
-              fetchUserRole(directAuth.data.user.id);
-            }, 0);
+            setTimeout(() => fetchUserRole(directAuth.data.user.id), 0);
           }
         }
 
@@ -350,7 +357,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } catch (err) {
       console.error("Sign in error:", err);
       if (isNetworkIssue(err)) {
-        await clearLocalAuthSession();
+        return { error: new Error("Connection problem. Please check your internet and try again.") };
       }
       return { error: err instanceof Error ? err : new Error("Sign in failed") };
     }
@@ -358,7 +365,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const signUp = async (email: string, password: string, fullName: string, phone: string) => {
     try {
-      // Use custom sign-up edge function to bypass pwned password checks
       const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
       const response = await fetch(`${supabaseUrl}/functions/v1/custom-sign-up`, {
         method: "POST",
@@ -376,7 +382,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return { error: new Error(result.error || "Registration failed") };
       }
 
-      // If custom auth returned a magic link token, verify it to log the user in
       if (result.token_hash && result.type === "magiclink") {
         const { data, error } = await supabase.auth.verifyOtp({
           token_hash: result.token_hash,
@@ -385,7 +390,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
         if (error) {
           console.error("Token verification failed:", error);
-          // Account was created, but auto-login failed - user can log in manually
           return { error: null };
         }
 
@@ -394,7 +398,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return { error: null };
       }
 
-      // If requiresSignIn is true, account was created but needs manual login
       if (result.requiresSignIn) {
         return { error: null };
       }
@@ -407,10 +410,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const signOut = async () => {
-    await supabase.auth.signOut();
+    try {
+      await supabase.auth.signOut();
+    } catch {
+      // Ignore signOut errors
+    }
     setUser(null);
     setSession(null);
     setRole(null);
+    clearSupabaseAuthStorage();
   };
 
   const resetPassword = async (email: string) => {

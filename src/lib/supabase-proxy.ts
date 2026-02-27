@@ -34,9 +34,20 @@ const isSupabaseHost = (host: string | null) => Boolean(host && host.endsWith(".
 
 const DEFAULT_PROXY_BASE_URL = "https://restless-silence-58cd.voyagerobotics.workers.dev";
 
+// On lovable.app preview domains, supabase.co is directly accessible (no ISP blocking)
+// Only use the proxy on the production domain where ISP blocking occurs
+const isPreviewDomain = window.location.hostname.endsWith(".lovable.app") && 
+  window.location.hostname.includes("preview--");
+const isLovableDomain = window.location.hostname.endsWith(".lovableproject.com") || isPreviewDomain;
+
+// Determine if proxy should be used
+const shouldUseProxy = !isLovableDomain;
+
 const proxyBaseUrl =
   proxyBaseUrlFromEnv ??
-  (configuredHost && !isSupabaseHost(configuredHost) ? configuredBaseUrl : DEFAULT_PROXY_BASE_URL);
+  (shouldUseProxy 
+    ? (configuredHost && !isSupabaseHost(configuredHost) ? configuredBaseUrl : DEFAULT_PROXY_BASE_URL)
+    : null);
 
 const proxyUrlObject = proxyBaseUrl ? new URL(proxyBaseUrl) : null;
 const proxyHost = proxyUrlObject?.host ?? null;
@@ -76,12 +87,14 @@ const resolveBackendRequest = (rawUrl: string) => {
 
     return {
       inputUrl: parsed.toString(),
+      originalDirectUrl: rawUrl,
       pathname: parsed.pathname,
       backendRequest,
     };
   } catch {
     return {
       inputUrl: rawUrl,
+      originalDirectUrl: rawUrl,
       pathname: "",
       backendRequest: false,
     };
@@ -105,7 +118,7 @@ const createAttemptInput = (
 
 window.fetch = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
   const originalUrl = input instanceof Request ? input.url : input instanceof URL ? input.toString() : input;
-  const { inputUrl, pathname, backendRequest } = resolveBackendRequest(originalUrl);
+  const { inputUrl, originalDirectUrl, pathname, backendRequest } = resolveBackendRequest(originalUrl);
   const requestMethod = getRequestMethod(input, init);
 
   let lastError: unknown = null;
@@ -156,6 +169,21 @@ window.fetch = async (input: RequestInfo | URL, init?: RequestInit): Promise<Res
 
       lastError = normalizedError;
 
+      // If proxy failed and we have a direct URL different from proxy URL, try direct as fallback
+      if (backendRequest && proxyUrlObject && inputUrl !== originalDirectUrl && attempt === MAX_ATTEMPTS) {
+        try {
+          const directController = new AbortController();
+          const directTimeout = window.setTimeout(() => directController.abort(), FETCH_TIMEOUT_MS);
+          const directInput = createAttemptInput(input, originalDirectUrl);
+          const response = await originalFetch(directInput, { ...init, signal: directController.signal });
+          window.clearTimeout(directTimeout);
+          window.dispatchEvent(new CustomEvent(BACKEND_CONNECTIVITY_RECOVERED_EVENT));
+          return response;
+        } catch {
+          // Direct fallback also failed, continue with original error
+        }
+      }
+
       const shouldRetry =
         backendRequest &&
         isBackendNetworkError(normalizedError) &&
@@ -194,4 +222,3 @@ window.fetch = async (input: RequestInfo | URL, init?: RequestInit): Promise<Res
 };
 
 export {};
-

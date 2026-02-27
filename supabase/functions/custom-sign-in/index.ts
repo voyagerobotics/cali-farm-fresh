@@ -112,6 +112,25 @@ serve(async (req) => {
 
       const role = await resolveUserRole(supabaseAdmin, customPassword.user_id);
 
+      // Prefer server-side token verification to avoid fragile client-side /auth/verify network hops
+      const { data: verifiedData, error: verifyError } = await supabaseAdmin.auth.verifyOtp({
+        token_hash: linkData.properties.hashed_token,
+        type: "magiclink",
+      });
+
+      if (!verifyError && verifiedData?.session) {
+        return new Response(
+          JSON.stringify({
+            success: true,
+            session: verifiedData.session,
+            user: verifiedData.user,
+            role,
+          }),
+          { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
+        );
+      }
+
+      console.warn("Server-side token verification failed, falling back to client verify:", verifyError);
       return new Response(
         JSON.stringify({
           success: true,
@@ -167,7 +186,24 @@ serve(async (req) => {
         }
 
         const role = await resolveUserRole(supabaseAdmin, legacyUser.id);
+        const { data: verifiedData, error: verifyError } = await supabaseAdmin.auth.verifyOtp({
+          token_hash: linkData.properties.hashed_token,
+          type: "magiclink",
+        });
 
+        if (!verifyError && verifiedData?.session) {
+          return new Response(
+            JSON.stringify({
+              success: true,
+              session: verifiedData.session,
+              user: verifiedData.user,
+              role,
+            }),
+            { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
+          );
+        }
+
+        console.warn("Legacy server-side token verification failed, falling back to client verify:", verifyError);
         return new Response(
           JSON.stringify({
             success: true,

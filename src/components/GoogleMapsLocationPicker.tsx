@@ -368,7 +368,7 @@ const GoogleMapsLocationPicker = ({
           )}
         </div>
 
-        <div className="px-4 pb-4 space-y-3">
+        <div className="px-4 pb-4 space-y-3 overflow-y-auto max-h-[35vh]">
           {selectedLocation && (
             <div
               className={`p-3 rounded-lg border ${
@@ -382,11 +382,20 @@ const GoogleMapsLocationPicker = ({
                   }`}
                 />
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium truncate">{selectedLocation.address}</p>
-                  <p className="text-xs text-muted-foreground mt-0.5">
-                    {selectedLocation.city && `${selectedLocation.city} • `}
-                    {selectedLocation.pincode && `PIN: ${selectedLocation.pincode} • `}
-                    {distanceKm !== null && `${distanceKm.toFixed(1)} km from farm`}
+                  <p className="text-sm font-medium">{selectedLocation.address}</p>
+                  <div className="flex flex-wrap gap-2 mt-1">
+                    {selectedLocation.city && (
+                      <span className="text-xs bg-muted px-2 py-0.5 rounded-full">{selectedLocation.city}</span>
+                    )}
+                    {selectedLocation.pincode && (
+                      <span className="text-xs bg-muted px-2 py-0.5 rounded-full font-medium">PIN: {selectedLocation.pincode}</span>
+                    )}
+                    {distanceKm !== null && (
+                      <span className="text-xs bg-muted px-2 py-0.5 rounded-full">{distanceKm.toFixed(1)} km from farm</span>
+                    )}
+                  </div>
+                  <p className="text-[11px] text-muted-foreground mt-1.5">
+                    📍 Lat: {selectedLocation.latitude.toFixed(5)}, Lng: {selectedLocation.longitude.toFixed(5)}
                   </p>
                   {isOutOfRange && (
                     <p className="text-xs text-destructive font-medium mt-1">
@@ -402,9 +411,9 @@ const GoogleMapsLocationPicker = ({
             <Button variant="outline" className="flex-1" onClick={onClose}>
               Cancel
             </Button>
-            <Button className="flex-1" onClick={handleConfirm} disabled={!selectedLocation || isOutOfRange}>
+            <Button className="flex-1" onClick={handleConfirm} disabled={!selectedLocation || isOutOfRange || isResolvingLocation}>
               <MapPin className="w-4 h-4 mr-2" />
-              Confirm Location
+              Save & Use This Location
             </Button>
           </div>
         </div>

@@ -187,7 +187,9 @@ const handler = async (req: Request): Promise<Response> => {
     `;
 
     const subject = `${statusInfo.emoji} ${statusInfo.title} - Order #${orderNumber}`;
+    const ADMIN_EMAILS = ["shradhatakalkhede15@gmail.com", "californiafarmsindia@gmail.com"];
 
+    // Send to customer
     let emailResponse;
     try {
       emailResponse = await resend.emails.send({
@@ -219,17 +221,49 @@ const handler = async (req: Request): Promise<Response> => {
         related_order_id: orderId,
         metadata: { orderNumber, newStatus },
       });
+    }
 
+    // Send to admins
+    const adminSubject = `${statusInfo.emoji} ${statusInfo.title} - Order #${orderNumber} - ${customerName}`;
+    try {
+      await resend.emails.send({
+        from: "California Farms <orders@zomical.com>",
+        to: ADMIN_EMAILS,
+        subject: adminSubject,
+        html: emailHtml,
+      });
+
+      for (const adminEmail of ADMIN_EMAILS) {
+        await logEmail(supabaseAdmin, {
+          recipient_email: adminEmail,
+          subject: adminSubject,
+          email_type: "status_update_admin",
+          status: "sent",
+          related_order_id: orderId,
+          metadata: { orderNumber, newStatus, customerName },
+        });
+      }
+    } catch (adminEmailError: any) {
+      console.error("Admin status update email failed:", adminEmailError.message);
+      for (const adminEmail of ADMIN_EMAILS) {
+        await logEmail(supabaseAdmin, {
+          recipient_email: adminEmail,
+          subject: adminSubject,
+          email_type: "status_update_admin",
+          status: "failed",
+          error_message: adminEmailError.message,
+          related_order_id: orderId,
+          metadata: { orderNumber, newStatus },
+        });
+      }
+    }
+
+    if (emailResponse?.error) {
       return new Response(JSON.stringify({ success: false, error: "Failed to send email" }),
         { status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } });
     }
 
-    if (emailResponse.error) {
-      return new Response(JSON.stringify({ success: false, error: "Failed to send email" }),
-        { status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } });
-    }
-
-    return new Response(JSON.stringify({ success: true, emailId: emailResponse.data?.id }),
+    return new Response(JSON.stringify({ success: true, emailId: emailResponse?.data?.id }),
       { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } });
   } catch (error: any) {
     console.error("Error sending status update:", error);

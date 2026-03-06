@@ -378,6 +378,9 @@ const Checkout = () => {
             total: grandTotal,
             deliveryAddress: `${(selectedAddress?.address || formData.address)}, ${(selectedAddress?.pincode || formData.pincode)}`,
             deliveryDate: deliveryDate,
+            paymentMethod: "online",
+            paymentStatus: "paid",
+            paymentId: paymentId,
           },
         });
         console.log("Order confirmation email sent to customer and admin");

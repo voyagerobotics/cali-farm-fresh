@@ -26,6 +26,10 @@ interface Order {
   total: number;
   order_date: string;
   delivery_slot: string;
+  delivery_name: string;
+  delivery_phone: string;
+  delivery_address: string;
+  upi_reference: string | null;
   created_at: string;
 }
 
@@ -139,8 +143,10 @@ const Orders = () => {
         status: "cancelled",
       };
       
+      const wasPaid = orderToCancel.payment_status === "paid";
+      
       // If payment was already made, mark for refund
-      if (orderToCancel.payment_status === "paid") {
+      if (wasPaid) {
         updates.payment_status = "refunded";
       }
 
@@ -151,10 +157,31 @@ const Orders = () => {
 
       if (error) throw error;
 
+      // Send refund notification emails if payment was made
+      if (wasPaid) {
+        try {
+          await supabase.functions.invoke("send-refund-notification", {
+            body: {
+              orderId: orderToCancel.id,
+              orderNumber: orderToCancel.order_number,
+              customerName: orderToCancel.delivery_name,
+              customerEmail: user?.email,
+              refundAmount: orderToCancel.total,
+              totalAmount: orderToCancel.total,
+              type: "refund_initiated",
+              paymentMethod: orderToCancel.payment_method,
+              paymentId: orderToCancel.upi_reference,
+            },
+          });
+        } catch (emailError) {
+          console.error("Failed to send refund notification:", emailError);
+        }
+      }
+
       toast({
         title: "Order Cancelled",
-        description: orderToCancel.payment_status === "paid" 
-          ? "Your order has been cancelled. A 100% refund will be processed within 5 business days."
+        description: wasPaid 
+          ? "Your order has been cancelled. A 100% refund of ₹" + orderToCancel.total + " will be processed within 5-7 working days. You will receive an email confirmation."
           : "Your order has been cancelled successfully.",
       });
 

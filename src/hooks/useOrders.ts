@@ -132,6 +132,57 @@ export const useOrders = (isAdmin: boolean = false) => {
       });
 
       toast({ title: "Payment status updated" });
+
+      // Send refund completed email when admin marks as refunded
+      if (paymentStatus === "refunded") {
+        const order = orders.find(o => o.id === orderId);
+        if (order) {
+          try {
+            // Get customer email from auth
+            const { data: { user } } = await supabase.auth.getUser();
+            
+            // Fetch customer email using the order's user_id
+            let customerEmail = "";
+            if (order.user_id) {
+              // Use edge function to get email since we can't access admin API from client
+              const { data: profileData } = await supabase
+                .from("profiles")
+                .select("*")
+                .eq("user_id", order.user_id)
+                .maybeSingle();
+              
+              // Try to get email from the order confirmation logs
+              const { data: emailLog } = await supabase
+                .from("email_logs")
+                .select("recipient_email")
+                .eq("email_type", "order_confirmation_customer")
+                .eq("metadata->>orderNumber", order.order_number)
+                .maybeSingle();
+              
+              customerEmail = emailLog?.recipient_email || "";
+            }
+
+            if (customerEmail) {
+              await supabase.functions.invoke("send-refund-notification", {
+                body: {
+                  orderId: order.id,
+                  orderNumber: order.order_number,
+                  customerName: order.delivery_name,
+                  customerEmail,
+                  refundAmount: order.total,
+                  totalAmount: order.total,
+                  type: "refund_completed",
+                  paymentMethod: order.payment_method,
+                  paymentId: order.upi_reference,
+                },
+              });
+            }
+          } catch (emailError) {
+            console.error("Failed to send refund completed notification:", emailError);
+          }
+        }
+      }
+
       fetchOrders();
       return true;
     } catch (error: any) {

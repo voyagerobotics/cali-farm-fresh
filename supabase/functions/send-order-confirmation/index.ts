@@ -38,9 +38,12 @@ interface OrderConfirmationRequest {
   deliveryAddress: string;
   deliveryDate: string;
   customerPhone?: string;
+  paymentMethod?: string;
+  paymentStatus?: string;
+  paymentId?: string;
 }
 
-const ADMIN_EMAILS = ["californiafarmsmail@gmail.com", "shradhatakalkhede15@gmail.com", "californiafarmsindia@gmail.com"];
+const ADMIN_EMAILS = ["shradhatakalkhede15@gmail.com", "californiafarmsindia@gmail.com"];
 
 async function logEmail(supabase: any, data: {
   recipient_email: string;
@@ -116,6 +119,9 @@ const handler = async (req: Request): Promise<Response> => {
       deliveryAddress,
       deliveryDate,
       customerPhone,
+      paymentMethod,
+      paymentStatus,
+      paymentId,
     }: OrderConfirmationRequest = await req.json();
 
     if (!email || !orderNumber) {
@@ -261,6 +267,13 @@ const handler = async (req: Request): Promise<Response> => {
               <p><strong>Order Date:</strong> ${new Date().toLocaleString('en-IN', { dateStyle: 'full', timeStyle: 'short' })}</p>
               <p><strong>Delivery Date:</strong> ${escapeHtml(deliveryDate)}</p>
               <p><strong>Delivery Time:</strong> 12:00 PM - 3:00 PM</p>
+            </div>
+            <div class="order-info" style="margin-top: 10px;">
+              <h4 style="margin: 0 0 10px; color: #92400e;">💳 Payment Details</h4>
+              <p><strong>Payment Method:</strong> ${escapeHtml(paymentMethod === 'online' ? 'Razorpay (Online)' : paymentMethod === 'cod' ? 'Cash on Delivery' : paymentMethod || 'Online')}</p>
+              <p><strong>Payment Status:</strong> ${escapeHtml(paymentStatus === 'paid' ? '✅ Paid' : paymentStatus === 'pending' ? '⏳ Pending' : paymentStatus || 'Pending')}</p>
+              ${paymentId ? `<p><strong>Transaction ID:</strong> ${escapeHtml(paymentId)}</p>` : ''}
+              <p><strong>Amount Paid:</strong> ₹${escapeHtml(total)}</p>
             </div>
             <h3 style="color: #d97706;">Order Items</h3>
             <table class="items-table">

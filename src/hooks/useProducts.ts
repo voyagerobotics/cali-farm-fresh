@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { withNetworkRetry } from "@/lib/network-retry";
 
 export interface Product {
   id: string;
@@ -33,17 +34,17 @@ export const useProducts = (includeHidden: boolean = false) => {
     setError(null);
 
     try {
-      let query = supabase.from("products").select("*").order("name");
+      await withNetworkRetry(async () => {
+        let query = supabase.from("products").select("*").order("name");
 
-      if (!includeHidden) {
-        query = query.eq("is_hidden", false);
-      }
+        if (!includeHidden) {
+          query = query.eq("is_hidden", false);
+        }
 
-      const { data, error: fetchError } = await query;
-
-      if (fetchError) throw fetchError;
-
-      setProducts(data || []);
+        const { data, error: fetchError } = await query;
+        if (fetchError) throw fetchError;
+        setProducts(data || []);
+      });
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -54,20 +55,9 @@ export const useProducts = (includeHidden: boolean = false) => {
   useEffect(() => {
     fetchProducts();
 
-    // Subscribe to realtime updates
     const channel = supabase
       .channel("products-updates")
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "products",
-        },
-        () => {
-          fetchProducts();
-        }
-      )
+      .on("postgres_changes", { event: "*", schema: "public", table: "products" }, () => fetchProducts())
       .subscribe();
 
     return () => {
@@ -91,53 +81,53 @@ export const useProductMutations = () => {
     is_available?: boolean; 
     is_hidden?: boolean 
   }) => {
-    const { data, error } = await supabase
-      .from("products")
-      .insert([product])
-      .select()
-      .single();
+    return await withNetworkRetry(async () => {
+      const { data, error } = await supabase
+        .from("products")
+        .insert([product])
+        .select()
+        .single();
 
-    if (error) throw error;
-    return data;
+      if (error) throw error;
+      return data;
+    });
   };
 
   const updateProduct = async (id: string, updates: Partial<Product>) => {
-    const { data, error } = await supabase
-      .from("products")
-      .update(updates)
-      .eq("id", id)
-      .select()
-      .single();
+    return await withNetworkRetry(async () => {
+      const { data, error } = await supabase
+        .from("products")
+        .update(updates)
+        .eq("id", id)
+        .select()
+        .single();
 
-    if (error) throw error;
+      if (error) throw error;
 
-    // Create stock notification if quantity changed
-    if (updates.stock_quantity !== undefined || updates.is_available !== undefined) {
-      const product = data;
-      let message = "";
+      if (updates.stock_quantity !== undefined || updates.is_available !== undefined) {
+        const product = data;
+        let message = "";
 
-      if (updates.is_available === false) {
-        message = `${product.name} is now out of stock`;
-      } else if (updates.stock_quantity !== undefined && updates.stock_quantity > 0) {
-        message = `${product.name} is back in stock! ${updates.stock_quantity} ${product.unit}(s) available`;
+        if (updates.is_available === false) {
+          message = `${product.name} is now out of stock`;
+        } else if (updates.stock_quantity !== undefined && updates.stock_quantity > 0) {
+          message = `${product.name} is back in stock! ${updates.stock_quantity} ${product.unit}(s) available`;
+        }
+
+        if (message) {
+          await supabase.from("stock_notifications").insert([{ product_id: id, message }]);
+        }
       }
 
-      if (message) {
-        await supabase.from("stock_notifications").insert([
-          {
-            product_id: id,
-            message,
-          },
-        ]);
-      }
-    }
-
-    return data;
+      return data;
+    });
   };
 
   const deleteProduct = async (id: string) => {
-    const { error } = await supabase.from("products").delete().eq("id", id);
-    if (error) throw error;
+    await withNetworkRetry(async () => {
+      const { error } = await supabase.from("products").delete().eq("id", id);
+      if (error) throw error;
+    });
   };
 
   const toggleVisibility = async (id: string, isHidden: boolean) => {

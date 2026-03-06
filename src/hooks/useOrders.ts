@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { isBackendNetworkError } from "@/lib/backend-connectivity";
+import { withNetworkRetry, getNetworkErrorMessage } from "@/lib/network-retry";
 
 export interface OrderItem {
   id: string;
@@ -41,43 +41,10 @@ export const useOrders = (isAdmin: boolean = false) => {
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
 
-  const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
-
-  const withNetworkRetry = async (
-    operation: () => Promise<void>,
-    maxAttempts: number = 3,
-    baseDelayMs: number = 600,
-  ) => {
-    let lastError: unknown = null;
-
-    for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
-      try {
-        await operation();
-        return;
-      } catch (error) {
-        lastError = error;
-        const shouldRetry = isBackendNetworkError(error) && attempt < maxAttempts;
-
-        if (!shouldRetry) {
-          break;
-        }
-
-        await sleep(baseDelayMs * attempt);
-      }
-    }
-
-    throw lastError instanceof Error ? lastError : new Error("Request failed");
-  };
-
   const fetchOrders = async () => {
     setIsLoading(true);
     try {
-      let attempts = 0;
-      let lastError: any = null;
-      let data: any[] | null = null;
-
-      while (attempts < 2) {
-        attempts += 1;
+      await withNetworkRetry(async () => {
         const response = await supabase
           .from("orders")
           .select(`
@@ -93,16 +60,9 @@ export const useOrders = (isAdmin: boolean = false) => {
           `)
           .order("created_at", { ascending: false });
 
-        if (!response.error) {
-          data = response.data;
-          break;
-        }
-
-        lastError = response.error;
-      }
-
-      if (lastError && !data) throw lastError;
-      setOrders(data || []);
+        if (response.error) throw response.error;
+        setOrders(response.data || []);
+      });
     } catch (error: any) {
       console.error("Error fetching orders:", error);
       toast({ title: "Failed to load orders", description: "Please retry in a few seconds.", variant: "destructive" });
@@ -113,7 +73,6 @@ export const useOrders = (isAdmin: boolean = false) => {
 
   const updateOrderStatus = async (orderId: string, status: Order["status"]) => {
     try {
-      // Get order details first for email notification
       const order = orders.find(o => o.id === orderId);
 
       await withNetworkRetry(async () => {
@@ -128,7 +87,7 @@ export const useOrders = (isAdmin: boolean = false) => {
       toast({ title: "Order status updated" });
       fetchOrders();
 
-      // Fire-and-forget: send status update email (don't await or block)
+      // Fire-and-forget: send status update email
       if (order && ['pending', 'confirmed', 'preparing', 'out_for_delivery', 'delivered', 'cancelled'].includes(status)) {
         supabase.functions.invoke('send-order-status-update', {
           body: {
@@ -146,11 +105,7 @@ export const useOrders = (isAdmin: boolean = false) => {
 
       return true;
     } catch (error: any) {
-      const description = isBackendNetworkError(error)
-        ? "Network issue while updating status. Please retry."
-        : error?.message || "Something went wrong";
-
-      toast({ title: "Error", description, variant: "destructive" });
+      toast({ title: "Error", description: getNetworkErrorMessage(error, "updating status"), variant: "destructive" });
       return false;
     }
   };
@@ -175,11 +130,7 @@ export const useOrders = (isAdmin: boolean = false) => {
       fetchOrders();
       return true;
     } catch (error: any) {
-      const description = isBackendNetworkError(error)
-        ? "Network issue while updating payment status. Please retry."
-        : error?.message || "Something went wrong";
-
-      toast({ title: "Error", description, variant: "destructive" });
+      toast({ title: "Error", description: getNetworkErrorMessage(error, "updating payment"), variant: "destructive" });
       return false;
     }
   };
@@ -187,47 +138,12 @@ export const useOrders = (isAdmin: boolean = false) => {
   useEffect(() => {
     fetchOrders();
 
-    // Subscribe to realtime updates for orders table
     const ordersChannel = supabase
       .channel("orders-realtime")
-      .on(
-        "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "orders",
-        },
-        (payload) => {
-          console.log("New order received:", payload);
-          fetchOrders();
-        }
-      )
-      .on(
-        "postgres_changes",
-        {
-          event: "UPDATE",
-          schema: "public",
-          table: "orders",
-        },
-        (payload) => {
-          console.log("Order updated:", payload);
-          fetchOrders();
-        }
-      )
-      .on(
-        "postgres_changes",
-        {
-          event: "DELETE",
-          schema: "public",
-          table: "orders",
-        },
-        () => {
-          fetchOrders();
-        }
-      )
-      .subscribe((status) => {
-        console.log("Realtime subscription status:", status);
-      });
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "orders" }, () => fetchOrders())
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "orders" }, () => fetchOrders())
+      .on("postgres_changes", { event: "DELETE", schema: "public", table: "orders" }, () => fetchOrders())
+      .subscribe();
 
     return () => {
       supabase.removeChannel(ordersChannel);

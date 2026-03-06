@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { withNetworkRetry, getNetworkErrorMessage } from "@/lib/network-retry";
 
 export interface Category {
   id: string;
@@ -33,25 +34,23 @@ export const useCategories = (isAdmin: boolean = false) => {
   const fetchCategories = async () => {
     setIsLoading(true);
     try {
-      const { data, error } = await supabase
-        .from("categories")
-        .select(`
-          *,
-          subcategories (*)
-        `)
-        .order("display_order", { ascending: true });
+      await withNetworkRetry(async () => {
+        const { data, error } = await supabase
+          .from("categories")
+          .select(`*, subcategories (*)`)
+          .order("display_order", { ascending: true });
 
-      if (error) throw error;
+        if (error) throw error;
 
-      // Sort subcategories by display_order
-      const sortedData = (data || []).map(cat => ({
-        ...cat,
-        subcategories: (cat.subcategories || []).sort(
-          (a: Subcategory, b: Subcategory) => a.display_order - b.display_order
-        )
-      }));
+        const sortedData = (data || []).map(cat => ({
+          ...cat,
+          subcategories: (cat.subcategories || []).sort(
+            (a: Subcategory, b: Subcategory) => a.display_order - b.display_order
+          )
+        }));
 
-      setCategories(sortedData);
+        setCategories(sortedData);
+      });
     } catch (error: any) {
       console.error("Error fetching categories:", error);
       toast({ title: "Error", description: "Failed to load categories", variant: "destructive" });
@@ -62,42 +61,45 @@ export const useCategories = (isAdmin: boolean = false) => {
 
   const addCategory = async (category: Omit<Category, "id" | "created_at" | "updated_at" | "subcategories">) => {
     try {
-      const { error } = await supabase.from("categories").insert(category);
-      if (error) throw error;
+      await withNetworkRetry(async () => {
+        const { error } = await supabase.from("categories").insert(category);
+        if (error) throw error;
+      });
       toast({ title: "Category added successfully" });
       fetchCategories();
       return true;
     } catch (error: any) {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
+      toast({ title: "Error", description: getNetworkErrorMessage(error, "adding category"), variant: "destructive" });
       return false;
     }
   };
 
   const updateCategory = async (id: string, updates: Partial<Category>) => {
     try {
-      const { error } = await supabase
-        .from("categories")
-        .update(updates)
-        .eq("id", id);
-      if (error) throw error;
+      await withNetworkRetry(async () => {
+        const { error } = await supabase.from("categories").update(updates).eq("id", id);
+        if (error) throw error;
+      });
       toast({ title: "Category updated successfully" });
       fetchCategories();
       return true;
     } catch (error: any) {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
+      toast({ title: "Error", description: getNetworkErrorMessage(error, "updating category"), variant: "destructive" });
       return false;
     }
   };
 
   const deleteCategory = async (id: string) => {
     try {
-      const { error } = await supabase.from("categories").delete().eq("id", id);
-      if (error) throw error;
+      await withNetworkRetry(async () => {
+        const { error } = await supabase.from("categories").delete().eq("id", id);
+        if (error) throw error;
+      });
       toast({ title: "Category deleted successfully" });
       fetchCategories();
       return true;
     } catch (error: any) {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
+      toast({ title: "Error", description: getNetworkErrorMessage(error, "deleting category"), variant: "destructive" });
       return false;
     }
   };
@@ -106,45 +108,47 @@ export const useCategories = (isAdmin: boolean = false) => {
     return updateCategory(id, { is_hidden });
   };
 
-  // Subcategory operations
   const addSubcategory = async (subcategory: Omit<Subcategory, "id" | "created_at" | "updated_at">) => {
     try {
-      const { error } = await supabase.from("subcategories").insert(subcategory);
-      if (error) throw error;
+      await withNetworkRetry(async () => {
+        const { error } = await supabase.from("subcategories").insert(subcategory);
+        if (error) throw error;
+      });
       toast({ title: "Subcategory added successfully" });
       fetchCategories();
       return true;
     } catch (error: any) {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
+      toast({ title: "Error", description: getNetworkErrorMessage(error, "adding subcategory"), variant: "destructive" });
       return false;
     }
   };
 
   const updateSubcategory = async (id: string, updates: Partial<Subcategory>) => {
     try {
-      const { error } = await supabase
-        .from("subcategories")
-        .update(updates)
-        .eq("id", id);
-      if (error) throw error;
+      await withNetworkRetry(async () => {
+        const { error } = await supabase.from("subcategories").update(updates).eq("id", id);
+        if (error) throw error;
+      });
       toast({ title: "Subcategory updated successfully" });
       fetchCategories();
       return true;
     } catch (error: any) {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
+      toast({ title: "Error", description: getNetworkErrorMessage(error, "updating subcategory"), variant: "destructive" });
       return false;
     }
   };
 
   const deleteSubcategory = async (id: string) => {
     try {
-      const { error } = await supabase.from("subcategories").delete().eq("id", id);
-      if (error) throw error;
+      await withNetworkRetry(async () => {
+        const { error } = await supabase.from("subcategories").delete().eq("id", id);
+        if (error) throw error;
+      });
       toast({ title: "Subcategory deleted successfully" });
       fetchCategories();
       return true;
     } catch (error: any) {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
+      toast({ title: "Error", description: getNetworkErrorMessage(error, "deleting subcategory"), variant: "destructive" });
       return false;
     }
   };

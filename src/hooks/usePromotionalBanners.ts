@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { withNetworkRetry, getNetworkErrorMessage } from "@/lib/network-retry";
 
 export interface PromotionalBanner {
   id: string;
@@ -32,18 +33,20 @@ export const usePromotionalBanners = (activeOnly: boolean = true) => {
 
   const fetchBanners = async () => {
     try {
-      let query = supabase
-        .from("promotional_banners" as any)
-        .select("*")
-        .order("display_order", { ascending: true });
+      await withNetworkRetry(async () => {
+        let query = supabase
+          .from("promotional_banners" as any)
+          .select("*")
+          .order("display_order", { ascending: true });
 
-      if (activeOnly) {
-        query = query.eq("is_active", true);
-      }
+        if (activeOnly) {
+          query = query.eq("is_active", true);
+        }
 
-      const { data, error } = await query;
-      if (error) throw error;
-      setBanners((data as any) || []);
+        const { data, error } = await query;
+        if (error) throw error;
+        setBanners((data as any) || []);
+      });
     } catch (error: any) {
       console.error("Error fetching banners:", error);
     } finally {
@@ -53,47 +56,53 @@ export const usePromotionalBanners = (activeOnly: boolean = true) => {
 
   const createBanner = async (banner: Partial<PromotionalBanner>) => {
     try {
-      const { error } = await supabase
-        .from("promotional_banners" as any)
-        .insert([banner] as any);
-      if (error) throw error;
+      await withNetworkRetry(async () => {
+        const { error } = await supabase
+          .from("promotional_banners" as any)
+          .insert([banner] as any);
+        if (error) throw error;
+      });
       toast({ title: "Banner created" });
       fetchBanners();
       return true;
     } catch (error: any) {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
+      toast({ title: "Error", description: getNetworkErrorMessage(error, "creating banner"), variant: "destructive" });
       return false;
     }
   };
 
   const updateBanner = async (id: string, updates: Partial<PromotionalBanner>) => {
     try {
-      const { error } = await supabase
-        .from("promotional_banners" as any)
-        .update(updates as any)
-        .eq("id", id);
-      if (error) throw error;
+      await withNetworkRetry(async () => {
+        const { error } = await supabase
+          .from("promotional_banners" as any)
+          .update(updates as any)
+          .eq("id", id);
+        if (error) throw error;
+      });
       toast({ title: "Banner updated" });
       fetchBanners();
       return true;
     } catch (error: any) {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
+      toast({ title: "Error", description: getNetworkErrorMessage(error, "updating banner"), variant: "destructive" });
       return false;
     }
   };
 
   const deleteBanner = async (id: string) => {
     try {
-      const { error } = await supabase
-        .from("promotional_banners" as any)
-        .delete()
-        .eq("id", id);
-      if (error) throw error;
+      await withNetworkRetry(async () => {
+        const { error } = await supabase
+          .from("promotional_banners" as any)
+          .delete()
+          .eq("id", id);
+        if (error) throw error;
+      });
       toast({ title: "Banner deleted" });
       fetchBanners();
       return true;
     } catch (error: any) {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
+      toast({ title: "Error", description: getNetworkErrorMessage(error, "deleting banner"), variant: "destructive" });
       return false;
     }
   };

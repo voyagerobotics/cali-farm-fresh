@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { withNetworkRetry } from "@/lib/network-retry";
 
 export interface ProductVariant {
   id: string;
@@ -28,14 +29,16 @@ export const useProductVariants = (productId?: string) => {
     setError(null);
 
     try {
-      const { data, error: fetchError } = await supabase
-        .from("product_variants")
-        .select("*")
-        .eq("product_id", productId)
-        .order("display_order");
+      await withNetworkRetry(async () => {
+        const { data, error: fetchError } = await supabase
+          .from("product_variants")
+          .select("*")
+          .eq("product_id", productId)
+          .order("display_order");
 
-      if (fetchError) throw fetchError;
-      setVariants(data || []);
+        if (fetchError) throw fetchError;
+        setVariants(data || []);
+      });
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -59,35 +62,41 @@ export const useVariantMutations = () => {
     is_available?: boolean;
     display_order?: number;
   }) => {
-    const { data, error } = await supabase
-      .from("product_variants")
-      .insert([variant])
-      .select()
-      .single();
+    return await withNetworkRetry(async () => {
+      const { data, error } = await supabase
+        .from("product_variants")
+        .insert([variant])
+        .select()
+        .single();
 
-    if (error) throw error;
-    return data;
+      if (error) throw error;
+      return data;
+    });
   };
 
   const updateVariant = async (id: string, updates: Partial<ProductVariant>) => {
-    const { data, error } = await supabase
-      .from("product_variants")
-      .update(updates)
-      .eq("id", id)
-      .select()
-      .single();
+    return await withNetworkRetry(async () => {
+      const { data, error } = await supabase
+        .from("product_variants")
+        .update(updates)
+        .eq("id", id)
+        .select()
+        .single();
 
-    if (error) throw error;
-    return data;
+      if (error) throw error;
+      return data;
+    });
   };
 
   const deleteVariant = async (id: string) => {
-    const { error } = await supabase
-      .from("product_variants")
-      .delete()
-      .eq("id", id);
+    await withNetworkRetry(async () => {
+      const { error } = await supabase
+        .from("product_variants")
+        .delete()
+        .eq("id", id);
 
-    if (error) throw error;
+      if (error) throw error;
+    });
   };
 
   const toggleVariantAvailability = async (id: string, isAvailable: boolean) => {
@@ -117,7 +126,6 @@ export const calculateDiscountedPrice = (
     finalPrice = basePrice - savings;
     discountLabel = `${discountValue}% OFF`;
   } else {
-    // flat discount
     savings = Math.min(discountValue, basePrice);
     finalPrice = basePrice - savings;
     discountLabel = `Save ₹${savings}`;

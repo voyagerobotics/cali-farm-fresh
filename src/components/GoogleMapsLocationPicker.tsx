@@ -1,5 +1,7 @@
-import { useState, useEffect, useRef, useCallback } from "react";
-import { MapPin, Navigation, Search, X, Loader2 } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { MapPin, Navigation, Search, Loader2 } from "lucide-react";
+import L from "leaflet";
+import "leaflet/dist/leaflet.css";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -9,9 +11,6 @@ import {
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 
-const GOOGLE_MAPS_API_KEY = "AIzaSyBAn94LD3foYF1Tc788LqZiNtKJn7TKGbw";
-
-// Store location (California Farms India, Nagpur)
 const STORE_LOCATION = { lat: 21.1458, lng: 79.0882 };
 const MAX_DELIVERY_RADIUS_KM = 10;
 
@@ -31,7 +30,40 @@ interface GoogleMapsLocationPickerProps {
   initialLng?: number;
 }
 
-// Calculate distance between two coordinates using Haversine formula
+interface NominatimAddress {
+  display_name?: string;
+  address?: {
+    city?: string;
+    town?: string;
+    village?: string;
+    county?: string;
+    postcode?: string;
+  };
+}
+
+const markerIcon = L.icon({
+  iconUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png",
+  iconRetinaUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png",
+  shadowUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
+  iconSize: [25, 41],
+  iconAnchor: [12, 41],
+});
+
+const fetchWithTimeout = async (url: string, timeoutMs = 10000) => {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await fetch(url, {
+      signal: controller.signal,
+      headers: { Accept: "application/json" },
+    });
+    if (!response.ok) throw new Error("Request failed");
+    return response.json();
+  } finally {
+    clearTimeout(timeout);
+  }
+};
+
 function getDistanceKm(lat1: number, lon1: number, lat2: number, lon2: number): number {
   const R = 6371;
   const dLat = ((lat2 - lat1) * Math.PI) / 180;
@@ -46,41 +78,6 @@ function getDistanceKm(lat1: number, lon1: number, lat2: number, lon2: number): 
   return R * c;
 }
 
-// Load Google Maps script
-let googleMapsLoaded = false;
-let googleMapsLoadPromise: Promise<void> | null = null;
-
-function loadGoogleMaps(): Promise<void> {
-  if (googleMapsLoaded && window.google?.maps) return Promise.resolve();
-  if (googleMapsLoadPromise) return googleMapsLoadPromise;
-
-  googleMapsLoadPromise = new Promise((resolve, reject) => {
-    if (window.google?.maps) {
-      googleMapsLoaded = true;
-      resolve();
-      return;
-    }
-    const script = document.createElement("script");
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_API_KEY}&libraries=places`;
-    script.async = true;
-    script.defer = true;
-    script.onload = () => {
-      googleMapsLoaded = true;
-      resolve();
-    };
-    script.onerror = () => reject(new Error("Failed to load Google Maps"));
-    document.head.appendChild(script);
-  });
-
-  return googleMapsLoadPromise;
-}
-
-declare global {
-  interface Window {
-    google: any;
-  }
-}
-
 const GoogleMapsLocationPicker = ({
   open,
   onClose,
@@ -89,171 +86,167 @@ const GoogleMapsLocationPicker = ({
   initialLng,
 }: GoogleMapsLocationPickerProps) => {
   const { toast } = useToast();
-  const mapRef = useRef<HTMLDivElement>(null);
-  const mapInstanceRef = useRef<any>(null);
-  const markerRef = useRef<any>(null);
-  const autocompleteRef = useRef<any>(null);
-  const searchInputRef = useRef<HTMLInputElement>(null);
+  const mapElementRef = useRef<HTMLDivElement | null>(null);
+  const mapRef = useRef<L.Map | null>(null);
+  const markerRef = useRef<L.Marker | null>(null);
 
-  const [isLoading, setIsLoading] = useState(true);
-  const [selectedLocation, setSelectedLocation] = useState<LocationData | null>(null);
-  const [isGettingLocation, setIsGettingLocation] = useState(false);
-  const [distanceKm, setDistanceKm] = useState<number | null>(null);
-  const [isOutOfRange, setIsOutOfRange] = useState(false);
-
-  const reverseGeocode = useCallback(async (lat: number, lng: number) => {
-    const geocoder = new window.google.maps.Geocoder();
-    const result = await new Promise<any>((resolve) => {
-      geocoder.geocode({ location: { lat, lng } }, (results: any[], status: string) => {
-        resolve(status === "OK" && results[0] ? results[0] : null);
-      });
-    });
-
-    if (!result) return null;
-
-    let address = result.formatted_address || "";
-    let city = "";
-    let pincode = "";
-
-    for (const component of result.address_components) {
-      const types = component.types;
-      if (types.includes("locality")) city = component.long_name;
-      if (types.includes("postal_code")) pincode = component.long_name;
-    }
-
-    const dist = getDistanceKm(STORE_LOCATION.lat, STORE_LOCATION.lng, lat, lng);
-    setDistanceKm(dist);
-    setIsOutOfRange(dist > MAX_DELIVERY_RADIUS_KM);
-
-    const locationData: LocationData = { address, city, pincode, latitude: lat, longitude: lng };
-    setSelectedLocation(locationData);
-    return locationData;
-  }, []);
-
-  const updateMarkerPosition = useCallback(
-    (lat: number, lng: number) => {
-      if (markerRef.current) {
-        markerRef.current.setPosition({ lat, lng });
-      }
-      if (mapInstanceRef.current) {
-        mapInstanceRef.current.panTo({ lat, lng });
-      }
-      reverseGeocode(lat, lng);
-    },
-    [reverseGeocode]
+  const startPosition = useMemo(
+    () => ({ lat: initialLat || STORE_LOCATION.lat, lng: initialLng || STORE_LOCATION.lng }),
+    [initialLat, initialLng]
   );
 
-  // Initialize map
+  const [searchQuery, setSearchQuery] = useState("");
+  const [position, setPosition] = useState(startPosition);
+  const [selectedLocation, setSelectedLocation] = useState<LocationData | null>(null);
+  const [distanceKm, setDistanceKm] = useState<number | null>(null);
+  const [isOutOfRange, setIsOutOfRange] = useState(false);
+  const [isResolvingLocation, setIsResolvingLocation] = useState(false);
+  const [isGettingLocation, setIsGettingLocation] = useState(false);
+  const [isSearching, setIsSearching] = useState(false);
+
+  const reverseGeocode = async (lat: number, lng: number) => {
+    setIsResolvingLocation(true);
+    try {
+      const data = (await fetchWithTimeout(
+        `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lng}&addressdetails=1`
+      )) as NominatimAddress;
+
+      const city =
+        data.address?.city ||
+        data.address?.town ||
+        data.address?.village ||
+        data.address?.county ||
+        "";
+
+      const pincode = data.address?.postcode?.replace(/\s/g, "") || "";
+      const address = data.display_name || `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+
+      const dist = getDistanceKm(STORE_LOCATION.lat, STORE_LOCATION.lng, lat, lng);
+      setDistanceKm(dist);
+      setIsOutOfRange(dist > MAX_DELIVERY_RADIUS_KM);
+
+      setSelectedLocation({
+        address,
+        city,
+        pincode,
+        latitude: lat,
+        longitude: lng,
+      });
+    } catch {
+      const dist = getDistanceKm(STORE_LOCATION.lat, STORE_LOCATION.lng, lat, lng);
+      setDistanceKm(dist);
+      setIsOutOfRange(dist > MAX_DELIVERY_RADIUS_KM);
+      setSelectedLocation({
+        address: `${lat.toFixed(5)}, ${lng.toFixed(5)}`,
+        city: "",
+        pincode: "",
+        latitude: lat,
+        longitude: lng,
+      });
+      toast({
+        title: "Address lookup delayed",
+        description: "Pin is set but address lookup failed. You can still confirm location.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsResolvingLocation(false);
+    }
+  };
+
   useEffect(() => {
     if (!open) return;
 
-    let cancelled = false;
+    setPosition(startPosition);
 
-    const initMap = async () => {
-      try {
-        await loadGoogleMaps();
-        if (cancelled || !mapRef.current) return;
+    if (!mapElementRef.current || mapRef.current) return;
 
-        const center = {
-          lat: initialLat || STORE_LOCATION.lat,
-          lng: initialLng || STORE_LOCATION.lng,
-        };
+    const map = L.map(mapElementRef.current, {
+      center: [startPosition.lat, startPosition.lng],
+      zoom: 15,
+      zoomControl: true,
+    });
 
-        const map = new window.google.maps.Map(mapRef.current, {
-          center,
-          zoom: 15,
-          mapTypeControl: false,
-          streetViewControl: false,
-          fullscreenControl: false,
-          zoomControl: true,
-        });
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+    }).addTo(map);
 
-        const marker = new window.google.maps.Marker({
-          position: center,
-          map,
-          draggable: true,
-          animation: window.google.maps.Animation.DROP,
-          icon: {
-            url: "https://maps.google.com/mapfiles/ms/icons/red-dot.png",
-          },
-        });
+    L.circle([STORE_LOCATION.lat, STORE_LOCATION.lng], {
+      radius: MAX_DELIVERY_RADIUS_KM * 1000,
+      color: "hsl(var(--primary))",
+      fillColor: "hsl(var(--primary))",
+      fillOpacity: 0.08,
+      weight: 1,
+    }).addTo(map);
 
-        // Draw delivery radius circle
-        new window.google.maps.Circle({
-          map,
-          center: STORE_LOCATION,
-          radius: MAX_DELIVERY_RADIUS_KM * 1000,
-          fillColor: "#3d7a47",
-          fillOpacity: 0.08,
-          strokeColor: "#3d7a47",
-          strokeOpacity: 0.3,
-          strokeWeight: 1,
-        });
+    const marker = L.marker([startPosition.lat, startPosition.lng], {
+      draggable: true,
+      icon: markerIcon,
+    }).addTo(map);
 
-        marker.addListener("dragend", () => {
-          const pos = marker.getPosition();
-          if (pos) {
-            reverseGeocode(pos.lat(), pos.lng());
-          }
-        });
+    marker.on("dragend", () => {
+      const next = marker.getLatLng();
+      setPosition({ lat: next.lat, lng: next.lng });
+    });
 
-        map.addListener("click", (e: any) => {
-          const lat = e.latLng.lat();
-          const lng = e.latLng.lng();
-          marker.setPosition({ lat, lng });
-          reverseGeocode(lat, lng);
-        });
+    map.on("click", (event: L.LeafletMouseEvent) => {
+      setPosition({ lat: event.latlng.lat, lng: event.latlng.lng });
+    });
 
-        mapInstanceRef.current = map;
-        markerRef.current = marker;
+    mapRef.current = map;
+    markerRef.current = marker;
 
-        // Setup autocomplete
-        if (searchInputRef.current) {
-          const autocomplete = new window.google.maps.places.Autocomplete(
-            searchInputRef.current,
-            {
-              componentRestrictions: { country: "in" },
-              fields: ["geometry", "formatted_address", "address_components"],
-            }
-          );
-
-          autocomplete.addListener("place_changed", () => {
-            const place = autocomplete.getPlace();
-            if (place.geometry?.location) {
-              const lat = place.geometry.location.lat();
-              const lng = place.geometry.location.lng();
-              map.setCenter({ lat, lng });
-              map.setZoom(17);
-              marker.setPosition({ lat, lng });
-              reverseGeocode(lat, lng);
-            }
-          });
-
-          autocompleteRef.current = autocomplete;
-        }
-
-        // Reverse geocode initial position
-        reverseGeocode(center.lat, center.lng);
-        setIsLoading(false);
-      } catch (error) {
-        console.error("Error initializing map:", error);
-        toast({
-          title: "Map Error",
-          description: "Failed to load Google Maps. Please try again.",
-          variant: "destructive",
-        });
-        setIsLoading(false);
-      }
-    };
-
-    initMap();
+    setTimeout(() => map.invalidateSize(), 50);
 
     return () => {
-      cancelled = true;
+      map.remove();
+      mapRef.current = null;
+      markerRef.current = null;
     };
-  }, [open, initialLat, initialLng, reverseGeocode, toast]);
+  }, [open, startPosition]);
 
-  const handleUseCurrentLocation = async () => {
+  useEffect(() => {
+    if (!open) return;
+    reverseGeocode(position.lat, position.lng);
+
+    if (mapRef.current && markerRef.current) {
+      const nextPoint: L.LatLngExpression = [position.lat, position.lng];
+      markerRef.current.setLatLng(nextPoint);
+      mapRef.current.panTo(nextPoint);
+    }
+  }, [open, position]);
+
+  const handleSearch = async () => {
+    const query = searchQuery.trim();
+    if (!query) return;
+
+    setIsSearching(true);
+    try {
+      const data = (await fetchWithTimeout(
+        `https://nominatim.openstreetmap.org/search?format=jsonv2&q=${encodeURIComponent(query)}&countrycodes=in&limit=1&addressdetails=1`
+      )) as Array<{ lat: string; lon: string }>;
+
+      if (!data.length) {
+        toast({
+          title: "Location not found",
+          description: "Try a more specific area, street, or landmark.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      setPosition({ lat: Number(data[0].lat), lng: Number(data[0].lon) });
+    } catch {
+      toast({
+        title: "Search failed",
+        description: "Unable to search location right now. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
+  const handleUseCurrentLocation = () => {
     if (!navigator.geolocation) {
       toast({
         title: "Not Supported",
@@ -266,31 +259,35 @@ const GoogleMapsLocationPicker = ({
     setIsGettingLocation(true);
 
     navigator.geolocation.getCurrentPosition(
-      (position) => {
-        const { latitude, longitude } = position.coords;
-        updateMarkerPosition(latitude, longitude);
-        if (mapInstanceRef.current) {
-          mapInstanceRef.current.setZoom(17);
-        }
+      (geo) => {
+        setPosition({ lat: geo.coords.latitude, lng: geo.coords.longitude });
         setIsGettingLocation(false);
+        if (mapRef.current) {
+          mapRef.current.setZoom(17);
+        }
       },
       (error) => {
         setIsGettingLocation(false);
-        let message = "Unable to get your location.";
+        let message = "Unable to get your current location.";
         if (error.code === 1) message = "Location permission denied. Please allow location access.";
         else if (error.code === 2) message = "Location unavailable. Please try again.";
         else if (error.code === 3) message = "Location request timed out. Please try again.";
         toast({ title: "Location Error", description: message, variant: "destructive" });
       },
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+      { enableHighAccuracy: true, timeout: 12000, maximumAge: 0 }
     );
   };
 
   const handleConfirm = () => {
     if (!selectedLocation) {
-      toast({ title: "Select a location", description: "Please pick a location on the map.", variant: "destructive" });
+      toast({
+        title: "Select a location",
+        description: "Please pick a location on the map.",
+        variant: "destructive",
+      });
       return;
     }
+
     if (isOutOfRange) {
       toast({
         title: "Delivery Unavailable",
@@ -299,12 +296,13 @@ const GoogleMapsLocationPicker = ({
       });
       return;
     }
+
     onLocationSelect(selectedLocation);
     onClose();
   };
 
   return (
-    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
+    <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
       <DialogContent className="max-w-2xl w-[95vw] max-h-[90vh] overflow-hidden p-0">
         <DialogHeader className="p-4 pb-2">
           <DialogTitle className="flex items-center gap-2">
@@ -314,18 +312,23 @@ const GoogleMapsLocationPicker = ({
         </DialogHeader>
 
         <div className="px-4 space-y-3">
-          {/* Search Bar */}
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <input
-              ref={searchInputRef}
-              type="text"
-              placeholder="Search for your area, street name..."
-              className="w-full pl-10 pr-4 py-2.5 rounded-lg border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
-            />
+          <div className="relative flex gap-2">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(event) => setSearchQuery(event.target.value)}
+                onKeyDown={(event) => event.key === "Enter" && handleSearch()}
+                placeholder="Search area, street, landmark..."
+                className="w-full pl-10 pr-4 py-2.5 rounded-lg border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
+              />
+            </div>
+            <Button type="button" variant="outline" onClick={handleSearch} disabled={isSearching}>
+              {isSearching ? <Loader2 className="w-4 h-4 animate-spin" /> : "Search"}
+            </Button>
           </div>
 
-          {/* Action Buttons */}
           <div className="flex gap-2">
             <Button
               variant="outline"
@@ -334,41 +337,35 @@ const GoogleMapsLocationPicker = ({
               disabled={isGettingLocation}
               className="gap-2"
             >
-              {isGettingLocation ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <Navigation className="w-4 h-4" />
-              )}
+              {isGettingLocation ? <Loader2 className="w-4 h-4 animate-spin" /> : <Navigation className="w-4 h-4" />}
               Use Current Location
             </Button>
           </div>
         </div>
 
-        {/* Map Container */}
         <div className="relative mx-4">
-          <div
-            ref={mapRef}
-            className="w-full h-[300px] sm:h-[350px] rounded-lg border border-border"
-          />
-          {isLoading && (
-            <div className="absolute inset-0 flex items-center justify-center bg-muted/80 rounded-lg">
-              <Loader2 className="w-8 h-8 animate-spin text-primary" />
+          <div ref={mapElementRef} className="w-full h-[300px] sm:h-[350px] rounded-lg border border-border" />
+
+          {isResolvingLocation && (
+            <div className="absolute inset-0 flex items-center justify-center bg-background/70 rounded-lg">
+              <Loader2 className="w-7 h-7 animate-spin text-primary" />
             </div>
           )}
         </div>
 
-        {/* Selected Location Info */}
         <div className="px-4 pb-4 space-y-3">
           {selectedLocation && (
             <div
               className={`p-3 rounded-lg border ${
-                isOutOfRange
-                  ? "bg-destructive/10 border-destructive/30"
-                  : "bg-primary/5 border-primary/20"
+                isOutOfRange ? "bg-destructive/10 border-destructive/30" : "bg-primary/5 border-primary/20"
               }`}
             >
               <div className="flex items-start gap-2">
-                <MapPin className={`w-4 h-4 mt-0.5 flex-shrink-0 ${isOutOfRange ? "text-destructive" : "text-primary"}`} />
+                <MapPin
+                  className={`w-4 h-4 mt-0.5 flex-shrink-0 ${
+                    isOutOfRange ? "text-destructive" : "text-primary"
+                  }`}
+                />
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium truncate">{selectedLocation.address}</p>
                   <p className="text-xs text-muted-foreground mt-0.5">
@@ -390,11 +387,7 @@ const GoogleMapsLocationPicker = ({
             <Button variant="outline" className="flex-1" onClick={onClose}>
               Cancel
             </Button>
-            <Button
-              className="flex-1"
-              onClick={handleConfirm}
-              disabled={!selectedLocation || isOutOfRange}
-            >
+            <Button className="flex-1" onClick={handleConfirm} disabled={!selectedLocation || isOutOfRange}>
               <MapPin className="w-4 h-4 mr-2" />
               Confirm Location
             </Button>

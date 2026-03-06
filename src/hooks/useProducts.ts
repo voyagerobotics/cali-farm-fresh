@@ -46,7 +46,7 @@ export const useProducts = (includeHidden: boolean = false) => {
         setProducts(data || []);
       });
     } catch (err: any) {
-      setError(err.message);
+      setError(err.message || "Failed to fetch products");
     } finally {
       setIsLoading(false);
     }
@@ -94,15 +94,18 @@ export const useProductMutations = () => {
   };
 
   const updateProduct = async (id: string, updates: Partial<Product>) => {
-    return await withNetworkRetry(async () => {
-      const { data, error } = await supabase
-        .from("products")
-        .update(updates)
-        .eq("id", id)
-        .select()
-        .single();
+    try {
+      const data = await withNetworkRetry(async () => {
+        const { data, error } = await supabase
+          .from("products")
+          .update(updates)
+          .eq("id", id)
+          .select()
+          .single();
 
-      if (error) throw error;
+        if (error) throw error;
+        return data;
+      });
 
       if (updates.stock_quantity !== undefined || updates.is_available !== undefined) {
         const product = data;
@@ -120,7 +123,26 @@ export const useProductMutations = () => {
       }
 
       return data;
-    });
+    } catch (error) {
+      const { data: verification } = await supabase
+        .from("products")
+        .select("*")
+        .eq("id", id)
+        .maybeSingle();
+
+      if (verification) {
+        const hasAllUpdatedFieldsMatch = Object.entries(updates).every(([key, value]) => {
+          if (value === undefined) return true;
+          return String((verification as any)[key] ?? "") === String(value ?? "");
+        });
+
+        if (hasAllUpdatedFieldsMatch) {
+          return verification;
+        }
+      }
+
+      throw error;
+    }
   };
 
   const deleteProduct = async (id: string) => {

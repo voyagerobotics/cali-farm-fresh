@@ -13,6 +13,8 @@ export interface UserAddress {
   pincode: string;
   city: string;
   is_default: boolean;
+  latitude: number | null;
+  longitude: number | null;
   created_at: string;
   updated_at: string;
 }

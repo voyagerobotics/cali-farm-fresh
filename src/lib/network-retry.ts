@@ -2,9 +2,50 @@ import { isBackendNetworkError } from "@/lib/backend-connectivity";
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
+const toError = (error: unknown): Error => {
+  if (error instanceof Error) return error;
+
+  if (typeof error === "string") {
+    const trimmed = error.trim();
+    return new Error(trimmed.length > 0 ? trimmed : "Request failed");
+  }
+
+  if (typeof error === "object" && error !== null) {
+    const maybeError = error as {
+      message?: unknown;
+      details?: unknown;
+      hint?: unknown;
+      code?: unknown;
+      error_description?: unknown;
+    };
+
+    const messageParts = [
+      maybeError.message,
+      maybeError.error_description,
+      maybeError.details,
+      maybeError.hint,
+      maybeError.code,
+    ]
+      .map((part) => (typeof part === "string" ? part.trim() : ""))
+      .filter(Boolean);
+
+    if (messageParts.length > 0) {
+      return new Error(messageParts.join(" • "));
+    }
+
+    try {
+      return new Error(JSON.stringify(error));
+    } catch {
+      return new Error("Request failed");
+    }
+  }
+
+  return new Error("Request failed");
+};
+
 /**
  * Retries an async operation on transient network failures (Failed to fetch, timeout, etc).
- * Used across all hooks that perform Supabase mutations routed through the Cloudflare proxy.
+ * Used across all hooks that perform backend mutations routed through the connectivity proxy.
  */
 export const withNetworkRetry = async <T = void>(
   operation: () => Promise<T>,
@@ -28,7 +69,7 @@ export const withNetworkRetry = async <T = void>(
     }
   }
 
-  throw lastError instanceof Error ? lastError : new Error("Request failed");
+  throw toError(lastError);
 };
 
 /**
@@ -44,5 +85,5 @@ export const getNetworkErrorMessage = (
   if (error instanceof Error) {
     return error.message;
   }
-  return "Something went wrong";
+  return toError(error).message;
 };

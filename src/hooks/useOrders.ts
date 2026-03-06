@@ -71,48 +71,21 @@ export const useOrders = (isAdmin: boolean = false) => {
     }
   };
 
-  const sendStatusUpdateEmail = (order: Order, status: Order["status"]) => {
-    if (!['pending', 'confirmed', 'preparing', 'out_for_delivery', 'delivered', 'cancelled'].includes(status)) {
-      return;
-    }
-
-    supabase.functions
-      .invoke('send-order-status-update', {
-        body: {
-          orderId: order.id,
-          orderNumber: order.order_number,
-          customerName: order.delivery_name,
-          newStatus: status,
-          deliveryAddress: order.delivery_address,
-          userId: order.user_id,
-        },
-      })
-      .then((response) => {
-        if (response.error) console.error('Status email failed:', response.error);
-      })
-      .catch((err) => console.error('Status email error:', err));
-  };
-
   const updateOrderStatus = async (orderId: string, status: Order["status"]) => {
-    const existingOrder = orders.find((o) => o.id === orderId);
-
     try {
       await withNetworkRetry(async () => {
-        const { error } = await supabase
-          .from("orders")
-          .update({ status })
-          .eq("id", orderId);
+        const { data, error } = await supabase.functions.invoke("update-order-status", {
+          body: { orderId, status },
+        });
 
         if (error) throw error;
+        if (!data?.success) {
+          throw new Error(data?.error || "Failed to update order status");
+        }
       });
 
       toast({ title: "Order status updated" });
       fetchOrders();
-
-      if (existingOrder) {
-        sendStatusUpdateEmail(existingOrder, status);
-      }
-
       return true;
     } catch (error: any) {
       // Network can fail after write reaches backend. Verify persisted status before treating as failure.
@@ -120,7 +93,7 @@ export const useOrders = (isAdmin: boolean = false) => {
         const verification = await withNetworkRetry(async () => {
           const { data, error: verificationError } = await supabase
             .from("orders")
-            .select("id,order_number,delivery_name,delivery_address,user_id,status")
+            .select("status")
             .eq("id", orderId)
             .maybeSingle();
 
@@ -129,39 +102,8 @@ export const useOrders = (isAdmin: boolean = false) => {
         });
 
         if (verification?.status === status) {
-          const reconciledOrder: Order = {
-            ...(existingOrder ?? {
-              id: verification.id,
-              order_number: verification.order_number,
-              user_id: verification.user_id,
-              status: verification.status,
-              payment_method: "cod",
-              payment_status: "pending",
-              subtotal: 0,
-              delivery_charge: 0,
-              total: 0,
-              delivery_name: verification.delivery_name,
-              delivery_phone: "",
-              delivery_address: verification.delivery_address,
-              delivery_slot: null,
-              delivery_latitude: null,
-              delivery_longitude: null,
-              notes: null,
-              upi_reference: null,
-              order_date: new Date().toISOString().slice(0, 10),
-              created_at: new Date().toISOString(),
-              updated_at: new Date().toISOString(),
-            }),
-            status,
-            order_number: verification.order_number,
-            user_id: verification.user_id,
-            delivery_name: verification.delivery_name,
-            delivery_address: verification.delivery_address,
-          };
-
           toast({ title: "Order status updated", description: "Saved after temporary network issue." });
           fetchOrders();
-          sendStatusUpdateEmail(reconciledOrder, status);
           return true;
         }
       } catch (verificationError) {

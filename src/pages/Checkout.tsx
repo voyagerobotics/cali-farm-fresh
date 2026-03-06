@@ -6,7 +6,7 @@ declare global {
 
 import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, CreditCard, AlertCircle, MapPin, Truck, CheckCircle, Loader2, RefreshCw } from "lucide-react";
+import { ArrowLeft, CreditCard, AlertCircle, MapPin, Truck, CheckCircle, Loader2, RefreshCw, Navigation, Map } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useCart } from "@/contexts/CartContext";
 import { Percent } from "lucide-react";
@@ -19,6 +19,7 @@ import { useSiteSettings } from "@/hooks/useSiteSettings";
 import { usePageTracking, useActivityLogger } from "@/hooks/useAnalytics";
 import AddressManager from "@/components/AddressManager";
 import MapPreview from "@/components/MapPreview";
+import GoogleMapsLocationPicker from "@/components/GoogleMapsLocationPicker";
 import RazorpayPayment from "@/components/RazorpayPayment";
 import WeeklySubscriptionCheckbox from "@/components/WeeklySubscriptionCheckbox";
 
@@ -43,6 +44,8 @@ const Checkout = () => {
   const [deliveryDistance, setDeliveryDistance] = useState(0);
   const [deliveryUnavailable, setDeliveryUnavailable] = useState(false);
   const [deliveryError, setDeliveryError] = useState<string | null>(null);
+  const [showMapPicker, setShowMapPicker] = useState(false);
+  const [manualLatLng, setManualLatLng] = useState<{ lat: number; lng: number } | null>(null);
   
   // Razorpay payment state
   const [showRazorpay, setShowRazorpay] = useState(false);
@@ -57,6 +60,29 @@ const Checkout = () => {
     pincode: "",
     notes: "",
   });
+
+  const handleLocationSelect = (data: { address: string; city: string; pincode: string; latitude: number; longitude: number }) => {
+    setManualLatLng({ lat: data.latitude, lng: data.longitude });
+    setFormData((prev) => ({
+      ...prev,
+      address: data.address,
+      pincode: data.pincode || prev.pincode,
+    }));
+  };
+
+  const handleUseCurrentLocation = () => {
+    if (!navigator.geolocation) return;
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        setManualLatLng({ lat: position.coords.latitude, lng: position.coords.longitude });
+        setShowMapPicker(true);
+      },
+      () => {
+        setShowMapPicker(true);
+      },
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
+  };
 
   // Helper to convert day name to day number
   const dayNameToNumber = (dayName: string): number => {
@@ -267,8 +293,8 @@ const Checkout = () => {
         delivery_address: `${addressData.address}, ${addressData.pincode}`,
         delivery_phone: addressData.phone,
         delivery_name: addressData.full_name,
-        delivery_latitude: selectedAddress?.latitude || null,
-        delivery_longitude: selectedAddress?.longitude || null,
+        delivery_latitude: selectedAddress?.latitude || manualLatLng?.lat || null,
+        delivery_longitude: selectedAddress?.longitude || manualLatLng?.lng || null,
         notes: formData.notes,
         order_date: getOrderDate().toISOString().split("T")[0],
         payment_status: "pending" as const,
@@ -592,6 +618,39 @@ const Checkout = () => {
               ) : (
                 // Manual entry form for first-time users
                 <div className="space-y-4">
+                  {/* Location Picker Buttons */}
+                  <div className="flex flex-col sm:flex-row gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="gap-2 flex-1"
+                      onClick={handleUseCurrentLocation}
+                    >
+                      <Navigation className="w-4 h-4" />
+                      Use Current Location
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="gap-2 flex-1"
+                      onClick={() => setShowMapPicker(true)}
+                    >
+                      <Map className="w-4 h-4" />
+                      Pick on Map
+                    </Button>
+                  </div>
+
+                  {/* Map preview if coordinates exist */}
+                  {manualLatLng && (
+                    <MapPreview
+                      latitude={manualLatLng.lat}
+                      longitude={manualLatLng.lng}
+                      address={formData.address}
+                    />
+                  )}
+
                   <div>
                     <label className="block text-sm font-medium mb-1">Full Name *</label>
                     <input
@@ -642,6 +701,15 @@ const Checkout = () => {
                 </div>
               )}
             </div>
+
+            {/* Location Picker Modal */}
+            <GoogleMapsLocationPicker
+              open={showMapPicker}
+              onClose={() => setShowMapPicker(false)}
+              onLocationSelect={handleLocationSelect}
+              initialLat={manualLatLng?.lat || selectedAddress?.latitude || undefined}
+              initialLng={manualLatLng?.lng || selectedAddress?.longitude || undefined}
+            />
 
             {/* Special Instructions */}
             <div className="bg-card rounded-xl border border-border p-6">

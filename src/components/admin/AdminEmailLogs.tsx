@@ -1,12 +1,13 @@
 import { useState, useEffect } from "react";
 import { format } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
-import { Mail, CheckCircle, XCircle, RefreshCw, Search, CalendarIcon } from "lucide-react";
+import { Mail, CheckCircle, XCircle, RefreshCw, Search, CalendarIcon, X, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 
 interface EmailLog {
@@ -43,8 +44,10 @@ const AdminEmailLogs = () => {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState<string>("all");
+  const [statusFilter, setStatusFilter] = useState<string>("all");
   const [startDate, setStartDate] = useState<Date | undefined>(undefined);
   const [endDate, setEndDate] = useState<Date | undefined>(undefined);
+  const [selectedLog, setSelectedLog] = useState<EmailLog | null>(null);
 
   const fetchLogs = async () => {
     setIsLoading(true);
@@ -98,7 +101,8 @@ const AdminEmailLogs = () => {
       log.subject.toLowerCase().includes(search.toLowerCase()) ||
       (log.recipient_name || "").toLowerCase().includes(search.toLowerCase());
     const matchesType = typeFilter === "all" || log.email_type === typeFilter;
-    return matchesSearch && matchesType;
+    const matchesStatus = statusFilter === "all" || log.status === statusFilter;
+    return matchesSearch && matchesType && matchesStatus;
   });
 
   const stats = {
@@ -117,20 +121,38 @@ const AdminEmailLogs = () => {
 
   return (
     <div className="space-y-6">
-      {/* Stats */}
+      {/* Stats - clickable to filter */}
       <div className="grid grid-cols-3 gap-4">
-        <div className="bg-card border border-border rounded-xl p-4 text-center">
+        <button
+          onClick={() => setStatusFilter("all")}
+          className={cn(
+            "bg-card border rounded-xl p-4 text-center transition-all",
+            statusFilter === "all" ? "border-primary ring-2 ring-primary/20" : "border-border hover:border-primary/40"
+          )}
+        >
           <p className="text-2xl font-bold">{stats.total}</p>
           <p className="text-sm text-muted-foreground">Total Emails</p>
-        </div>
-        <div className="bg-card border border-border rounded-xl p-4 text-center">
+        </button>
+        <button
+          onClick={() => setStatusFilter("sent")}
+          className={cn(
+            "bg-card border rounded-xl p-4 text-center transition-all",
+            statusFilter === "sent" ? "border-green-500 ring-2 ring-green-500/20" : "border-border hover:border-green-500/40"
+          )}
+        >
           <p className="text-2xl font-bold text-green-600">{stats.sent}</p>
           <p className="text-sm text-muted-foreground">Sent Successfully</p>
-        </div>
-        <div className="bg-card border border-border rounded-xl p-4 text-center">
+        </button>
+        <button
+          onClick={() => setStatusFilter("failed")}
+          className={cn(
+            "bg-card border rounded-xl p-4 text-center transition-all",
+            statusFilter === "failed" ? "border-destructive ring-2 ring-destructive/20" : "border-border hover:border-destructive/40"
+          )}
+        >
           <p className="text-2xl font-bold text-destructive">{stats.failed}</p>
           <p className="text-sm text-muted-foreground">Failed</p>
-        </div>
+        </button>
       </div>
 
       {/* Controls */}
@@ -215,7 +237,8 @@ const AdminEmailLogs = () => {
             return (
               <div
                 key={log.id}
-                className="bg-card border border-border rounded-xl p-4 hover:bg-muted/20 transition-colors"
+                onClick={() => setSelectedLog(log)}
+                className="bg-card border border-border rounded-xl p-4 hover:bg-muted/20 transition-colors cursor-pointer"
               >
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex items-start gap-3 min-w-0 flex-1">
@@ -236,13 +259,15 @@ const AdminEmailLogs = () => {
                         <Badge variant="outline" className={`text-xs ${typeInfo.color}`}>
                           {typeInfo.label}
                         </Badge>
+                        {log.status === "failed" && (
+                          <Badge variant="destructive" className="text-xs">
+                            Failed
+                          </Badge>
+                        )}
                       </div>
                       <p className="text-sm text-muted-foreground truncate">{log.subject}</p>
-                      {log.recipient_name && (
-                        <p className="text-xs text-muted-foreground mt-0.5">To: {log.recipient_name}</p>
-                      )}
                       {log.error_message && (
-                        <p className="text-xs text-destructive mt-1">Error: {log.error_message}</p>
+                        <p className="text-xs text-destructive mt-1 truncate">Error: {log.error_message}</p>
                       )}
                     </div>
                   </div>
@@ -263,6 +288,106 @@ const AdminEmailLogs = () => {
           })}
         </div>
       )}
+
+      {/* Email Detail Modal */}
+      <Dialog open={!!selectedLog} onOpenChange={(open) => !open && setSelectedLog(null)}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              {selectedLog?.status === "sent" ? (
+                <CheckCircle className="w-5 h-5 text-green-600" />
+              ) : (
+                <XCircle className="w-5 h-5 text-destructive" />
+              )}
+              Email Details
+            </DialogTitle>
+          </DialogHeader>
+          {selectedLog && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-3 text-sm">
+                <span className="text-muted-foreground font-medium">Status</span>
+                <span>
+                  {selectedLog.status === "sent" ? (
+                    <Badge className="bg-green-500/10 text-green-600 border-green-200">Sent</Badge>
+                  ) : (
+                    <Badge variant="destructive">Failed</Badge>
+                  )}
+                </span>
+
+                <span className="text-muted-foreground font-medium">To</span>
+                <span className="break-all">
+                  {selectedLog.recipient_name && <span className="font-medium">{selectedLog.recipient_name} </span>}
+                  &lt;{selectedLog.recipient_email}&gt;
+                </span>
+
+                <span className="text-muted-foreground font-medium">Subject</span>
+                <span>{selectedLog.subject}</span>
+
+                <span className="text-muted-foreground font-medium">Type</span>
+                <span>
+                  <Badge variant="outline" className={`text-xs ${emailTypeConfig[selectedLog.email_type]?.color || ""}`}>
+                    {emailTypeConfig[selectedLog.email_type]?.label || selectedLog.email_type}
+                  </Badge>
+                </span>
+
+                <span className="text-muted-foreground font-medium">Sent At</span>
+                <span>
+                  {new Date(selectedLog.created_at).toLocaleDateString("en-IN", {
+                    day: "numeric",
+                    month: "long",
+                    year: "numeric",
+                    hour: "2-digit",
+                    minute: "2-digit",
+                    second: "2-digit",
+                  })}
+                </span>
+
+                {selectedLog.resend_id && (
+                  <>
+                    <span className="text-muted-foreground font-medium">Email ID</span>
+                    <span className="font-mono text-xs break-all">{selectedLog.resend_id}</span>
+                  </>
+                )}
+
+                {selectedLog.related_order_id && (
+                  <>
+                    <span className="text-muted-foreground font-medium">Order ID</span>
+                    <span className="font-mono text-xs break-all">{selectedLog.related_order_id}</span>
+                  </>
+                )}
+
+                {selectedLog.related_preorder_id && (
+                  <>
+                    <span className="text-muted-foreground font-medium">Pre-Order ID</span>
+                    <span className="font-mono text-xs break-all">{selectedLog.related_preorder_id}</span>
+                  </>
+                )}
+              </div>
+
+              {selectedLog.error_message && (
+                <div className="bg-destructive/5 border border-destructive/20 rounded-lg p-3">
+                  <p className="text-xs font-medium text-destructive mb-1">Error Message</p>
+                  <p className="text-sm text-destructive/80 break-all">{selectedLog.error_message}</p>
+                </div>
+              )}
+
+              {selectedLog.metadata && Object.keys(selectedLog.metadata).length > 0 && (
+                <div className="bg-muted/50 rounded-lg p-3">
+                  <p className="text-xs font-medium text-muted-foreground mb-2">Metadata</p>
+                  <div className="space-y-1">
+                    {Object.entries(selectedLog.metadata).map(([key, value]) => (
+                      <div key={key} className="flex gap-2 text-sm">
+                        <span className="text-muted-foreground capitalize">{key.replace(/_/g, " ")}:</span>
+                        <span className="break-all">{String(value)}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

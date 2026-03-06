@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { withNetworkRetry } from "@/lib/network-retry";
 
 export interface SiteSettings {
   show_seasonal_box: boolean;
@@ -17,7 +18,7 @@ export interface SiteSettings {
 }
 
 export const useSiteSettings = () => {
-const [settings, setSettings] = useState<SiteSettings>({
+  const [settings, setSettings] = useState<SiteSettings>({
     show_seasonal_box: true,
     seasonal_box_title: 'Seasonal Vegetable Box',
     seasonal_box_description: 'A curated mix of 5-6 seasonal vegetables, perfect for a week\'s healthy cooking',
@@ -35,29 +36,31 @@ const [settings, setSettings] = useState<SiteSettings>({
 
   const fetchSettings = async () => {
     try {
-      const { data, error } = await supabase
-        .from("site_settings")
-        .select("*")
-        .eq("id", "default")
-        .single();
+      await withNetworkRetry(async () => {
+        const { data, error } = await supabase
+          .from("site_settings")
+          .select("*")
+          .eq("id", "default")
+          .single();
 
-      if (error) throw error;
-      if (data) {
-        setSettings({
-          show_seasonal_box: data.show_seasonal_box,
-          seasonal_box_title: data.seasonal_box_title,
-          seasonal_box_description: data.seasonal_box_description,
-          seasonal_box_price: data.seasonal_box_price,
-          seasonal_box_badge: data.seasonal_box_badge,
-          seasonal_box_button_text: data.seasonal_box_button_text,
-          seasonal_box_button_link: data.seasonal_box_button_link,
-          order_days: data.order_days,
-          delivery_time_slot: data.delivery_time_slot,
-          map_url: data.map_url,
-          free_delivery_threshold: data.free_delivery_threshold ?? 399,
-          delivery_rate_per_km: data.delivery_rate_per_km ?? 10,
-        });
-      }
+        if (error) throw error;
+        if (data) {
+          setSettings({
+            show_seasonal_box: data.show_seasonal_box,
+            seasonal_box_title: data.seasonal_box_title,
+            seasonal_box_description: data.seasonal_box_description,
+            seasonal_box_price: data.seasonal_box_price,
+            seasonal_box_badge: data.seasonal_box_badge,
+            seasonal_box_button_text: data.seasonal_box_button_text,
+            seasonal_box_button_link: data.seasonal_box_button_link,
+            order_days: data.order_days,
+            delivery_time_slot: data.delivery_time_slot,
+            map_url: data.map_url,
+            free_delivery_threshold: data.free_delivery_threshold ?? 399,
+            delivery_rate_per_km: data.delivery_rate_per_km ?? 10,
+          });
+        }
+      });
     } catch (error) {
       console.error("Error fetching site settings:", error);
     } finally {
@@ -67,13 +70,15 @@ const [settings, setSettings] = useState<SiteSettings>({
 
   const updateSettings = async (newSettings: Partial<SiteSettings>) => {
     try {
-      const { error } = await supabase
-        .from("site_settings")
-        .update(newSettings)
-        .eq("id", "default");
+      await withNetworkRetry(async () => {
+        const { error } = await supabase
+          .from("site_settings")
+          .update(newSettings)
+          .eq("id", "default");
 
-      if (error) throw error;
-      
+        if (error) throw error;
+      });
+
       setSettings((prev) => ({ ...prev, ...newSettings }));
       return true;
     } catch (error) {

@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
+import { withNetworkRetry, getNetworkErrorMessage } from "@/lib/network-retry";
 
 export interface UserAddress {
   id: string;
@@ -33,22 +34,20 @@ export const useAddresses = () => {
     }
 
     try {
-      const { data, error } = await supabase
-        .from("user_addresses")
-        .select("*")
-        .eq("user_id", user.id)
-        .order("is_default", { ascending: false })
-        .order("created_at", { ascending: false });
+      await withNetworkRetry(async () => {
+        const { data, error } = await supabase
+          .from("user_addresses")
+          .select("*")
+          .eq("user_id", user.id)
+          .order("is_default", { ascending: false })
+          .order("created_at", { ascending: false });
 
-      if (error) throw error;
-      setAddresses(data || []);
+        if (error) throw error;
+        setAddresses(data || []);
+      });
     } catch (error: any) {
       console.error("Error fetching addresses:", error);
-      toast({
-        title: "Error",
-        description: "Failed to load addresses",
-        variant: "destructive",
-      });
+      toast({ title: "Error", description: "Failed to load addresses", variant: "destructive" });
     } finally {
       setIsLoading(false);
     }
@@ -62,34 +61,31 @@ export const useAddresses = () => {
     if (!user) return null;
 
     try {
-      // If this is the first address or marked as default, set others to non-default
-      if (addressData.is_default) {
-        await supabase
+      let result: any = null;
+
+      await withNetworkRetry(async () => {
+        if (addressData.is_default) {
+          await supabase
+            .from("user_addresses")
+            .update({ is_default: false })
+            .eq("user_id", user.id);
+        }
+
+        const { data, error } = await supabase
           .from("user_addresses")
-          .update({ is_default: false })
-          .eq("user_id", user.id);
-      }
+          .insert({ ...addressData, user_id: user.id })
+          .select()
+          .single();
 
-      const { data, error } = await supabase
-        .from("user_addresses")
-        .insert({
-          ...addressData,
-          user_id: user.id,
-        })
-        .select()
-        .single();
-
-      if (error) throw error;
+        if (error) throw error;
+        result = data;
+      });
 
       await fetchAddresses();
       toast({ title: "Address added successfully" });
-      return data;
+      return result;
     } catch (error: any) {
-      toast({
-        title: "Error",
-        description: error.message,
-        variant: "destructive",
-      });
+      toast({ title: "Error", description: getNetworkErrorMessage(error, "adding address"), variant: "destructive" });
       return null;
     }
   };
@@ -98,31 +94,28 @@ export const useAddresses = () => {
     if (!user) return false;
 
     try {
-      // If marking as default, set others to non-default
-      if (addressData.is_default) {
-        await supabase
+      await withNetworkRetry(async () => {
+        if (addressData.is_default) {
+          await supabase
+            .from("user_addresses")
+            .update({ is_default: false })
+            .eq("user_id", user.id);
+        }
+
+        const { error } = await supabase
           .from("user_addresses")
-          .update({ is_default: false })
+          .update(addressData)
+          .eq("id", id)
           .eq("user_id", user.id);
-      }
 
-      const { error } = await supabase
-        .from("user_addresses")
-        .update(addressData)
-        .eq("id", id)
-        .eq("user_id", user.id);
-
-      if (error) throw error;
+        if (error) throw error;
+      });
 
       await fetchAddresses();
       toast({ title: "Address updated successfully" });
       return true;
     } catch (error: any) {
-      toast({
-        title: "Error",
-        description: error.message,
-        variant: "destructive",
-      });
+      toast({ title: "Error", description: getNetworkErrorMessage(error, "updating address"), variant: "destructive" });
       return false;
     }
   };
@@ -131,23 +124,21 @@ export const useAddresses = () => {
     if (!user) return false;
 
     try {
-      const { error } = await supabase
-        .from("user_addresses")
-        .delete()
-        .eq("id", id)
-        .eq("user_id", user.id);
+      await withNetworkRetry(async () => {
+        const { error } = await supabase
+          .from("user_addresses")
+          .delete()
+          .eq("id", id)
+          .eq("user_id", user.id);
 
-      if (error) throw error;
+        if (error) throw error;
+      });
 
       await fetchAddresses();
       toast({ title: "Address deleted" });
       return true;
     } catch (error: any) {
-      toast({
-        title: "Error",
-        description: error.message,
-        variant: "destructive",
-      });
+      toast({ title: "Error", description: getNetworkErrorMessage(error, "deleting address"), variant: "destructive" });
       return false;
     }
   };

@@ -6,7 +6,7 @@ declare global {
 
 import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, CreditCard, AlertCircle, MapPin, Truck, CheckCircle, Loader2, RefreshCw, Navigation, Map, Edit2, ChevronRight } from "lucide-react";
+import { ArrowLeft, CreditCard, AlertCircle, MapPin, Truck, CheckCircle, Loader2, RefreshCw, Navigation, Map, Edit2, ChevronRight, Home, Building2, Briefcase, Save } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useCart } from "@/contexts/CartContext";
 import { Percent } from "lucide-react";
@@ -53,6 +53,15 @@ const Checkout = () => {
 
   // Form for manual address or editing
   const [showManualForm, setShowManualForm] = useState(false);
+  const [isEditingAddress, setIsEditingAddress] = useState(false);
+  const [editAddressData, setEditAddressData] = useState({
+    label: "Home",
+    full_name: "",
+    phone: "",
+    address: "",
+    pincode: "",
+    city: "Nagpur",
+  });
   const [formData, setFormData] = useState({
     name: "",
     phone: "",
@@ -685,6 +694,104 @@ const Checkout = () => {
               ) : hasActiveAddress && (selectedAddress || formData.address) ? (
                 /* Address Preview Card (Swiggy-like) */
                 <div className="space-y-3">
+                {isEditingAddress ? (
+                  /* Inline Edit Form */
+                  <div className="space-y-3">
+                    <div className="p-4 bg-muted/30 rounded-lg border border-border">
+                      <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-3">Edit Address Details</p>
+                      
+                      {/* Label selector */}
+                      <div className="mb-3">
+                        <label className="block text-xs font-medium mb-1.5">Address Type</label>
+                        <div className="flex gap-2">
+                          {[
+                            { value: "Home", icon: Home },
+                            { value: "Office", icon: Briefcase },
+                            { value: "Apartment", icon: Building2 },
+                          ].map(({ value, icon: Icon }) => (
+                            <button
+                              key={value}
+                              type="button"
+                              onClick={() => setEditAddressData(prev => ({ ...prev, label: value }))}
+                              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${
+                                editAddressData.label === value
+                                  ? "bg-primary text-primary-foreground border-primary"
+                                  : "bg-background border-input hover:border-primary/50"
+                              }`}
+                            >
+                              <Icon className="w-3.5 h-3.5" />
+                              {value}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="space-y-2">
+                        <div>
+                          <label className="block text-xs font-medium mb-1">Full Name *</label>
+                          <input type="text" value={editAddressData.full_name} onChange={(e) => setEditAddressData(prev => ({ ...prev, full_name: e.target.value }))}
+                            className="w-full px-3 py-2 rounded-lg border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
+                            placeholder="Your name" />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium mb-1">Phone *</label>
+                          <input type="tel" value={editAddressData.phone} onChange={(e) => setEditAddressData(prev => ({ ...prev, phone: e.target.value }))}
+                            className="w-full px-3 py-2 rounded-lg border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
+                            placeholder="Phone number" />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium mb-1">Address (Apt, Floor, Street, Landmark) *</label>
+                          <textarea rows={2} value={editAddressData.address} onChange={(e) => setEditAddressData(prev => ({ ...prev, address: e.target.value }))}
+                            className="w-full px-3 py-2 rounded-lg border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 resize-none"
+                            placeholder="Flat 301, 3rd Floor, Sunshine Apt, Near City Mall" />
+                        </div>
+                        <div className="grid grid-cols-2 gap-2">
+                          <div>
+                            <label className="block text-xs font-medium mb-1">City</label>
+                            <input type="text" value={editAddressData.city} onChange={(e) => setEditAddressData(prev => ({ ...prev, city: e.target.value }))}
+                              className="w-full px-3 py-2 rounded-lg border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
+                              placeholder="Nagpur" />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-medium mb-1">Pincode *</label>
+                            <input type="text" value={editAddressData.pincode} onChange={(e) => setEditAddressData(prev => ({ ...prev, pincode: e.target.value }))}
+                              className="w-full px-3 py-2 rounded-lg border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
+                              placeholder="440001" maxLength={6} />
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex gap-2 mt-3">
+                        <Button type="button" size="sm" className="gap-1.5" disabled={!editAddressData.full_name || !editAddressData.address || !editAddressData.pincode}
+                          onClick={async () => {
+                            if (selectedAddress) {
+                              const success = await updateAddress(selectedAddress.id, {
+                                label: editAddressData.label,
+                                full_name: editAddressData.full_name,
+                                phone: editAddressData.phone,
+                                address: editAddressData.address,
+                                city: editAddressData.city,
+                                pincode: editAddressData.pincode,
+                              });
+                              if (success) {
+                                await refetchAddresses();
+                                setSelectedAddress(prev => prev ? { ...prev, ...editAddressData } : null);
+                                setIsEditingAddress(false);
+                                toast({ title: "Address updated!" });
+                              }
+                            }
+                          }}>
+                          <Save className="w-3.5 h-3.5" />
+                          Save Changes
+                        </Button>
+                        <Button type="button" variant="outline" size="sm" onClick={() => setIsEditingAddress(false)}>
+                          Cancel
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  /* Address Preview */
                   <div className="p-4 bg-primary/5 rounded-lg border border-primary/20">
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex-1 min-w-0">
@@ -704,7 +811,17 @@ const Checkout = () => {
                           {selectedAddress?.city || formData.city} - {activeAddress.pincode}
                         </p>
                       </div>
-                      <Button variant="ghost" size="icon" className="flex-shrink-0 h-8 w-8" onClick={() => setShowAddressManager(true)}>
+                      <Button variant="ghost" size="icon" className="flex-shrink-0 h-8 w-8" onClick={() => {
+                        setEditAddressData({
+                          label: selectedAddress?.label || "Home",
+                          full_name: activeAddress.full_name,
+                          phone: activeAddress.phone,
+                          address: activeAddress.address,
+                          pincode: activeAddress.pincode,
+                          city: selectedAddress?.city || formData.city,
+                        });
+                        setIsEditingAddress(true);
+                      }}>
                         <Edit2 className="w-4 h-4" />
                       </Button>
                     </div>
@@ -716,12 +833,13 @@ const Checkout = () => {
                       </div>
                     )}
                   </div>
+                )}
 
                   {/* Location update buttons */}
                   <div className="flex flex-col sm:flex-row gap-2">
                     <Button type="button" variant="outline" size="sm" className="gap-2 flex-1" onClick={handleUseCurrentLocation} disabled={isGettingLocation}>
                       {isGettingLocation ? <Loader2 className="w-4 h-4 animate-spin" /> : <Navigation className="w-4 h-4" />}
-                      Update with Current Location
+                      Update Location
                     </Button>
                     <Button type="button" variant="outline" size="sm" className="gap-2 flex-1" onClick={() => setShowMapPicker(true)}>
                       <Map className="w-4 h-4" />
@@ -729,19 +847,19 @@ const Checkout = () => {
                     </Button>
                   </div>
 
-                  {/* Add new address link */}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSelectedAddress(null);
-                      setShowManualForm(true);
-                    }}
-                    className="w-full text-left p-3 rounded-lg border border-dashed border-border hover:border-primary/50 hover:bg-primary/5 transition-colors flex items-center gap-2 text-sm text-muted-foreground hover:text-primary"
-                  >
-                    <MapPin className="w-4 h-4" />
-                    Add a new delivery address
-                    <ChevronRight className="w-4 h-4 ml-auto" />
-                  </button>
+                  {/* Change / Add address links */}
+                  <div className="flex gap-2">
+                    {addresses.length > 1 && (
+                      <button type="button" onClick={() => setShowAddressManager(true)}
+                        className="flex-1 text-center p-2.5 rounded-lg border border-border hover:border-primary/50 hover:bg-primary/5 transition-colors text-sm text-muted-foreground hover:text-primary font-medium">
+                        Change Address
+                      </button>
+                    )}
+                    <button type="button" onClick={() => { setSelectedAddress(null); setShowManualForm(true); }}
+                      className="flex-1 text-center p-2.5 rounded-lg border border-dashed border-border hover:border-primary/50 hover:bg-primary/5 transition-colors text-sm text-muted-foreground hover:text-primary">
+                      + Add New Address
+                    </button>
+                  </div>
                 </div>
               ) : (
                 /* No address at all - prompt to add */

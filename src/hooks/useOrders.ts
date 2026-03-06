@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { isBackendNetworkError } from "@/lib/backend-connectivity";
 
 export interface OrderItem {
   id: string;
@@ -39,6 +40,34 @@ export const useOrders = (isAdmin: boolean = false) => {
   const [orders, setOrders] = useState<Order[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
+
+  const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+  const withNetworkRetry = async (
+    operation: () => Promise<void>,
+    maxAttempts: number = 3,
+    baseDelayMs: number = 600,
+  ) => {
+    let lastError: unknown = null;
+
+    for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+      try {
+        await operation();
+        return;
+      } catch (error) {
+        lastError = error;
+        const shouldRetry = isBackendNetworkError(error) && attempt < maxAttempts;
+
+        if (!shouldRetry) {
+          break;
+        }
+
+        await sleep(baseDelayMs * attempt);
+      }
+    }
+
+    throw lastError instanceof Error ? lastError : new Error("Request failed");
+  };
 
   const fetchOrders = async () => {
     setIsLoading(true);
@@ -86,17 +115,19 @@ export const useOrders = (isAdmin: boolean = false) => {
     try {
       // Get order details first for email notification
       const order = orders.find(o => o.id === orderId);
-      
-      const { error } = await supabase
-        .from("orders")
-        .update({ status })
-        .eq("id", orderId);
 
-      if (error) throw error;
-      
+      await withNetworkRetry(async () => {
+        const { error } = await supabase
+          .from("orders")
+          .update({ status })
+          .eq("id", orderId);
+
+        if (error) throw error;
+      });
+
       toast({ title: "Order status updated" });
       fetchOrders();
-      
+
       // Fire-and-forget: send status update email (don't await or block)
       if (order && ['pending', 'confirmed', 'preparing', 'out_for_delivery', 'delivered', 'cancelled'].includes(status)) {
         supabase.functions.invoke('send-order-status-update', {
@@ -112,10 +143,14 @@ export const useOrders = (isAdmin: boolean = false) => {
           if (response.error) console.error('Status email failed:', response.error);
         }).catch(err => console.error('Status email error:', err));
       }
-      
+
       return true;
     } catch (error: any) {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
+      const description = isBackendNetworkError(error)
+        ? "Network issue while updating status. Please retry."
+        : error?.message || "Something went wrong";
+
+      toast({ title: "Error", description, variant: "destructive" });
       return false;
     }
   };
@@ -127,18 +162,24 @@ export const useOrders = (isAdmin: boolean = false) => {
         updates.payment_verified_at = new Date().toISOString();
       }
 
-      const { error } = await supabase
-        .from("orders")
-        .update(updates)
-        .eq("id", orderId);
+      await withNetworkRetry(async () => {
+        const { error } = await supabase
+          .from("orders")
+          .update(updates)
+          .eq("id", orderId);
 
-      if (error) throw error;
-      
+        if (error) throw error;
+      });
+
       toast({ title: "Payment status updated" });
       fetchOrders();
       return true;
     } catch (error: any) {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
+      const description = isBackendNetworkError(error)
+        ? "Network issue while updating payment status. Please retry."
+        : error?.message || "Something went wrong";
+
+      toast({ title: "Error", description, variant: "destructive" });
       return false;
     }
   };

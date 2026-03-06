@@ -85,12 +85,14 @@ const AdminBanners = () => {
 
   const handleSave = async () => {
     if (!form.title || !form.product_name) return;
-    if (editBanner) {
-      await updateBanner(editBanner.id, form);
-    } else {
-      await createBanner(form);
+
+    const success = editBanner
+      ? await updateBanner(editBanner.id, form)
+      : await createBanner(form);
+
+    if (success) {
+      resetForm();
     }
-    resetForm();
   };
 
   const handleNotifyCustomers = async (banner: PromotionalBanner) => {

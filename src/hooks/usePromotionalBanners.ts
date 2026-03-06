@@ -80,10 +80,44 @@ export const usePromotionalBanners = (activeOnly: boolean = true) => {
           .eq("id", id);
         if (error) throw error;
       });
+
       toast({ title: "Banner updated" });
       fetchBanners();
       return true;
     } catch (error: any) {
+      // Reconcile potential network failure where write succeeded server-side.
+      try {
+        const verification = await withNetworkRetry(async () => {
+          const { data, error: verificationError } = await supabase
+            .from("promotional_banners" as any)
+            .select("*")
+            .eq("id", id)
+            .maybeSingle();
+
+          if (verificationError) throw verificationError;
+          return data as unknown as PromotionalBanner | null;
+        });
+
+        if (verification) {
+          const hasAnyUpdatedField = Object.entries(updates).some(([key, value]) => {
+            if (value === undefined) return false;
+            const current = (verification as any)[key];
+            return String(current ?? "") === String(value ?? "");
+          });
+
+          if (hasAnyUpdatedField) {
+            toast({
+              title: "Banner updated",
+              description: "Saved after temporary network issue.",
+            });
+            fetchBanners();
+            return true;
+          }
+        }
+      } catch (verificationError) {
+        console.error("Banner verification after update failure failed:", verificationError);
+      }
+
       toast({ title: "Error", description: getNetworkErrorMessage(error, "updating banner"), variant: "destructive" });
       return false;
     }

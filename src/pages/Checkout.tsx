@@ -61,6 +61,28 @@ const Checkout = () => {
     notes: "",
   });
 
+  // Auto-fill form data from profile
+  useEffect(() => {
+    const fetchProfile = async () => {
+      if (!user) return;
+      const { data } = await supabase
+        .from("profiles")
+        .select("full_name, phone, address, pincode")
+        .eq("user_id", user.id)
+        .maybeSingle();
+      if (data) {
+        setFormData(prev => ({
+          ...prev,
+          name: prev.name || data.full_name || "",
+          phone: prev.phone || data.phone || "",
+          address: prev.address || data.address || "",
+          pincode: prev.pincode || data.pincode || "",
+        }));
+      }
+    };
+    fetchProfile();
+  }, [user]);
+
   const handleLocationSelect = (data: { address: string; city: string; pincode: string; latitude: number; longitude: number }) => {
     setManualLatLng({ lat: data.latitude, lng: data.longitude });
     setFormData((prev) => ({
@@ -595,25 +617,50 @@ const Checkout = () => {
                   showSelectMode={addresses.length > 0}
                 />
               ) : addresses.length > 0 && selectedAddress ? (
-                <div className="p-4 bg-muted/50 rounded-lg">
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="font-medium">{selectedAddress.label}</span>
-                  </div>
-                  <p className="font-medium text-sm">{selectedAddress.full_name}</p>
-                  <p className="text-sm text-muted-foreground">{selectedAddress.phone}</p>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    {selectedAddress.address}, {selectedAddress.city} - {selectedAddress.pincode}
-                  </p>
-                  {/* Map preview for selected address */}
-                  {selectedAddress.latitude && selectedAddress.longitude && (
-                    <div className="mt-3">
-                      <MapPreview
-                        latitude={selectedAddress.latitude}
-                        longitude={selectedAddress.longitude}
-                        address={selectedAddress.address}
-                      />
+                <div className="space-y-3">
+                  <div className="p-4 bg-muted/50 rounded-lg">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="font-medium">{selectedAddress.label}</span>
                     </div>
-                  )}
+                    <p className="font-medium text-sm">{selectedAddress.full_name}</p>
+                    <p className="text-sm text-muted-foreground">{selectedAddress.phone}</p>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      {selectedAddress.address}, {selectedAddress.city} - {selectedAddress.pincode}
+                    </p>
+                    {/* Map preview for selected address */}
+                    {selectedAddress.latitude && selectedAddress.longitude && (
+                      <div className="mt-3">
+                        <MapPreview
+                          latitude={selectedAddress.latitude}
+                          longitude={selectedAddress.longitude}
+                          address={selectedAddress.address}
+                        />
+                      </div>
+                    )}
+                  </div>
+                  {/* Location picker buttons for saved address users */}
+                  <div className="flex flex-col sm:flex-row gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="gap-2 flex-1"
+                      onClick={handleUseCurrentLocation}
+                    >
+                      <Navigation className="w-4 h-4" />
+                      Use Current Location
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="gap-2 flex-1"
+                      onClick={() => setShowMapPicker(true)}
+                    >
+                      <Map className="w-4 h-4" />
+                      Pick on Map
+                    </Button>
+                  </div>
                 </div>
               ) : (
                 // Manual entry form for first-time users

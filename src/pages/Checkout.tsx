@@ -93,10 +93,10 @@ const Checkout = () => {
     }
   }, [defaultAddress]);
 
-  // When location is selected from map picker, auto-fill address and update selected address coords
+  // When location is selected from map picker, auto-fill and auto-save address
   const handleLocationSelect = async (data: { address: string; city: string; pincode: string; latitude: number; longitude: number }) => {
     if (selectedAddress) {
-      // Update the selected saved address with new coordinates
+      // Update the existing saved address with new coordinates & address
       const success = await updateAddress(selectedAddress.id, {
         address: data.address,
         city: data.city || selectedAddress.city,
@@ -106,7 +106,6 @@ const Checkout = () => {
       });
       if (success) {
         await refetchAddresses();
-        // Update local state immediately
         setSelectedAddress(prev => prev ? {
           ...prev,
           address: data.address,
@@ -115,19 +114,37 @@ const Checkout = () => {
           latitude: data.latitude,
           longitude: data.longitude,
         } : null);
-        toast({ title: "Address updated", description: "Delivery location updated from map." });
+        toast({ title: "📍 Address saved!", description: "Delivery pin & address updated successfully." });
       }
-    } else {
-      // Manual form mode - fill the form fields
-      setFormData(prev => ({
-        ...prev,
+    } else if (user) {
+      // No saved address — auto-save as new address with name/phone from profile
+      const result = await addAddress({
+        label: "Home",
+        full_name: formData.name || "Customer",
+        phone: formData.phone || "",
         address: data.address,
-        city: data.city || prev.city,
-        pincode: data.pincode || prev.pincode,
+        pincode: data.pincode || "",
+        city: data.city || "Nagpur",
+        is_default: addresses.length === 0,
         latitude: data.latitude,
         longitude: data.longitude,
-      }));
-      setShowManualForm(true);
+      });
+      if (result) {
+        setSelectedAddress(result);
+        setShowManualForm(false);
+        toast({ title: "📍 Address saved!", description: "Your delivery location has been saved. You can edit details if needed." });
+      } else {
+        // Fallback: fill form manually
+        setFormData(prev => ({
+          ...prev,
+          address: data.address,
+          city: data.city || prev.city,
+          pincode: data.pincode || prev.pincode,
+          latitude: data.latitude,
+          longitude: data.longitude,
+        }));
+        setShowManualForm(true);
+      }
     }
   };
 

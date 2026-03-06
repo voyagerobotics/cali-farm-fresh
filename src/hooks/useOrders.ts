@@ -93,33 +93,24 @@ export const useOrders = (isAdmin: boolean = false) => {
       if (error) throw error;
       
       toast({ title: "Order status updated" });
+      fetchOrders();
       
-      // Send status update email notification for key status changes
+      // Fire-and-forget: send status update email (don't await or block)
       if (order && ['pending', 'confirmed', 'preparing', 'out_for_delivery', 'delivered', 'cancelled'].includes(status)) {
-        try {
-          const response = await supabase.functions.invoke('send-order-status-update', {
-            body: {
-              orderId: order.id,
-              orderNumber: order.order_number,
-              customerName: order.delivery_name,
-              newStatus: status,
-              deliveryAddress: order.delivery_address,
-              userId: order.user_id,
-            },
-          });
-          
-          if (response.error) {
-            console.error('Failed to send status update email:', response.error);
-          } else {
-            console.log('Status update email sent successfully');
-          }
-        } catch (emailError) {
-          console.error('Error sending status update email:', emailError);
-          // Don't fail the status update if email fails
-        }
+        supabase.functions.invoke('send-order-status-update', {
+          body: {
+            orderId: order.id,
+            orderNumber: order.order_number,
+            customerName: order.delivery_name,
+            newStatus: status,
+            deliveryAddress: order.delivery_address,
+            userId: order.user_id,
+          },
+        }).then(response => {
+          if (response.error) console.error('Status email failed:', response.error);
+        }).catch(err => console.error('Status email error:', err));
       }
       
-      fetchOrders();
       return true;
     } catch (error: any) {
       toast({ title: "Error", description: error.message, variant: "destructive" });

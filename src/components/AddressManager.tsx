@@ -1,7 +1,9 @@
 import { useState } from "react";
-import { Plus, Edit2, Trash2, MapPin, Star, Check } from "lucide-react";
+import { Plus, Edit2, Trash2, MapPin, Star, Check, Navigation, Map } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAddresses, UserAddress } from "@/hooks/useAddresses";
+import GoogleMapsLocationPicker from "@/components/GoogleMapsLocationPicker";
+import MapPreview from "@/components/MapPreview";
 
 interface AddressManagerProps {
   onSelect?: (address: UserAddress) => void;
@@ -13,6 +15,7 @@ const AddressManager = ({ onSelect, selectedId, showSelectMode = false }: Addres
   const { addresses, isLoading, addAddress, updateAddress, deleteAddress, setDefaultAddress } = useAddresses();
   const [showForm, setShowForm] = useState(false);
   const [editingAddress, setEditingAddress] = useState<UserAddress | null>(null);
+  const [showMapPicker, setShowMapPicker] = useState(false);
   const [formData, setFormData] = useState({
     label: "Home",
     full_name: "",
@@ -21,6 +24,8 @@ const AddressManager = ({ onSelect, selectedId, showSelectMode = false }: Addres
     pincode: "",
     city: "Nagpur",
     is_default: false,
+    latitude: null as number | null,
+    longitude: null as number | null,
   });
 
   const resetForm = () => {
@@ -32,6 +37,8 @@ const AddressManager = ({ onSelect, selectedId, showSelectMode = false }: Addres
       pincode: "",
       city: "Nagpur",
       is_default: false,
+      latitude: null,
+      longitude: null,
     });
     setEditingAddress(null);
     setShowForm(false);
@@ -59,6 +66,8 @@ const AddressManager = ({ onSelect, selectedId, showSelectMode = false }: Addres
       pincode: address.pincode,
       city: address.city,
       is_default: address.is_default,
+      latitude: address.latitude,
+      longitude: address.longitude,
     });
     setShowForm(true);
   };
@@ -67,6 +76,43 @@ const AddressManager = ({ onSelect, selectedId, showSelectMode = false }: Addres
     if (confirm("Are you sure you want to delete this address?")) {
       await deleteAddress(id);
     }
+  };
+
+  const handleLocationSelect = (data: {
+    address: string;
+    city: string;
+    pincode: string;
+    latitude: number;
+    longitude: number;
+  }) => {
+    setFormData((prev) => ({
+      ...prev,
+      address: data.address,
+      city: data.city || prev.city,
+      pincode: data.pincode || prev.pincode,
+      latitude: data.latitude,
+      longitude: data.longitude,
+    }));
+  };
+
+  const handleUseCurrentLocation = () => {
+    if (!navigator.geolocation) return;
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        // Open the map picker at the current location
+        setFormData((prev) => ({
+          ...prev,
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
+        }));
+        setShowMapPicker(true);
+      },
+      () => {
+        // If geolocation fails, just open the map
+        setShowMapPicker(true);
+      },
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
   };
 
   if (isLoading) {
@@ -113,6 +159,16 @@ const AddressManager = ({ onSelect, selectedId, showSelectMode = false }: Addres
                   <p className="text-sm text-muted-foreground mt-1">
                     {address.address}, {address.city} - {address.pincode}
                   </p>
+                  {/* Map preview for addresses with coordinates */}
+                  {address.latitude && address.longitude && (
+                    <div className="mt-2">
+                      <MapPreview
+                        latitude={address.latitude}
+                        longitude={address.longitude}
+                        compact
+                      />
+                    </div>
+                  )}
                 </div>
                 
                 <div className="flex items-center gap-1">
@@ -177,6 +233,42 @@ const AddressManager = ({ onSelect, selectedId, showSelectMode = false }: Addres
           <h3 className="font-medium mb-4">
             {editingAddress ? "Edit Address" : "Add New Address"}
           </h3>
+
+          {/* Location Picker Buttons */}
+          <div className="flex flex-col sm:flex-row gap-2 mb-4">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="gap-2 flex-1"
+              onClick={handleUseCurrentLocation}
+            >
+              <Navigation className="w-4 h-4" />
+              Use Current Location
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="gap-2 flex-1"
+              onClick={() => setShowMapPicker(true)}
+            >
+              <Map className="w-4 h-4" />
+              Pick on Map
+            </Button>
+          </div>
+
+          {/* Map preview if coordinates exist */}
+          {formData.latitude && formData.longitude && (
+            <div className="mb-4">
+              <MapPreview
+                latitude={formData.latitude}
+                longitude={formData.longitude}
+                address={formData.address}
+              />
+            </div>
+          )}
+
           <form onSubmit={handleSubmit} className="space-y-3">
             <div className="grid grid-cols-2 gap-3">
               <div>
@@ -278,6 +370,15 @@ const AddressManager = ({ onSelect, selectedId, showSelectMode = false }: Addres
           No saved addresses. Add one to save time during checkout!
         </p>
       )}
+
+      {/* Google Maps Location Picker Modal */}
+      <GoogleMapsLocationPicker
+        open={showMapPicker}
+        onClose={() => setShowMapPicker(false)}
+        onLocationSelect={handleLocationSelect}
+        initialLat={formData.latitude || undefined}
+        initialLng={formData.longitude || undefined}
+      />
     </div>
   );
 };

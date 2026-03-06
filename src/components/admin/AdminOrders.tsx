@@ -1,7 +1,8 @@
 import { useState, useMemo } from "react";
-import { Clock, CheckCircle, Truck, Package, XCircle, ChevronDown, ChevronUp, CreditCard, Banknote, RefreshCw, AlertTriangle } from "lucide-react";
+import { Clock, CheckCircle, Truck, Package, XCircle, ChevronDown, ChevronUp, CreditCard, Banknote, RefreshCw, AlertTriangle, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Order, useOrders } from "@/hooks/useOrders";
+import MapPreview from "@/components/MapPreview";
 
 const statusConfig: Record<Order["status"], { label: string; icon: any; color: string }> = {
   pending: { label: "Pending", icon: Clock, color: "bg-yellow-500/10 text-yellow-600" },
@@ -219,6 +220,25 @@ const AdminOrders = () => {
                         <p className="text-sm text-muted-foreground mt-1">
                           <span className="font-medium">Notes:</span> {order.notes}
                         </p>
+                      )}
+                      {/* Map Preview with Google Maps link */}
+                      {order.delivery_latitude && order.delivery_longitude && (
+                        <div className="mt-3 space-y-2">
+                          <MapPreview
+                            latitude={order.delivery_latitude}
+                            longitude={order.delivery_longitude}
+                            address={order.delivery_address}
+                          />
+                          <a
+                            href={`https://www.google.com/maps/dir/?api=1&destination=${order.delivery_latitude},${order.delivery_longitude}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1.5 text-xs font-medium text-primary hover:underline"
+                          >
+                            <ExternalLink className="w-3 h-3" />
+                            Get Directions in Google Maps
+                          </a>
+                        </div>
                       )}
                     </div>
 

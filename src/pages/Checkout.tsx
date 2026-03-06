@@ -18,6 +18,7 @@ import { useDeliveryZones } from "@/hooks/useDeliveryZones";
 import { useSiteSettings } from "@/hooks/useSiteSettings";
 import { usePageTracking, useActivityLogger } from "@/hooks/useAnalytics";
 import AddressManager from "@/components/AddressManager";
+import MapPreview from "@/components/MapPreview";
 import RazorpayPayment from "@/components/RazorpayPayment";
 import WeeklySubscriptionCheckbox from "@/components/WeeklySubscriptionCheckbox";
 
@@ -266,6 +267,8 @@ const Checkout = () => {
         delivery_address: `${addressData.address}, ${addressData.pincode}`,
         delivery_phone: addressData.phone,
         delivery_name: addressData.full_name,
+        delivery_latitude: selectedAddress?.latitude || null,
+        delivery_longitude: selectedAddress?.longitude || null,
         notes: formData.notes,
         order_date: getOrderDate().toISOString().split("T")[0],
         payment_status: "pending" as const,
@@ -572,6 +575,16 @@ const Checkout = () => {
                   <p className="text-sm text-muted-foreground mt-1">
                     {selectedAddress.address}, {selectedAddress.city} - {selectedAddress.pincode}
                   </p>
+                  {/* Map preview for selected address */}
+                  {selectedAddress.latitude && selectedAddress.longitude && (
+                    <div className="mt-3">
+                      <MapPreview
+                        latitude={selectedAddress.latitude}
+                        longitude={selectedAddress.longitude}
+                        address={selectedAddress.address}
+                      />
+                    </div>
+                  )}
                 </div>
               ) : (
                 // Manual entry form for first-time users

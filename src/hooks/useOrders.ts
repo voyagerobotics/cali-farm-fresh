@@ -25,6 +25,8 @@ export interface Order {
   delivery_phone: string;
   delivery_address: string;
   delivery_slot: string | null;
+  delivery_latitude: number | null;
+  delivery_longitude: number | null;
   notes: string | null;
   upi_reference: string | null;
   order_date: string;

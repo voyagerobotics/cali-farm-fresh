@@ -289,6 +289,8 @@ export type Database = {
           created_at: string
           delivery_address: string
           delivery_charge: number | null
+          delivery_latitude: number | null
+          delivery_longitude: number | null
           delivery_name: string
           delivery_phone: string
           delivery_slot: string | null
@@ -311,6 +313,8 @@ export type Database = {
           created_at?: string
           delivery_address: string
           delivery_charge?: number | null
+          delivery_latitude?: number | null
+          delivery_longitude?: number | null
           delivery_name: string
           delivery_phone: string
           delivery_slot?: string | null
@@ -333,6 +337,8 @@ export type Database = {
           created_at?: string
           delivery_address?: string
           delivery_charge?: number | null
+          delivery_latitude?: number | null
+          delivery_longitude?: number | null
           delivery_name?: string
           delivery_phone?: string
           delivery_slot?: string | null
@@ -974,6 +980,8 @@ export type Database = {
           id: string
           is_default: boolean
           label: string
+          latitude: number | null
+          longitude: number | null
           phone: string
           pincode: string
           updated_at: string
@@ -987,6 +995,8 @@ export type Database = {
           id?: string
           is_default?: boolean
           label?: string
+          latitude?: number | null
+          longitude?: number | null
           phone: string
           pincode: string
           updated_at?: string
@@ -1000,6 +1010,8 @@ export type Database = {
           id?: string
           is_default?: boolean
           label?: string
+          latitude?: number | null
+          longitude?: number | null
           phone?: string
           pincode?: string
           updated_at?: string

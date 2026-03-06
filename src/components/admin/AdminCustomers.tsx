@@ -23,6 +23,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
+import { withNetworkRetry, getNetworkErrorMessage } from "@/lib/network-retry";
 
 interface OfflineCustomer {
   id: string;
@@ -56,18 +57,20 @@ const AdminCustomers = () => {
   const fetchCustomers = async () => {
     setIsLoading(true);
     try {
-      const { data, error } = await supabase
-        .from("offline_customers")
-        .select("*")
-        .order("created_at", { ascending: false });
+      await withNetworkRetry(async () => {
+        const { data, error } = await supabase
+          .from("offline_customers")
+          .select("*")
+          .order("created_at", { ascending: false });
 
-      if (error) throw error;
-      setCustomers(data || []);
+        if (error) throw error;
+        setCustomers(data || []);
+      });
     } catch (error: any) {
       console.error("Error fetching customers:", error);
       toast({
         title: "Error",
-        description: "Failed to fetch customers",
+        description: getNetworkErrorMessage(error, "fetching customers"),
         variant: "destructive",
       });
     } finally {
@@ -92,47 +95,44 @@ const AdminCustomers = () => {
     }
 
     try {
-      if (editingCustomer) {
-        // Update existing customer
-        const { error } = await supabase
-          .from("offline_customers")
-          .update({
-            full_name: formData.full_name,
-            phone: formData.phone,
-            email: formData.email || null,
-            address: formData.address || null,
-            pincode: formData.pincode || null,
-            notes: formData.notes || null,
-          })
-          .eq("id", editingCustomer.id);
+      await withNetworkRetry(async () => {
+        if (editingCustomer) {
+          const { error } = await supabase
+            .from("offline_customers")
+            .update({
+              full_name: formData.full_name,
+              phone: formData.phone,
+              email: formData.email || null,
+              address: formData.address || null,
+              pincode: formData.pincode || null,
+              notes: formData.notes || null,
+            })
+            .eq("id", editingCustomer.id);
 
-        if (error) throw error;
+          if (error) throw error;
+        } else {
+          const { error } = await supabase
+            .from("offline_customers")
+            .insert({
+              full_name: formData.full_name,
+              phone: formData.phone,
+              email: formData.email || null,
+              address: formData.address || null,
+              pincode: formData.pincode || null,
+              notes: formData.notes || null,
+              created_by: user?.id,
+            });
 
-        toast({
-          title: "Customer Updated",
-          description: "Customer details have been updated.",
-        });
-      } else {
-        // Create new customer
-        const { error } = await supabase
-          .from("offline_customers")
-          .insert({
-            full_name: formData.full_name,
-            phone: formData.phone,
-            email: formData.email || null,
-            address: formData.address || null,
-            pincode: formData.pincode || null,
-            notes: formData.notes || null,
-            created_by: user?.id,
-          });
+          if (error) throw error;
+        }
+      });
 
-        if (error) throw error;
-
-        toast({
-          title: "Customer Added",
-          description: "New customer has been added successfully.",
-        });
-      }
+      toast({
+        title: editingCustomer ? "Customer Updated" : "Customer Added",
+        description: editingCustomer
+          ? "Customer details have been updated."
+          : "New customer has been added successfully.",
+      });
 
       setIsDialogOpen(false);
       resetForm();
@@ -141,7 +141,7 @@ const AdminCustomers = () => {
       console.error("Error saving customer:", error);
       toast({
         title: "Error",
-        description: error.message || "Failed to save customer",
+        description: getNetworkErrorMessage(error, "saving customer"),
         variant: "destructive",
       });
     }
@@ -151,12 +151,14 @@ const AdminCustomers = () => {
     if (!confirm("Are you sure you want to delete this customer?")) return;
 
     try {
-      const { error } = await supabase
-        .from("offline_customers")
-        .delete()
-        .eq("id", id);
+      await withNetworkRetry(async () => {
+        const { error } = await supabase
+          .from("offline_customers")
+          .delete()
+          .eq("id", id);
 
-      if (error) throw error;
+        if (error) throw error;
+      });
 
       toast({
         title: "Customer Deleted",
@@ -168,7 +170,7 @@ const AdminCustomers = () => {
       console.error("Error deleting customer:", error);
       toast({
         title: "Error",
-        description: "Failed to delete customer",
+        description: getNetworkErrorMessage(error, "deleting customer"),
         variant: "destructive",
       });
     }

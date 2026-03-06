@@ -99,13 +99,13 @@ export const usePromotionalBanners = (activeOnly: boolean = true) => {
         });
 
         if (verification) {
-          const hasAnyUpdatedField = Object.entries(updates).some(([key, value]) => {
-            if (value === undefined) return false;
+          const hasAllUpdatedFieldsMatch = Object.entries(updates).every(([key, value]) => {
+            if (value === undefined) return true;
             const current = (verification as any)[key];
             return String(current ?? "") === String(value ?? "");
           });
 
-          if (hasAnyUpdatedField) {
+          if (hasAllUpdatedFieldsMatch) {
             toast({
               title: "Banner updated",
               description: "Saved after temporary network issue.",

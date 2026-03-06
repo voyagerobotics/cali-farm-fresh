@@ -161,26 +161,28 @@ const AdminCategories = () => {
   const handleSaveCategory = async () => {
     if (!categoryForm.name || !categoryForm.slug) return;
 
-    if (editingCategory) {
-      await updateCategory(editingCategory.id, categoryForm);
-    } else {
-      await addCategory(categoryForm);
+    const success = editingCategory
+      ? await updateCategory(editingCategory.id, categoryForm)
+      : await addCategory(categoryForm);
+
+    if (success) {
+      setCategoryDialogOpen(false);
     }
-    setCategoryDialogOpen(false);
   };
 
   const handleSaveSubcategory = async () => {
     if (!subcategoryForm.name || !subcategoryForm.slug) return;
 
-    if (editingSubcategory) {
-      await updateSubcategory(editingSubcategory.id, subcategoryForm);
-    } else {
-      await addSubcategory({
-        ...subcategoryForm,
-        category_id: selectedCategoryId,
-      });
+    const success = editingSubcategory
+      ? await updateSubcategory(editingSubcategory.id, subcategoryForm)
+      : await addSubcategory({
+          ...subcategoryForm,
+          category_id: selectedCategoryId,
+        });
+
+    if (success) {
+      setSubcategoryDialogOpen(false);
     }
-    setSubcategoryDialogOpen(false);
   };
 
   const generateSlug = (name: string) => {

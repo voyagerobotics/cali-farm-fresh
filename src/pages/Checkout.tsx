@@ -6,7 +6,7 @@ declare global {
 
 import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, CreditCard, AlertCircle, MapPin, Truck, CheckCircle, Loader2, RefreshCw, Navigation, Map } from "lucide-react";
+import { ArrowLeft, CreditCard, AlertCircle, MapPin, Truck, CheckCircle, Loader2, RefreshCw, Navigation, Map, Edit2, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useCart } from "@/contexts/CartContext";
 import { Percent } from "lucide-react";
@@ -28,12 +28,11 @@ const Checkout = () => {
   const { items, total, clearCart, totalSavings } = useCart();
   const { user, isLoading: isAuthLoading } = useAuth();
   const { toast } = useToast();
-  const { addresses, defaultAddress } = useAddresses();
+  const { addresses, defaultAddress, addAddress, updateAddress, refetch: refetchAddresses } = useAddresses();
   const { calculateDeliveryDistance, isCalculating, ratePerKm, clearCache } = useDeliveryZones();
   const { settings } = useSiteSettings();
   const { logActivity } = useActivityLogger();
   
-  // Track page visit
   usePageTracking();
   
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -45,23 +44,27 @@ const Checkout = () => {
   const [deliveryUnavailable, setDeliveryUnavailable] = useState(false);
   const [deliveryError, setDeliveryError] = useState<string | null>(null);
   const [showMapPicker, setShowMapPicker] = useState(false);
-  const [manualLatLng, setManualLatLng] = useState<{ lat: number; lng: number } | null>(null);
+  const [isGettingLocation, setIsGettingLocation] = useState(false);
   
   // Razorpay payment state
   const [showRazorpay, setShowRazorpay] = useState(false);
   const [pendingOrderData, setPendingOrderData] = useState<any>(null);
   const [pendingOrderNumber, setPendingOrderNumber] = useState("");
 
-  // Manual entry form for new users
+  // Form for manual address or editing
+  const [showManualForm, setShowManualForm] = useState(false);
   const [formData, setFormData] = useState({
     name: "",
     phone: "",
     address: "",
     pincode: "",
+    city: "Nagpur",
     notes: "",
+    latitude: null as number | null,
+    longitude: null as number | null,
   });
 
-  // Auto-fill form data from profile
+  // Auto-fill form data from profile for first-time users
   useEffect(() => {
     const fetchProfile = async () => {
       if (!user) return;
@@ -83,44 +86,120 @@ const Checkout = () => {
     fetchProfile();
   }, [user]);
 
-  const handleLocationSelect = (data: { address: string; city: string; pincode: string; latitude: number; longitude: number }) => {
-    setManualLatLng({ lat: data.latitude, lng: data.longitude });
-    setFormData((prev) => ({
-      ...prev,
-      address: data.address,
-      pincode: data.pincode || prev.pincode,
-    }));
+  // Auto-select saved default address on load
+  useEffect(() => {
+    if (defaultAddress && !selectedAddress) {
+      setSelectedAddress(defaultAddress);
+    }
+  }, [defaultAddress]);
+
+  // When location is selected from map picker, auto-fill address and update selected address coords
+  const handleLocationSelect = async (data: { address: string; city: string; pincode: string; latitude: number; longitude: number }) => {
+    if (selectedAddress) {
+      // Update the selected saved address with new coordinates
+      const success = await updateAddress(selectedAddress.id, {
+        address: data.address,
+        city: data.city || selectedAddress.city,
+        pincode: data.pincode || selectedAddress.pincode,
+        latitude: data.latitude,
+        longitude: data.longitude,
+      });
+      if (success) {
+        await refetchAddresses();
+        // Update local state immediately
+        setSelectedAddress(prev => prev ? {
+          ...prev,
+          address: data.address,
+          city: data.city || prev.city,
+          pincode: data.pincode || prev.pincode,
+          latitude: data.latitude,
+          longitude: data.longitude,
+        } : null);
+        toast({ title: "Address updated", description: "Delivery location updated from map." });
+      }
+    } else {
+      // Manual form mode - fill the form fields
+      setFormData(prev => ({
+        ...prev,
+        address: data.address,
+        city: data.city || prev.city,
+        pincode: data.pincode || prev.pincode,
+        latitude: data.latitude,
+        longitude: data.longitude,
+      }));
+      setShowManualForm(true);
+    }
   };
 
+  // Use Current Location: get coords → open map picker at that location
   const handleUseCurrentLocation = () => {
-    if (!navigator.geolocation) return;
+    if (!navigator.geolocation) {
+      toast({ title: "Not Supported", description: "Geolocation is not supported by your browser.", variant: "destructive" });
+      return;
+    }
+    setIsGettingLocation(true);
     navigator.geolocation.getCurrentPosition(
       (position) => {
-        setManualLatLng({ lat: position.coords.latitude, lng: position.coords.longitude });
+        setIsGettingLocation(false);
+        // Open map picker centered on current location
+        if (selectedAddress) {
+          // Update form data so map picker opens at current location
+          setFormData(prev => ({
+            ...prev,
+            latitude: position.coords.latitude,
+            longitude: position.coords.longitude,
+          }));
+        } else {
+          setFormData(prev => ({
+            ...prev,
+            latitude: position.coords.latitude,
+            longitude: position.coords.longitude,
+          }));
+        }
         setShowMapPicker(true);
       },
       () => {
+        setIsGettingLocation(false);
         setShowMapPicker(true);
       },
-      { enableHighAccuracy: true, timeout: 10000 }
+      { enableHighAccuracy: true, timeout: 12000, maximumAge: 0 }
     );
+  };
+
+  // Save manual form as a new saved address
+  const handleSaveManualAddress = async () => {
+    if (!user || !formData.name || !formData.phone || !formData.address || !formData.pincode) {
+      toast({ title: "Missing Details", description: "Please fill all required fields.", variant: "destructive" });
+      return;
+    }
+
+    const result = await addAddress({
+      label: "Home",
+      full_name: formData.name,
+      phone: formData.phone,
+      address: formData.address,
+      pincode: formData.pincode,
+      city: formData.city,
+      is_default: addresses.length === 0,
+      latitude: formData.latitude,
+      longitude: formData.longitude,
+    });
+
+    if (result) {
+      setSelectedAddress(result);
+      setShowManualForm(false);
+      toast({ title: "Address saved!", description: "Your delivery address has been saved for future orders." });
+    }
   };
 
   // Helper to convert day name to day number
   const dayNameToNumber = (dayName: string): number => {
     const dayMap: Record<string, number> = {
-      sunday: 0,
-      monday: 1,
-      tuesday: 2,
-      wednesday: 3,
-      thursday: 4,
-      friday: 5,
-      saturday: 6,
+      sunday: 0, monday: 1, tuesday: 2, wednesday: 3, thursday: 4, friday: 5, saturday: 6,
     };
     return dayMap[dayName.toLowerCase()] ?? -1;
   };
 
-  // Get order days as numbers from settings
   const getOrderDayNumbers = useCallback(() => {
     return settings.order_days
       .map(day => dayNameToNumber(day))
@@ -128,14 +207,7 @@ const Checkout = () => {
       .sort((a, b) => a - b);
   }, [settings.order_days]);
 
-  // Set default address when loaded
-  useEffect(() => {
-    if (defaultAddress && !selectedAddress) {
-      setSelectedAddress(defaultAddress);
-    }
-  }, [defaultAddress]);
-
-  // Calculate delivery charge when pincode changes (async)
+  // Calculate delivery charge when pincode changes
   const calculateDelivery = useCallback(async (pincode: string, forceRefresh = false) => {
     if (!pincode || pincode.length < 6) {
       setDeliveryCharge(0);
@@ -144,14 +216,8 @@ const Checkout = () => {
       setDeliveryError(null);
       return;
     }
-
-    // Clear cache if force refresh requested
-    if (forceRefresh) {
-      clearCache(pincode);
-    }
-
+    if (forceRefresh) clearCache(pincode);
     const result = await calculateDeliveryDistance(pincode);
-    
     if (result.deliveryUnavailable) {
       setDeliveryUnavailable(true);
       setDeliveryError(result.error || "Delivery not available for this location.");
@@ -160,7 +226,6 @@ const Checkout = () => {
     } else {
       setDeliveryUnavailable(false);
       setDeliveryError(null);
-      // Apply free delivery threshold
       const freeThreshold = settings.free_delivery_threshold || 399;
       const calculatedCharge = total >= freeThreshold ? 0 : result.deliveryCharge;
       setDeliveryCharge(calculatedCharge);
@@ -168,12 +233,9 @@ const Checkout = () => {
     }
   }, [calculateDeliveryDistance, clearCache, total, settings.free_delivery_threshold]);
 
-  // Force recalculate delivery distance
   const handleRecalculateDistance = () => {
     const pincode = selectedAddress?.pincode || formData.pincode;
-    if (pincode) {
-      calculateDelivery(pincode, true);
-    }
+    if (pincode) calculateDelivery(pincode, true);
   };
 
   useEffect(() => {
@@ -181,78 +243,42 @@ const Checkout = () => {
     calculateDelivery(pincode);
   }, [selectedAddress, formData.pincode, calculateDelivery, total]);
 
-  // Check if today is an order day based on settings
   const isOrderDayAllowed = useCallback(() => {
     const today = new Date();
-    const day = today.getDay();
-    const orderDays = getOrderDayNumbers();
-    return orderDays.includes(day);
+    return getOrderDayNumbers().includes(today.getDay());
   }, [getOrderDayNumbers]);
 
-  // Get next order day based on settings
   const getNextOrderDay = useCallback(() => {
     const today = new Date();
     const currentDay = today.getDay();
     const orderDays = getOrderDayNumbers();
-    
-    if (orderDays.length === 0) {
-      return "Contact us for schedule";
-    }
-
-    // Check if today is an order day
+    if (orderDays.length === 0) return "Contact us for schedule";
     if (orderDays.includes(currentDay)) {
-      return new Date().toLocaleDateString("en-IN", { 
-        weekday: "long", 
-        month: "short", 
-        day: "numeric" 
-      });
+      return new Date().toLocaleDateString("en-IN", { weekday: "long", month: "short", day: "numeric" });
     }
-    
-    // Find next order day
     let daysUntilNext = 7;
     for (const orderDay of orderDays) {
       let diff = orderDay - currentDay;
       if (diff <= 0) diff += 7;
-      if (diff < daysUntilNext) {
-        daysUntilNext = diff;
-      }
+      if (diff < daysUntilNext) daysUntilNext = diff;
     }
-
     const nextDate = new Date(today);
     nextDate.setDate(today.getDate() + daysUntilNext);
-    
-    return nextDate.toLocaleDateString("en-IN", { 
-      weekday: "long", 
-      month: "short", 
-      day: "numeric" 
-    });
+    return nextDate.toLocaleDateString("en-IN", { weekday: "long", month: "short", day: "numeric" });
   }, [getOrderDayNumbers]);
 
-  // Get the actual order date for database storage
   const getOrderDate = useCallback(() => {
     const today = new Date();
     const currentDay = today.getDay();
     const orderDays = getOrderDayNumbers();
-    
-    if (orderDays.length === 0) {
-      return today;
-    }
-
-    // If today is an order day, return today
-    if (orderDays.includes(currentDay)) {
-      return today;
-    }
-    
-    // Find next order day
+    if (orderDays.length === 0) return today;
+    if (orderDays.includes(currentDay)) return today;
     let daysUntilNext = 7;
     for (const orderDay of orderDays) {
       let diff = orderDay - currentDay;
       if (diff <= 0) diff += 7;
-      if (diff < daysUntilNext) {
-        daysUntilNext = diff;
-      }
+      if (diff < daysUntilNext) daysUntilNext = diff;
     }
-
     const orderDate = new Date(today);
     orderDate.setDate(today.getDate() + daysUntilNext);
     return orderDate;
@@ -260,48 +286,49 @@ const Checkout = () => {
 
   const grandTotal = total + deliveryCharge;
 
-  const handleProceedToVerification = async () => {
-    if (!user) {
-      toast({
-        title: "Please Login",
-        description: "You need to be logged in to place an order.",
-        variant: "destructive",
-      });
-      navigate("/auth");
-      return;
+  // Get the active address data (selected saved or manual form)
+  const getActiveAddressData = () => {
+    if (selectedAddress) {
+      return {
+        full_name: selectedAddress.full_name,
+        phone: selectedAddress.phone,
+        address: selectedAddress.address,
+        pincode: selectedAddress.pincode,
+        latitude: selectedAddress.latitude,
+        longitude: selectedAddress.longitude,
+      };
     }
-
-    // Check if delivery is available
-    if (deliveryUnavailable) {
-      toast({
-        title: "Delivery Unavailable",
-        description: deliveryError || "We cannot deliver to this location. Please try a different address.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    // Validate address
-    const addressData = selectedAddress || {
+    return {
       full_name: formData.name,
       phone: formData.phone,
       address: formData.address,
       pincode: formData.pincode,
+      latitude: formData.latitude,
+      longitude: formData.longitude,
     };
+  };
 
+  const handleProceedToVerification = async () => {
+    if (!user) {
+      toast({ title: "Please Login", description: "You need to be logged in to place an order.", variant: "destructive" });
+      navigate("/auth");
+      return;
+    }
+
+    if (deliveryUnavailable) {
+      toast({ title: "Delivery Unavailable", description: deliveryError || "We cannot deliver to this location.", variant: "destructive" });
+      return;
+    }
+
+    const addressData = getActiveAddressData();
     if (!addressData.full_name || !addressData.phone || !addressData.address || !addressData.pincode) {
-      toast({
-        title: "Address Required",
-        description: "Please fill in all delivery details",
-        variant: "destructive",
-      });
+      toast({ title: "Address Required", description: "Please fill in all delivery details", variant: "destructive" });
       return;
     }
 
     setIsSubmitting(true);
 
     try {
-      // Generate order number
       const { data: orderNumber } = await supabase.rpc("generate_order_number");
       setPendingOrderNumber(orderNumber);
 
@@ -315,24 +342,21 @@ const Checkout = () => {
         delivery_address: `${addressData.address}, ${addressData.pincode}`,
         delivery_phone: addressData.phone,
         delivery_name: addressData.full_name,
-        delivery_latitude: selectedAddress?.latitude || manualLatLng?.lat || null,
-        delivery_longitude: selectedAddress?.longitude || manualLatLng?.lng || null,
+        delivery_latitude: addressData.latitude || null,
+        delivery_longitude: addressData.longitude || null,
         notes: formData.notes,
         order_date: getOrderDate().toISOString().split("T")[0],
         payment_status: "pending" as const,
         status: "pending" as const,
       };
 
-      // Create order in DB BEFORE payment (pending status)
       const { data: order, error: orderError } = await supabase
         .from("orders")
         .insert([orderData])
         .select()
         .single();
-
       if (orderError) throw orderError;
 
-      // Create order items
       const orderItems = items.map((item) => ({
         order_id: order.id,
         product_id: item.id,
@@ -343,40 +367,28 @@ const Checkout = () => {
         unit: item.unit || 'kg',
       }));
 
-      const { error: itemsError } = await supabase
-        .from("order_items")
-        .insert(orderItems);
-
+      const { error: itemsError } = await supabase.from("order_items").insert(orderItems);
       if (itemsError) throw itemsError;
 
-      // Save address if not already saved
+      // Auto-save address if manual entry was used
       if (!selectedAddress && formData.name && formData.address) {
-        await supabase.from("user_addresses").insert({
-          user_id: user.id,
+        await addAddress({
           label: "Home",
           full_name: formData.name,
           phone: formData.phone,
           address: formData.address,
           pincode: formData.pincode,
-          city: "Nagpur",
+          city: formData.city,
           is_default: addresses.length === 0,
+          latitude: formData.latitude,
+          longitude: formData.longitude,
         });
       }
 
-      // Store pending order data for post-payment processing
-      setPendingOrderData({
-        orderId: order.id,
-        orderNumber: orderNumber,
-      });
-
-      // Now open Razorpay payment
+      setPendingOrderData({ orderId: order.id, orderNumber: orderNumber });
       setShowRazorpay(true);
     } catch (error: any) {
-      toast({
-        title: "Order Failed",
-        description: error.message || "Something went wrong. Please try again.",
-        variant: "destructive",
-      });
+      toast({ title: "Order Failed", description: error.message || "Something went wrong. Please try again.", variant: "destructive" });
     } finally {
       setIsSubmitting(false);
     }
@@ -387,7 +399,6 @@ const Checkout = () => {
     setIsSubmitting(true);
 
     try {
-      // Update the existing pending order to confirmed/paid
       const { error: updateError } = await supabase
         .from("orders")
         .update({
@@ -397,24 +408,18 @@ const Checkout = () => {
           payment_verified_at: new Date().toISOString(),
         })
         .eq("id", pendingOrderData.orderId);
-
       if (updateError) throw updateError;
 
-      // Send order confirmation email
-      const customerName = selectedAddress?.full_name || formData.name;
-      const deliveryDate = getOrderDate().toLocaleDateString("en-IN", { 
-        weekday: "long", 
-        month: "short", 
-        day: "numeric" 
-      });
+      const addressData = getActiveAddressData();
+      const deliveryDate = getOrderDate().toLocaleDateString("en-IN", { weekday: "long", month: "short", day: "numeric" });
 
       try {
         await supabase.functions.invoke("send-order-confirmation", {
           body: {
             email: user?.email,
             orderNumber: pendingOrderData.orderNumber,
-            customerName: customerName,
-            customerPhone: selectedAddress?.phone || formData.phone,
+            customerName: addressData.full_name,
+            customerPhone: addressData.phone,
             items: items.map((item) => ({
               product_name: item.name,
               quantity: item.quantity,
@@ -424,19 +429,17 @@ const Checkout = () => {
             subtotal: total,
             deliveryCharge: deliveryCharge,
             total: grandTotal,
-            deliveryAddress: `${(selectedAddress?.address || formData.address)}, ${(selectedAddress?.pincode || formData.pincode)}`,
+            deliveryAddress: `${addressData.address}, ${addressData.pincode}`,
             deliveryDate: deliveryDate,
             paymentMethod: "online",
             paymentStatus: "paid",
             paymentId: paymentId,
           },
         });
-        console.log("Order confirmation email sent to customer and admin");
       } catch (emailError) {
         console.error("Failed to send order confirmation email:", emailError);
       }
 
-      // Track order placed
       try {
         await supabase.from("user_activity_logs").insert([{
           user_id: user?.id || null,
@@ -455,7 +458,6 @@ const Checkout = () => {
 
       clearCart();
 
-      // Google Ads conversion tracking
       if (typeof window.gtag === 'function') {
         window.gtag('event', 'purchase', {
           transaction_id: pendingOrderData.orderNumber,
@@ -469,18 +471,10 @@ const Checkout = () => {
         });
       }
 
-      toast({
-        title: "Order Confirmed!",
-        description: `Order #${pendingOrderData.orderNumber} is confirmed. Delivery on ${deliveryDate}`,
-      });
-
+      toast({ title: "Order Confirmed!", description: `Order #${pendingOrderData.orderNumber} is confirmed. Delivery on ${deliveryDate}` });
       navigate("/orders");
     } catch (error: any) {
-      toast({
-        title: "Payment received but order update failed",
-        description: "Your payment was successful. Please contact support with your payment ID: " + paymentId,
-        variant: "destructive",
-      });
+      toast({ title: "Payment received but order update failed", description: "Your payment was successful. Please contact support with your payment ID: " + paymentId, variant: "destructive" });
       navigate("/orders");
     } finally {
       setIsSubmitting(false);
@@ -489,16 +483,10 @@ const Checkout = () => {
 
   const handlePaymentFailure = (error: string) => {
     setShowRazorpay(false);
-    // Order stays as pending in DB - admin can see it and customer can retry
-    toast({
-      title: "Payment Failed",
-      description: `${error}. Your order #${pendingOrderData?.orderNumber} is saved. You can retry payment from your orders page.`,
-      variant: "destructive",
-    });
+    toast({ title: "Payment Failed", description: `${error}. Your order #${pendingOrderData?.orderNumber} is saved. You can retry payment from your orders page.`, variant: "destructive" });
     navigate("/orders");
   };
 
-  // Show loading state while checking auth
   if (isAuthLoading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center p-4">
@@ -512,9 +500,7 @@ const Checkout = () => {
       <div className="min-h-screen bg-background flex items-center justify-center p-4">
         <div className="text-center">
           <h2 className="font-heading text-2xl font-bold mb-4">Please Login</h2>
-          <p className="text-muted-foreground mb-6">
-            You need to be logged in to checkout
-          </p>
+          <p className="text-muted-foreground mb-6">You need to be logged in to checkout</p>
           <Button onClick={() => navigate("/auth")}>Login / Sign Up</Button>
         </div>
       </div>
@@ -526,14 +512,15 @@ const Checkout = () => {
       <div className="min-h-screen bg-background flex items-center justify-center p-4">
         <div className="text-center">
           <h2 className="font-heading text-2xl font-bold mb-4">Your Cart is Empty</h2>
-          <p className="text-muted-foreground mb-6">
-            Add some fresh vegetables to your cart first
-          </p>
+          <p className="text-muted-foreground mb-6">Add some fresh vegetables to your cart first</p>
           <Button onClick={() => navigate("/")}>Browse Products</Button>
         </div>
       </div>
     );
   }
+
+  const activeAddress = getActiveAddressData();
+  const hasActiveAddress = !!(activeAddress.full_name && activeAddress.address && activeAddress.pincode);
 
   return (
     <div className="min-h-screen bg-muted/30">
@@ -542,18 +529,14 @@ const Checkout = () => {
         <RazorpayPayment
           amount={grandTotal}
           orderNumber={pendingOrderNumber}
-          customerName={selectedAddress?.full_name || formData.name}
+          customerName={activeAddress.full_name}
           customerEmail={user?.email || ""}
-          customerPhone={selectedAddress?.phone || formData.phone}
+          customerPhone={activeAddress.phone}
           onPaymentSuccess={handlePaymentSuccess}
           onPaymentFailure={handlePaymentFailure}
           onCancel={() => {
             setShowRazorpay(false);
-            // Order is already saved as pending in DB
-            toast({
-              title: "Payment Cancelled",
-              description: `Your order #${pendingOrderData?.orderNumber} is saved. You can complete payment later.`,
-            });
+            toast({ title: "Payment Cancelled", description: `Your order #${pendingOrderData?.orderNumber} is saved. You can complete payment later.` });
             navigate("/orders");
           }}
         />
@@ -595,156 +578,182 @@ const Checkout = () => {
                   <MapPin className="w-5 h-5 text-primary" />
                   Delivery Address
                 </h2>
-                {addresses.length > 0 && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setShowAddressManager(!showAddressManager)}
-                  >
-                    {showAddressManager ? "Hide" : "Change"}
+                {addresses.length > 0 && !showAddressManager && !showManualForm && (
+                  <Button variant="ghost" size="sm" onClick={() => setShowAddressManager(true)}>
+                    Change
                   </Button>
                 )}
               </div>
 
-              {/* Show selected address or address manager */}
+              {/* Address Manager (select from saved) */}
               {showAddressManager ? (
-                <AddressManager
-                  onSelect={(address) => {
-                    setSelectedAddress(address);
-                    setShowAddressManager(false);
-                  }}
-                  selectedId={selectedAddress?.id}
-                  showSelectMode={addresses.length > 0}
-                />
-              ) : addresses.length > 0 && selectedAddress ? (
                 <div className="space-y-3">
-                  <div className="p-4 bg-muted/50 rounded-lg">
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="font-medium">{selectedAddress.label}</span>
-                    </div>
-                    <p className="font-medium text-sm">{selectedAddress.full_name}</p>
-                    <p className="text-sm text-muted-foreground">{selectedAddress.phone}</p>
-                    <p className="text-sm text-muted-foreground mt-1">
-                      {selectedAddress.address}, {selectedAddress.city} - {selectedAddress.pincode}
-                    </p>
-                    {/* Map preview for selected address */}
-                    {selectedAddress.latitude && selectedAddress.longitude && (
-                      <div className="mt-3">
-                        <MapPreview
-                          latitude={selectedAddress.latitude}
-                          longitude={selectedAddress.longitude}
-                          address={selectedAddress.address}
-                        />
-                      </div>
-                    )}
-                  </div>
-                  {/* Location picker buttons for saved address users */}
-                  <div className="flex flex-col sm:flex-row gap-2">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="gap-2 flex-1"
-                      onClick={handleUseCurrentLocation}
-                    >
-                      <Navigation className="w-4 h-4" />
-                      Use Current Location
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="gap-2 flex-1"
-                      onClick={() => setShowMapPicker(true)}
-                    >
-                      <Map className="w-4 h-4" />
-                      Pick on Map
-                    </Button>
-                  </div>
+                  <AddressManager
+                    onSelect={(address) => {
+                      setSelectedAddress(address);
+                      setShowAddressManager(false);
+                      setShowManualForm(false);
+                    }}
+                    selectedId={selectedAddress?.id}
+                    showSelectMode={addresses.length > 0}
+                  />
+                  <Button variant="ghost" size="sm" onClick={() => setShowAddressManager(false)} className="w-full">
+                    Cancel
+                  </Button>
                 </div>
-              ) : (
-                // Manual entry form for first-time users
+              ) : showManualForm ? (
+                /* Manual Address Form */
                 <div className="space-y-4">
                   {/* Location Picker Buttons */}
                   <div className="flex flex-col sm:flex-row gap-2">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="gap-2 flex-1"
-                      onClick={handleUseCurrentLocation}
-                    >
-                      <Navigation className="w-4 h-4" />
+                    <Button type="button" variant="outline" size="sm" className="gap-2 flex-1" onClick={handleUseCurrentLocation} disabled={isGettingLocation}>
+                      {isGettingLocation ? <Loader2 className="w-4 h-4 animate-spin" /> : <Navigation className="w-4 h-4" />}
                       Use Current Location
                     </Button>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="gap-2 flex-1"
-                      onClick={() => setShowMapPicker(true)}
-                    >
+                    <Button type="button" variant="outline" size="sm" className="gap-2 flex-1" onClick={() => setShowMapPicker(true)}>
                       <Map className="w-4 h-4" />
                       Pick on Map
                     </Button>
                   </div>
 
                   {/* Map preview if coordinates exist */}
-                  {manualLatLng && (
-                    <MapPreview
-                      latitude={manualLatLng.lat}
-                      longitude={manualLatLng.lng}
-                      address={formData.address}
-                    />
+                  {formData.latitude && formData.longitude && (
+                    <MapPreview latitude={formData.latitude} longitude={formData.longitude} address={formData.address} />
                   )}
 
                   <div>
                     <label className="block text-sm font-medium mb-1">Full Name *</label>
-                    <input
-                      type="text"
-                      required
-                      value={formData.name}
-                      onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                    <input type="text" required value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                       className="w-full px-4 py-3 rounded-lg border border-input bg-background focus:outline-none focus:ring-2 focus:ring-primary/50"
-                      placeholder="Enter your name"
-                    />
+                      placeholder="Enter your name" />
                   </div>
-
                   <div>
                     <label className="block text-sm font-medium mb-1">Phone / WhatsApp *</label>
-                    <input
-                      type="tel"
-                      required
-                      value={formData.phone}
-                      onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                    <input type="tel" required value={formData.phone} onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                       className="w-full px-4 py-3 rounded-lg border border-input bg-background focus:outline-none focus:ring-2 focus:ring-primary/50"
-                      placeholder="Your contact number"
-                    />
+                      placeholder="Your contact number" />
                   </div>
-
                   <div>
                     <label className="block text-sm font-medium mb-1">Delivery Address *</label>
-                    <textarea
-                      required
-                      rows={3}
-                      value={formData.address}
-                      onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                    <textarea required rows={3} value={formData.address} onChange={(e) => setFormData({ ...formData, address: e.target.value })}
                       className="w-full px-4 py-3 rounded-lg border border-input bg-background focus:outline-none focus:ring-2 focus:ring-primary/50 resize-none"
-                      placeholder="Full address with landmark"
-                    />
+                      placeholder="Full address with landmark" />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-sm font-medium mb-1">Pincode *</label>
+                      <input type="text" required value={formData.pincode} onChange={(e) => setFormData({ ...formData, pincode: e.target.value })}
+                        className="w-full px-4 py-3 rounded-lg border border-input bg-background focus:outline-none focus:ring-2 focus:ring-primary/50"
+                        placeholder="440001" />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium mb-1">City</label>
+                      <input type="text" value={formData.city} onChange={(e) => setFormData({ ...formData, city: e.target.value })}
+                        className="w-full px-4 py-3 rounded-lg border border-input bg-background focus:outline-none focus:ring-2 focus:ring-primary/50"
+                        placeholder="Nagpur" />
+                    </div>
                   </div>
 
-                  <div>
-                    <label className="block text-sm font-medium mb-1">Pincode *</label>
-                    <input
-                      type="text"
-                      required
-                      value={formData.pincode}
-                      onChange={(e) => setFormData({ ...formData, pincode: e.target.value })}
-                      className="w-full px-4 py-3 rounded-lg border border-input bg-background focus:outline-none focus:ring-2 focus:ring-primary/50"
-                      placeholder="440001"
-                    />
+                  <div className="flex gap-2">
+                    <Button type="button" size="sm" onClick={handleSaveManualAddress} disabled={!formData.name || !formData.address || !formData.pincode}>
+                      Save & Use Address
+                    </Button>
+                    {(addresses.length > 0 || selectedAddress) && (
+                      <Button type="button" variant="outline" size="sm" onClick={() => setShowManualForm(false)}>
+                        Cancel
+                      </Button>
+                    )}
                   </div>
+                </div>
+              ) : hasActiveAddress && (selectedAddress || formData.address) ? (
+                /* Address Preview Card (Swiggy-like) */
+                <div className="space-y-3">
+                  <div className="p-4 bg-primary/5 rounded-lg border border-primary/20">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1.5">
+                          <MapPin className="w-4 h-4 text-primary flex-shrink-0" />
+                          <span className="font-semibold text-sm">{selectedAddress?.label || "Delivery"}</span>
+                          {selectedAddress?.is_default && (
+                            <span className="text-[10px] bg-primary/10 text-primary px-1.5 py-0.5 rounded-full font-medium">Default</span>
+                          )}
+                        </div>
+                        <p className="font-medium text-sm">{activeAddress.full_name}</p>
+                        <p className="text-sm text-muted-foreground">{activeAddress.phone}</p>
+                        <p className="text-sm text-muted-foreground mt-1 leading-relaxed">
+                          {activeAddress.address}
+                        </p>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          {selectedAddress?.city || formData.city} - {activeAddress.pincode}
+                        </p>
+                      </div>
+                      <Button variant="ghost" size="icon" className="flex-shrink-0 h-8 w-8" onClick={() => setShowAddressManager(true)}>
+                        <Edit2 className="w-4 h-4" />
+                      </Button>
+                    </div>
+
+                    {/* Map preview */}
+                    {activeAddress.latitude && activeAddress.longitude && (
+                      <div className="mt-3">
+                        <MapPreview latitude={activeAddress.latitude} longitude={activeAddress.longitude} address={activeAddress.address} />
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Location update buttons */}
+                  <div className="flex flex-col sm:flex-row gap-2">
+                    <Button type="button" variant="outline" size="sm" className="gap-2 flex-1" onClick={handleUseCurrentLocation} disabled={isGettingLocation}>
+                      {isGettingLocation ? <Loader2 className="w-4 h-4 animate-spin" /> : <Navigation className="w-4 h-4" />}
+                      Update with Current Location
+                    </Button>
+                    <Button type="button" variant="outline" size="sm" className="gap-2 flex-1" onClick={() => setShowMapPicker(true)}>
+                      <Map className="w-4 h-4" />
+                      Pick on Map
+                    </Button>
+                  </div>
+
+                  {/* Add new address link */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedAddress(null);
+                      setShowManualForm(true);
+                    }}
+                    className="w-full text-left p-3 rounded-lg border border-dashed border-border hover:border-primary/50 hover:bg-primary/5 transition-colors flex items-center gap-2 text-sm text-muted-foreground hover:text-primary"
+                  >
+                    <MapPin className="w-4 h-4" />
+                    Add a new delivery address
+                    <ChevronRight className="w-4 h-4 ml-auto" />
+                  </button>
+                </div>
+              ) : (
+                /* No address at all - prompt to add */
+                <div className="space-y-4">
+                  <div className="text-center py-4">
+                    <MapPin className="w-10 h-10 text-muted-foreground/40 mx-auto mb-3" />
+                    <p className="text-sm text-muted-foreground mb-4">Add your delivery address to continue</p>
+                  </div>
+
+                  <div className="flex flex-col sm:flex-row gap-2">
+                    <Button type="button" variant="default" size="sm" className="gap-2 flex-1" onClick={handleUseCurrentLocation} disabled={isGettingLocation}>
+                      {isGettingLocation ? <Loader2 className="w-4 h-4 animate-spin" /> : <Navigation className="w-4 h-4" />}
+                      Use Current Location
+                    </Button>
+                    <Button type="button" variant="outline" size="sm" className="gap-2 flex-1" onClick={() => setShowMapPicker(true)}>
+                      <Map className="w-4 h-4" />
+                      Pick on Map
+                    </Button>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setShowManualForm(true)}
+                    className="w-full text-left p-3 rounded-lg border border-dashed border-border hover:border-primary/50 hover:bg-primary/5 transition-colors flex items-center gap-2 text-sm text-muted-foreground hover:text-primary"
+                  >
+                    <Edit2 className="w-4 h-4" />
+                    Enter address manually
+                    <ChevronRight className="w-4 h-4 ml-auto" />
+                  </button>
                 </div>
               )}
             </div>
@@ -754,8 +763,8 @@ const Checkout = () => {
               open={showMapPicker}
               onClose={() => setShowMapPicker(false)}
               onLocationSelect={handleLocationSelect}
-              initialLat={manualLatLng?.lat || selectedAddress?.latitude || undefined}
-              initialLng={manualLatLng?.lng || selectedAddress?.longitude || undefined}
+              initialLat={formData.latitude || selectedAddress?.latitude || undefined}
+              initialLng={formData.longitude || selectedAddress?.longitude || undefined}
             />
 
             {/* Special Instructions */}
@@ -768,13 +777,8 @@ const Checkout = () => {
                 className="w-full px-4 py-3 rounded-lg border border-input bg-background focus:outline-none focus:ring-2 focus:ring-primary/50 resize-none"
                 placeholder="Any special requests..."
               />
-              
-              {/* Weekly Subscription */}
               <div className="mt-4 pt-4 border-t border-border">
-                <WeeklySubscriptionCheckbox 
-                  email={user?.email} 
-                  phone={selectedAddress?.phone || formData.phone}
-                />
+                <WeeklySubscriptionCheckbox email={user?.email} phone={activeAddress.phone} />
               </div>
             </div>
 
@@ -813,16 +817,13 @@ const Checkout = () => {
               ))}
             </div>
 
-            {/* Savings Summary */}
             {totalSavings > 0 && (
               <div className="mb-4 p-3 bg-primary/10 rounded-lg border border-primary/20">
                 <div className="flex items-center gap-2 text-primary">
                   <Percent className="w-4 h-4" />
                   <span className="font-semibold">You're saving ₹{totalSavings.toFixed(0)}!</span>
                 </div>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Discount applied on selected products
-                </p>
+                <p className="text-xs text-muted-foreground mt-1">Discount applied on selected products</p>
               </div>
             )}
 
@@ -836,12 +837,7 @@ const Checkout = () => {
                   <Truck className="w-4 h-4" />
                   Delivery {isCalculating ? "" : deliveryDistance > 0 ? `(${deliveryDistance.toFixed(1)} km)` : ""}
                   {!isCalculating && (selectedAddress?.pincode || formData.pincode) && (
-                    <button
-                      onClick={handleRecalculateDistance}
-                      className="ml-1 p-1 hover:bg-muted rounded-full transition-colors"
-                      title="Recalculate distance"
-                      type="button"
-                    >
+                    <button onClick={handleRecalculateDistance} className="ml-1 p-1 hover:bg-muted rounded-full transition-colors" title="Recalculate distance" type="button">
                       <RefreshCw className="w-3 h-3" />
                     </button>
                   )}
@@ -888,25 +884,20 @@ const Checkout = () => {
               </div>
             </div>
 
-            {/* Place Order Button */}
             <Button
               size="lg"
               className="w-full mt-6"
-              disabled={isSubmitting || isCalculating || deliveryUnavailable}
+              disabled={isSubmitting || isCalculating || deliveryUnavailable || !hasActiveAddress}
               onClick={handleProceedToVerification}
             >
               {isSubmitting ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin mr-2" />
-                  Processing...
-                </>
+                <><Loader2 className="w-4 h-4 animate-spin mr-2" />Processing...</>
               ) : isCalculating ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin mr-2" />
-                  Calculating Delivery...
-                </>
+                <><Loader2 className="w-4 h-4 animate-spin mr-2" />Calculating Delivery...</>
               ) : deliveryUnavailable ? (
                 "Delivery Unavailable"
+              ) : !hasActiveAddress ? (
+                "Add Delivery Address"
               ) : (
                 `Proceed to Verify • ₹${grandTotal}`
               )}
@@ -914,11 +905,12 @@ const Checkout = () => {
 
             <p className="text-xs text-center text-muted-foreground mt-3">
               {deliveryUnavailable 
-                ? "Please try a different delivery address" 
+                ? "Please try a different delivery address"
+                : !hasActiveAddress
+                ? "Please add your delivery address to continue"
                 : "You'll receive an OTP to verify your order"}
             </p>
 
-            {/* Delivery Info */}
             <div className="mt-6 p-4 bg-muted/50 rounded-lg">
               <div className="flex items-center gap-2 text-primary mb-2">
                 <CheckCircle className="w-5 h-5" />

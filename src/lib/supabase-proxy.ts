@@ -31,7 +31,7 @@ const projectHost = projectId ? `${projectId}.supabase.co` : null;
 
 const isSupabaseHost = (host: string | null) => Boolean(host && host.endsWith(".supabase.co"));
 
-const DEFAULT_PROXY_BASE_URL = "https://restless-silence-58cd.voyagerobotics.workers.dev";
+const DEFAULT_PROXY_BASE_URL: string | null = null;
 
 const proxyBaseUrl =
   proxyBaseUrlFromEnv ??
@@ -211,8 +211,8 @@ window.fetch = async (input: RequestInfo | URL, init?: RequestInit): Promise<Res
 
       lastError = normalizedError;
 
-      // On final attempt, try direct connection as ultimate fallback
-      if (backendRequest && proxyUrlObject && inputUrl !== originalDirectUrl && attempt === MAX_ATTEMPTS) {
+      // If proxied request fails with network issues, immediately try direct backend URL.
+      if (backendRequest && proxyUrlObject && inputUrl !== originalDirectUrl && isBackendNetworkError(normalizedError)) {
         try {
           const directController = new AbortController();
           const directTimeout = window.setTimeout(() => directController.abort(), FETCH_TIMEOUT_MS);

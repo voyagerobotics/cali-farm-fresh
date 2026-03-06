@@ -153,54 +153,69 @@ const GoogleMapsLocationPicker = ({
     }
   };
 
+  // Clean up map when dialog closes
+  useEffect(() => {
+    if (!open && mapRef.current) {
+      mapRef.current.remove();
+      mapRef.current = null;
+      markerRef.current = null;
+    }
+  }, [open]);
+
+  // Initialize map when dialog opens (with delay for dialog animation)
   useEffect(() => {
     if (!open) return;
 
     setPosition(startPosition);
 
-    if (!mapElementRef.current || mapRef.current) return;
+    // Wait for dialog to fully render and animate in
+    const initTimer = setTimeout(() => {
+      if (!mapElementRef.current || mapRef.current) return;
 
-    const map = L.map(mapElementRef.current, {
-      center: [startPosition.lat, startPosition.lng],
-      zoom: 15,
-      zoomControl: true,
-    });
+      const map = L.map(mapElementRef.current, {
+        center: [startPosition.lat, startPosition.lng],
+        zoom: 15,
+        zoomControl: true,
+      });
 
-    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-    }).addTo(map);
+      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+      }).addTo(map);
 
-    L.circle([STORE_LOCATION.lat, STORE_LOCATION.lng], {
-      radius: MAX_DELIVERY_RADIUS_KM * 1000,
-      color: "hsl(var(--primary))",
-      fillColor: "hsl(var(--primary))",
-      fillOpacity: 0.08,
-      weight: 1,
-    }).addTo(map);
+      L.circle([STORE_LOCATION.lat, STORE_LOCATION.lng], {
+        radius: MAX_DELIVERY_RADIUS_KM * 1000,
+        color: "hsl(var(--primary))",
+        fillColor: "hsl(var(--primary))",
+        fillOpacity: 0.08,
+        weight: 1,
+      }).addTo(map);
 
-    const marker = L.marker([startPosition.lat, startPosition.lng], {
-      draggable: true,
-      icon: markerIcon,
-    }).addTo(map);
+      const marker = L.marker([startPosition.lat, startPosition.lng], {
+        draggable: true,
+        icon: markerIcon,
+      }).addTo(map);
 
-    marker.on("dragend", () => {
-      const next = marker.getLatLng();
-      setPosition({ lat: next.lat, lng: next.lng });
-    });
+      marker.on("dragend", () => {
+        const next = marker.getLatLng();
+        setPosition({ lat: next.lat, lng: next.lng });
+      });
 
-    map.on("click", (event: L.LeafletMouseEvent) => {
-      setPosition({ lat: event.latlng.lat, lng: event.latlng.lng });
-    });
+      map.on("click", (event: L.LeafletMouseEvent) => {
+        setPosition({ lat: event.latlng.lat, lng: event.latlng.lng });
+      });
 
-    mapRef.current = map;
-    markerRef.current = marker;
+      mapRef.current = map;
+      markerRef.current = marker;
 
-    setTimeout(() => map.invalidateSize(), 50);
+      // Multiple invalidateSize calls to handle various render timings
+      map.invalidateSize();
+      setTimeout(() => map.invalidateSize(), 100);
+      setTimeout(() => map.invalidateSize(), 300);
+      setTimeout(() => map.invalidateSize(), 600);
+    }, 350); // Wait for dialog open animation
 
     return () => {
-      map.remove();
-      mapRef.current = null;
-      markerRef.current = null;
+      clearTimeout(initTimer);
     };
   }, [open, startPosition]);
 

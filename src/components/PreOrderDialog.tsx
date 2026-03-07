@@ -40,6 +40,7 @@ const PreOrderDialog = ({
   unit = "kg",
   weightOptions = null,
   discountPercent = 20,
+  hideQuantity = false,
 }: PreOrderDialogProps) => {
   const { user } = useAuth();
   const { createPreOrder } = usePreOrders();

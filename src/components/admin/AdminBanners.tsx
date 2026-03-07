@@ -457,6 +457,7 @@ const AdminBanners = () => {
               </div>
             </div>
 
+            <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
                 <Label>Button Text</Label>
                 <Input value={form.cta_text} onChange={(e) => setForm(f => ({ ...f, cta_text: e.target.value }))} placeholder="Pre-Order Now" />

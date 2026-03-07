@@ -298,17 +298,19 @@ const PreOrderDialog = ({
               </div>
             )}
 
-            {/* Quantity */}
-            <div className="space-y-2">
-              <Label htmlFor="preorder-qty">Quantity ({hasWeightOptions ? "pieces" : unit})</Label>
-              <Input
-                id="preorder-qty"
-                type="number"
-                min={1}
-                value={form.quantity}
-                onChange={(e) => setForm(f => ({ ...f, quantity: Number(e.target.value) }))}
-              />
-            </div>
+            {/* Quantity - hidden if admin disabled it */}
+            {!hideQuantity && (
+              <div className="space-y-2">
+                <Label htmlFor="preorder-qty">Quantity ({hasWeightOptions ? "pieces" : unit})</Label>
+                <Input
+                  id="preorder-qty"
+                  type="number"
+                  min={1}
+                  value={form.quantity}
+                  onChange={(e) => setForm(f => ({ ...f, quantity: Number(e.target.value) }))}
+                />
+              </div>
+            )}
 
             {/* Notes */}
             <div className="space-y-2">

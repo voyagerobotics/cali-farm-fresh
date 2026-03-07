@@ -440,7 +440,23 @@ const AdminBanners = () => {
               )}
             </div>
 
-            <div className="grid gap-4 md:grid-cols-2">
+            {/* Hide Quantity Toggle */}
+            <div className="bg-muted/50 rounded-lg p-4 border border-border">
+              <div className="flex items-center justify-between">
+                <div>
+                  <Label className="text-sm font-semibold flex items-center gap-2">
+                    <EyeOff className="w-4 h-4" /> Hide Quantity Selector
+                  </Label>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {form.hide_quantity
+                      ? "Customers can only order 1 piece at a time (quantity field hidden)"
+                      : "Customers can choose how many they want"}
+                  </p>
+                </div>
+                <Switch checked={form.hide_quantity} onCheckedChange={(v) => setForm(f => ({ ...f, hide_quantity: v }))} />
+              </div>
+            </div>
+
               <div className="space-y-2">
                 <Label>Button Text</Label>
                 <Input value={form.cta_text} onChange={(e) => setForm(f => ({ ...f, cta_text: e.target.value }))} placeholder="Pre-Order Now" />

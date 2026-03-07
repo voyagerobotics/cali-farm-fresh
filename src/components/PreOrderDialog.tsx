@@ -27,6 +27,7 @@ interface PreOrderDialogProps {
   unit?: string;
   weightOptions?: WeightOption[] | null;
   discountPercent?: number;
+  hideQuantity?: boolean;
 }
 
 const PreOrderDialog = ({

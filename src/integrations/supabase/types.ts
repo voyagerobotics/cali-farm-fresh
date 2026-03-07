@@ -737,6 +737,7 @@ export type Database = {
           title: string
           unit: string | null
           updated_at: string
+          weight_options: Json | null
         }
         Insert: {
           background_color?: string | null
@@ -759,6 +760,7 @@ export type Database = {
           title?: string
           unit?: string | null
           updated_at?: string
+          weight_options?: Json | null
         }
         Update: {
           background_color?: string | null
@@ -781,6 +783,7 @@ export type Database = {
           title?: string
           unit?: string | null
           updated_at?: string
+          weight_options?: Json | null
         }
         Relationships: []
       }

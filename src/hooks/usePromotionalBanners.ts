@@ -3,6 +3,13 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { withNetworkRetry, getNetworkErrorMessage } from "@/lib/network-retry";
 
+export interface WeightOption {
+  label: string;
+  min_weight: number;
+  max_weight: number;
+  price: number;
+}
+
 export interface PromotionalBanner {
   id: string;
   title: string;
@@ -22,6 +29,7 @@ export interface PromotionalBanner {
   payment_required: boolean;
   price_per_unit: number;
   unit: string;
+  weight_options: WeightOption[] | null;
   created_at: string;
   updated_at: string;
 }

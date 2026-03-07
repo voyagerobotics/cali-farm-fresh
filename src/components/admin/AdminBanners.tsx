@@ -51,6 +51,7 @@ const AdminBanners = () => {
       payment_required: false,
       price_per_unit: 0,
       unit: "kg",
+      hide_quantity: false,
     });
     setEditBanner(null);
     setShowForm(false);

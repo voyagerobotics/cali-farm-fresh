@@ -80,9 +80,9 @@ const PreOrderDialog = ({
   // Auto-select first weight option
   useEffect(() => {
     if (hasWeightOptions && !selectedWeight && open) {
-      setSelectedWeight(weightOptions![0]);
+      setSelectedWeight(visibleWeightOptions[0]);
     }
-  }, [weightOptions, open]);
+  }, [visibleWeightOptions, open]);
 
   // Set default address when loaded
   useEffect(() => {

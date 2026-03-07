@@ -262,7 +262,7 @@ const PreOrderDialog = ({
                   Select Weight Range
                 </Label>
                 <div className="grid grid-cols-1 gap-2">
-                  {weightOptions!.map((opt, idx) => {
+                  {visibleWeightOptions.map((opt, idx) => {
                     const isSelected = selectedWeight?.label === opt.label;
                     const optOriginalPrice = Math.round(opt.price / (1 - discountPercent / 100));
                     return (

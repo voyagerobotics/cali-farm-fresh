@@ -56,9 +56,11 @@ const AdminBanners = () => {
       price_per_unit: 0,
       unit: "kg",
       hide_quantity: false,
+      weight_options: [],
     });
     setEditBanner(null);
     setShowForm(false);
+    setEditingWeightIdx(null);
   };
 
   const openEdit = (banner: PromotionalBanner) => {

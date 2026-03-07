@@ -1,5 +1,6 @@
 import { useState, useRef } from "react";
-import { Plus, Edit, Trash2, Eye, EyeOff, Loader2, Megaphone, ShoppingBag, Upload, X, ImageIcon, Bell, CreditCard } from "lucide-react";
+import { Plus, Edit, Trash2, Eye, EyeOff, Loader2, Megaphone, ShoppingBag, Upload, X, ImageIcon, Bell, CreditCard, Tag, GripVertical } from "lucide-react";
+import { WeightOption } from "@/hooks/usePromotionalBanners";
 import { proxyImageUrl } from "@/lib/proxy-image-url";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";

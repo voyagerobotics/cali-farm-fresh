@@ -42,7 +42,10 @@ const AdminBanners = () => {
     price_per_unit: 0,
     unit: "kg",
     hide_quantity: false,
+    weight_options: [] as WeightOption[],
   });
+  const [editingWeightIdx, setEditingWeightIdx] = useState<number | null>(null);
+  const [weightForm, setWeightForm] = useState<WeightOption>({ label: "", min_weight: 0, max_weight: 0, price: 0, is_hidden: false });
 
   const resetForm = () => {
     setForm({

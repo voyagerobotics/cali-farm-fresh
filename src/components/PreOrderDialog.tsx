@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Loader2, ShoppingBag, CreditCard, MapPin, Truck, RefreshCw, AlertCircle } from "lucide-react";
+import { Loader2, ShoppingBag, CreditCard, MapPin, Truck, RefreshCw, AlertCircle, Check, Tag } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePreOrders } from "@/hooks/usePreOrders";
 import { useAddresses, UserAddress } from "@/hooks/useAddresses";
@@ -12,6 +12,8 @@ import { useDeliveryZones } from "@/hooks/useDeliveryZones";
 import { useSiteSettings } from "@/hooks/useSiteSettings";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { WeightOption } from "@/hooks/usePromotionalBanners";
+import { cn } from "@/lib/utils";
 import RazorpayPayment from "./RazorpayPayment";
 import AddressManager from "./AddressManager";
 
@@ -23,9 +25,21 @@ interface PreOrderDialogProps {
   paymentRequired?: boolean;
   pricePerUnit?: number;
   unit?: string;
+  weightOptions?: WeightOption[] | null;
+  discountPercent?: number;
 }
 
-const PreOrderDialog = ({ open, onOpenChange, productName, bannerId, paymentRequired = false, pricePerUnit = 0, unit = "kg" }: PreOrderDialogProps) => {
+const PreOrderDialog = ({
+  open,
+  onOpenChange,
+  productName,
+  bannerId,
+  paymentRequired = false,
+  pricePerUnit = 0,
+  unit = "kg",
+  weightOptions = null,
+  discountPercent = 20,
+}: PreOrderDialogProps) => {
   const { user } = useAuth();
   const { createPreOrder } = usePreOrders();
   const { addresses, defaultAddress } = useAddresses();
@@ -40,6 +54,7 @@ const PreOrderDialog = ({ open, onOpenChange, productName, bannerId, paymentRequ
   const [deliveryDistance, setDeliveryDistance] = useState(0);
   const [deliveryUnavailable, setDeliveryUnavailable] = useState(false);
   const [deliveryError, setDeliveryError] = useState<string | null>(null);
+  const [selectedWeight, setSelectedWeight] = useState<WeightOption | null>(null);
   const [form, setForm] = useState({
     customer_name: "",
     customer_phone: "",
@@ -47,8 +62,23 @@ const PreOrderDialog = ({ open, onOpenChange, productName, bannerId, paymentRequ
     notes: "",
   });
 
-  const productTotal = pricePerUnit * form.quantity;
+  const hasWeightOptions = weightOptions && weightOptions.length > 0;
+
+  // Determine effective price based on weight selection or base price
+  const effectivePrice = hasWeightOptions && selectedWeight
+    ? selectedWeight.price
+    : pricePerUnit;
+
+  const originalPrice = Math.round(effectivePrice / (1 - discountPercent / 100));
+  const productTotal = effectivePrice * form.quantity;
   const grandTotal = productTotal + deliveryCharge;
+
+  // Auto-select first weight option
+  useEffect(() => {
+    if (hasWeightOptions && !selectedWeight && open) {
+      setSelectedWeight(weightOptions![0]);
+    }
+  }, [weightOptions, open]);
 
   // Set default address when loaded
   useEffect(() => {
@@ -113,11 +143,13 @@ const PreOrderDialog = ({ open, onOpenChange, productName, bannerId, paymentRequ
 
     if (deliveryUnavailable) return;
 
+    if (hasWeightOptions && !selectedWeight) return;
+
     const name = selectedAddress.full_name || form.customer_name;
     const phone = selectedAddress.phone || form.customer_phone;
     if (!name || !phone) return;
 
-    if (paymentRequired && pricePerUnit > 0) {
+    if (paymentRequired && effectivePrice > 0) {
       setShowPayment(true);
       return;
     }
@@ -131,6 +163,9 @@ const PreOrderDialog = ({ open, onOpenChange, productName, bannerId, paymentRequ
     const phone = selectedAddress?.phone || form.customer_phone;
     const deliveryAddr = selectedAddress ? `${selectedAddress.address}, ${selectedAddress.city} - ${selectedAddress.pincode}` : "";
 
+    const weightNote = selectedWeight ? `Weight: ${selectedWeight.label}` : "";
+    const combinedNotes = [weightNote, form.notes].filter(Boolean).join(" | ");
+
     const success = await createPreOrder({
       product_name: productName,
       banner_id: bannerId,
@@ -138,7 +173,7 @@ const PreOrderDialog = ({ open, onOpenChange, productName, bannerId, paymentRequ
       customer_phone: phone,
       customer_email: user?.email || undefined,
       quantity: form.quantity,
-      notes: form.notes || undefined,
+      notes: combinedNotes || undefined,
       payment_status: paymentId ? "paid" : (paymentRequired ? "pending" : "not_required"),
       payment_amount: paymentRequired ? grandTotal : 0,
       razorpay_payment_id: paymentId,
@@ -149,21 +184,20 @@ const PreOrderDialog = ({ open, onOpenChange, productName, bannerId, paymentRequ
     });
 
     if (success) {
-      // Send confirmation email
       try {
         await supabase.functions.invoke("send-preorder-confirmation", {
           body: {
             email: user?.email || "",
             customerName: name,
             customerPhone: phone,
-            productName,
+            productName: `${productName}${selectedWeight ? ` (${selectedWeight.label})` : ""}`,
             quantity: form.quantity,
-            unit,
-            pricePerUnit,
+            unit: hasWeightOptions ? "piece" : unit,
+            pricePerUnit: effectivePrice,
             totalAmount: paymentRequired ? grandTotal : 0,
             paymentStatus: paymentId ? "paid" : (paymentRequired ? "pending" : "not_required"),
             razorpayPaymentId: paymentId,
-            notes: form.notes || undefined,
+            notes: combinedNotes || undefined,
             deliveryAddress: deliveryAddr,
             deliveryCharge,
             deliveryDistance,
@@ -174,6 +208,7 @@ const PreOrderDialog = ({ open, onOpenChange, productName, bannerId, paymentRequ
       }
       setForm({ customer_name: "", customer_phone: "", quantity: 1, notes: "" });
       setSelectedAddress(null);
+      setSelectedWeight(null);
       onOpenChange(false);
       setShowPayment(false);
     }
@@ -215,9 +250,55 @@ const PreOrderDialog = ({ open, onOpenChange, productName, bannerId, paymentRequ
           </div>
         ) : (
           <form onSubmit={handleSubmit} className="space-y-4">
+            {/* Weight Range Selector */}
+            {hasWeightOptions && (
+              <div className="space-y-2">
+                <Label className="flex items-center gap-2">
+                  <Tag className="w-4 h-4 text-primary" />
+                  Select Weight Range
+                </Label>
+                <div className="grid grid-cols-1 gap-2">
+                  {weightOptions!.map((opt, idx) => {
+                    const isSelected = selectedWeight?.label === opt.label;
+                    const optOriginalPrice = Math.round(opt.price / (1 - discountPercent / 100));
+                    return (
+                      <button
+                        key={idx}
+                        type="button"
+                        onClick={() => setSelectedWeight(opt)}
+                        className={cn(
+                          "relative flex items-center justify-between px-4 py-3 rounded-xl border-2 text-sm font-medium transition-all",
+                          isSelected
+                            ? "border-primary bg-primary/10 text-primary shadow-sm"
+                            : "border-border bg-card hover:border-primary/50"
+                        )}
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className={cn(
+                            "w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all",
+                            isSelected ? "border-primary bg-primary" : "border-muted-foreground"
+                          )}>
+                            {isSelected && <Check className="w-3 h-3 text-primary-foreground" />}
+                          </div>
+                          <span className="font-semibold">{opt.label}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs line-through text-muted-foreground">₹{optOriginalPrice}</span>
+                          <span className="font-bold text-base">₹{opt.price}</span>
+                          <span className="text-xs bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 px-1.5 py-0.5 rounded-full font-semibold">
+                            {discountPercent}% OFF
+                          </span>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
             {/* Quantity */}
             <div className="space-y-2">
-              <Label htmlFor="preorder-qty">Quantity ({unit})</Label>
+              <Label htmlFor="preorder-qty">Quantity ({hasWeightOptions ? "pieces" : unit})</Label>
               <Input
                 id="preorder-qty"
                 type="number"
@@ -338,7 +419,7 @@ const PreOrderDialog = ({ open, onOpenChange, productName, bannerId, paymentRequ
             )}
 
             {/* Payment Summary */}
-            {paymentRequired && pricePerUnit > 0 && selectedAddress && !deliveryUnavailable && (
+            {paymentRequired && effectivePrice > 0 && selectedAddress && !deliveryUnavailable && (
               <div className="bg-muted/50 rounded-lg p-3 border border-border">
                 <div className="flex items-center gap-2 mb-2">
                   <CreditCard className="w-4 h-4 text-primary" />
@@ -346,8 +427,17 @@ const PreOrderDialog = ({ open, onOpenChange, productName, bannerId, paymentRequ
                 </div>
                 <div className="space-y-1 text-sm">
                   <div className="flex justify-between">
-                    <span className="text-muted-foreground">₹{pricePerUnit}/{unit} × {form.quantity}</span>
-                    <span>₹{productTotal}</span>
+                    <span className="text-muted-foreground">
+                      {selectedWeight ? `${selectedWeight.label}` : `₹${effectivePrice}/${unit}`} × {form.quantity}
+                    </span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs line-through text-muted-foreground">₹{originalPrice * form.quantity}</span>
+                      <span>₹{productTotal}</span>
+                    </div>
+                  </div>
+                  <div className="flex justify-between text-green-600 dark:text-green-400 text-xs">
+                    <span>Discount ({discountPercent}%)</span>
+                    <span>-₹{(originalPrice * form.quantity) - productTotal}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Delivery</span>
@@ -364,15 +454,17 @@ const PreOrderDialog = ({ open, onOpenChange, productName, bannerId, paymentRequ
             <Button
               type="submit"
               className="w-full"
-              disabled={isSubmitting || isCalculating || deliveryUnavailable || !selectedAddress}
+              disabled={isSubmitting || isCalculating || deliveryUnavailable || !selectedAddress || (hasWeightOptions && !selectedWeight)}
             >
               {isSubmitting ? (
                 <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Placing Pre-Order...</>
               ) : !selectedAddress ? (
                 "Select Delivery Address"
+              ) : hasWeightOptions && !selectedWeight ? (
+                "Select Weight Range"
               ) : deliveryUnavailable ? (
                 "Delivery Unavailable"
-              ) : paymentRequired && pricePerUnit > 0 ? (
+              ) : paymentRequired && effectivePrice > 0 ? (
                 <><CreditCard className="w-4 h-4 mr-2" /> Pay ₹{grandTotal} & Pre-Order</>
               ) : (
                 "Place Pre-Order"

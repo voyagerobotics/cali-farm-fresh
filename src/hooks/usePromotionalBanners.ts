@@ -8,6 +8,7 @@ export interface WeightOption {
   min_weight: number;
   max_weight: number;
   price: number;
+  is_hidden?: boolean;
 }
 
 export interface PromotionalBanner {

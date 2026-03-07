@@ -1,0 +1,1 @@
+ALTER TABLE public.promotional_banners ADD COLUMN hide_quantity boolean NOT NULL DEFAULT false;

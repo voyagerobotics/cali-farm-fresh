@@ -725,6 +725,7 @@ export type Database = {
           description: string | null
           display_order: number
           end_date: string | null
+          hide_quantity: boolean
           id: string
           image_url: string | null
           is_active: boolean
@@ -748,6 +749,7 @@ export type Database = {
           description?: string | null
           display_order?: number
           end_date?: string | null
+          hide_quantity?: boolean
           id?: string
           image_url?: string | null
           is_active?: boolean
@@ -771,6 +773,7 @@ export type Database = {
           description?: string | null
           display_order?: number
           end_date?: string | null
+          hide_quantity?: boolean
           id?: string
           image_url?: string | null
           is_active?: boolean

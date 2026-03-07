@@ -73,6 +73,7 @@ const AdminBanners = () => {
       payment_required: banner.payment_required || false,
       price_per_unit: (banner as any).price_per_unit || 0,
       unit: (banner as any).unit || "kg",
+      hide_quantity: (banner as any).hide_quantity || false,
     });
     setShowForm(true);
   };

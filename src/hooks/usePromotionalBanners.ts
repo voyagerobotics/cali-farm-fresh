@@ -30,6 +30,7 @@ export interface PromotionalBanner {
   price_per_unit: number;
   unit: string;
   weight_options: WeightOption[] | null;
+  hide_quantity: boolean;
   created_at: string;
   updated_at: string;
 }

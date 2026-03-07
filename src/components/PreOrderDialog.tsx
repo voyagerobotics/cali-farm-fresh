@@ -64,7 +64,9 @@ const PreOrderDialog = ({
     notes: "",
   });
 
-  const hasWeightOptions = weightOptions && weightOptions.length > 0;
+  // Filter out hidden weight options for customer view
+  const visibleWeightOptions = weightOptions?.filter(opt => !opt.is_hidden) || [];
+  const hasWeightOptions = visibleWeightOptions.length > 0;
 
   // Determine effective price based on weight selection or base price
   const effectivePrice = hasWeightOptions && selectedWeight

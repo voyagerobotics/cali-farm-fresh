@@ -80,6 +80,7 @@ const AdminBanners = () => {
       price_per_unit: (banner as any).price_per_unit || 0,
       unit: (banner as any).unit || "kg",
       hide_quantity: (banner as any).hide_quantity || false,
+      weight_options: (banner.weight_options as WeightOption[] || []),
     });
     setShowForm(true);
   };

@@ -1,5 +1,6 @@
 import { useState, useRef } from "react";
-import { Plus, Edit, Trash2, Eye, EyeOff, Loader2, Megaphone, ShoppingBag, Upload, X, ImageIcon, Bell, CreditCard } from "lucide-react";
+import { Plus, Edit, Trash2, Eye, EyeOff, Loader2, Megaphone, ShoppingBag, Upload, X, ImageIcon, Bell, CreditCard, Tag, GripVertical } from "lucide-react";
+import { WeightOption } from "@/hooks/usePromotionalBanners";
 import { proxyImageUrl } from "@/lib/proxy-image-url";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -41,7 +42,10 @@ const AdminBanners = () => {
     price_per_unit: 0,
     unit: "kg",
     hide_quantity: false,
+    weight_options: [] as WeightOption[],
   });
+  const [editingWeightIdx, setEditingWeightIdx] = useState<number | null>(null);
+  const [weightForm, setWeightForm] = useState<WeightOption>({ label: "", min_weight: 0, max_weight: 0, price: 0, is_hidden: false });
 
   const resetForm = () => {
     setForm({
@@ -52,9 +56,11 @@ const AdminBanners = () => {
       price_per_unit: 0,
       unit: "kg",
       hide_quantity: false,
+      weight_options: [],
     });
     setEditBanner(null);
     setShowForm(false);
+    setEditingWeightIdx(null);
   };
 
   const openEdit = (banner: PromotionalBanner) => {
@@ -74,6 +80,7 @@ const AdminBanners = () => {
       price_per_unit: (banner as any).price_per_unit || 0,
       unit: (banner as any).unit || "kg",
       hide_quantity: (banner as any).hide_quantity || false,
+      weight_options: (banner.weight_options as WeightOption[] || []),
     });
     setShowForm(true);
   };
@@ -439,6 +446,74 @@ const AdminBanners = () => {
                 </div>
               )}
             </div>
+
+            {/* Weight Options Manager */}
+            {form.payment_required && (
+              <div className="bg-muted/50 rounded-lg p-4 border border-border space-y-3">
+                <Label className="text-sm font-semibold flex items-center gap-2">
+                  <Tag className="w-4 h-4" /> Weight Options
+                </Label>
+                <p className="text-xs text-muted-foreground">Add weight ranges customers can choose from. Hidden options won't show to customers.</p>
+
+                {/* Existing weight options list */}
+                {form.weight_options.length > 0 && (
+                  <div className="space-y-2">
+                    {form.weight_options.map((opt, idx) => (
+                      <div key={idx} className={`flex items-center gap-2 p-2 rounded-lg border text-sm ${opt.is_hidden ? 'opacity-50 bg-muted' : 'bg-background'}`}>
+                        <span className="flex-1 font-medium">{opt.label}</span>
+                        <span className="text-muted-foreground">₹{opt.price}</span>
+                        <Button type="button" variant="ghost" size="icon" className="h-7 w-7" onClick={() => {
+                          const updated = [...form.weight_options];
+                          updated[idx] = { ...updated[idx], is_hidden: !updated[idx].is_hidden };
+                          setForm(f => ({ ...f, weight_options: updated }));
+                        }}>
+                          {opt.is_hidden ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
+                        </Button>
+                        <Button type="button" variant="ghost" size="icon" className="h-7 w-7" onClick={() => {
+                          setEditingWeightIdx(idx);
+                          setWeightForm(opt);
+                        }}>
+                          <Edit className="w-3 h-3" />
+                        </Button>
+                        <Button type="button" variant="ghost" size="icon" className="h-7 w-7" onClick={() => {
+                          setForm(f => ({ ...f, weight_options: f.weight_options.filter((_, i) => i !== idx) }));
+                        }}>
+                          <Trash2 className="w-3 h-3 text-destructive" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Add / Edit weight option form */}
+                <div className="grid grid-cols-2 gap-2">
+                  <Input placeholder="Label (e.g. 1-2 Kg)" value={weightForm.label} onChange={e => setWeightForm(f => ({ ...f, label: e.target.value }))} className="h-8 text-sm" />
+                  <Input placeholder="Price (₹)" type="number" min={0} value={weightForm.price || ""} onChange={e => setWeightForm(f => ({ ...f, price: Number(e.target.value) }))} className="h-8 text-sm" />
+                </div>
+                <div className="flex gap-2">
+                  <Button type="button" variant="outline" size="sm" onClick={() => {
+                    if (!weightForm.label || !weightForm.price) return;
+                    if (editingWeightIdx !== null) {
+                      const updated = [...form.weight_options];
+                      updated[editingWeightIdx] = weightForm;
+                      setForm(f => ({ ...f, weight_options: updated }));
+                      setEditingWeightIdx(null);
+                    } else {
+                      setForm(f => ({ ...f, weight_options: [...f.weight_options, weightForm] }));
+                    }
+                    setWeightForm({ label: "", min_weight: 0, max_weight: 0, price: 0, is_hidden: false });
+                  }}>
+                    {editingWeightIdx !== null ? "Update" : "Add"} Option
+                  </Button>
+                  {editingWeightIdx !== null && (
+                    <Button type="button" variant="ghost" size="sm" onClick={() => {
+                      setEditingWeightIdx(null);
+                      setWeightForm({ label: "", min_weight: 0, max_weight: 0, price: 0, is_hidden: false });
+                    }}>Cancel</Button>
+                  )}
+                </div>
+              </div>
+            )}
 
             {/* Hide Quantity Toggle */}
             <div className="bg-muted/50 rounded-lg p-4 border border-border">

@@ -64,7 +64,9 @@ const PreOrderDialog = ({
     notes: "",
   });
 
-  const hasWeightOptions = weightOptions && weightOptions.length > 0;
+  // Filter out hidden weight options for customer view
+  const visibleWeightOptions = weightOptions?.filter(opt => !opt.is_hidden) || [];
+  const hasWeightOptions = visibleWeightOptions.length > 0;
 
   // Determine effective price based on weight selection or base price
   const effectivePrice = hasWeightOptions && selectedWeight
@@ -78,9 +80,9 @@ const PreOrderDialog = ({
   // Auto-select first weight option
   useEffect(() => {
     if (hasWeightOptions && !selectedWeight && open) {
-      setSelectedWeight(weightOptions![0]);
+      setSelectedWeight(visibleWeightOptions[0]);
     }
-  }, [weightOptions, open]);
+  }, [visibleWeightOptions, open]);
 
   // Set default address when loaded
   useEffect(() => {
@@ -260,7 +262,7 @@ const PreOrderDialog = ({
                   Select Weight Range
                 </Label>
                 <div className="grid grid-cols-1 gap-2">
-                  {weightOptions!.map((opt, idx) => {
+                  {visibleWeightOptions.map((opt, idx) => {
                     const isSelected = selectedWeight?.label === opt.label;
                     const optOriginalPrice = Math.round(opt.price / (1 - discountPercent / 100));
                     return (

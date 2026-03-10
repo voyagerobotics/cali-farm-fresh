@@ -35,6 +35,8 @@ interface PreOrderConfirmationRequest {
   deliveryAddress?: string;
   deliveryCharge?: number;
   deliveryDistance?: number;
+  preOrderId?: string;
+  createdAt?: string;
 }
 
 const ADMIN_EMAILS = ["californiafarmsmail@gmail.com", "shradhatakalkhede15@gmail.com", "californiafarmsindia@gmail.com"];

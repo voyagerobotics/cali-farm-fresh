@@ -205,6 +205,8 @@ const PreOrderDialog = ({
             deliveryAddress: deliveryAddr,
             deliveryCharge,
             deliveryDistance,
+            preOrderId: result.id,
+            createdAt: result.created_at,
           },
         });
       } catch (emailErr) {

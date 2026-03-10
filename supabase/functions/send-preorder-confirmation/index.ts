@@ -175,7 +175,8 @@ const handler = async (req: Request): Promise<Response> => {
               ${isPaid ? `<p style="margin: 4px 0; color: #555;">Payment ID: ${escapeHtml(razorpayPaymentId)}</p><p style="margin: 4px 0; color: #555;">Amount Paid: ₹${escapeHtml(totalAmount)}</p>` : `<p style="margin: 4px 0; color: #555;">Payment will be collected when the product is in stock.</p>`}
             </div>
             ${notes ? `<div style="background: #f9fafb; padding: 15px; border-radius: 8px; margin-top: 15px;"><p style="margin: 0; color: #666; font-size: 14px;"><strong>Your Notes:</strong> ${escapeHtml(notes)}</p></div>` : ''}
-            <p style="margin-top: 30px; color: #666; font-size: 14px;">We'll send you a notification when your pre-ordered product is available. Stay tuned! 🌿</p>
+            <p style="margin-top: 30px; color: #666; font-size: 14px;">We're nurturing your order with love and care — just like we nurture our farm. We'll notify you the moment it's ready for delivery! 🌾</p>
+            <p style="color: #999; font-size: 13px; font-style: italic;">"Patience is the secret ingredient in every bite of goodness." — Team California Farms 💚</p>
           </div>
           <div class="footer">
             <p>Thank you for choosing California Farms India!</p>

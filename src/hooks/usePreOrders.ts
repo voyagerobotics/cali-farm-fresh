@@ -72,16 +72,20 @@ export const usePreOrders = (isAdmin: boolean = false) => {
     }
 
     try {
+      let createdRecord: any = null;
       await withNetworkRetry(async () => {
-        const { error } = await supabase
+        const { data, error } = await supabase
           .from("pre_orders" as any)
-          .insert([{ ...preOrder, user_id: user.id }] as any);
+          .insert([{ ...preOrder, user_id: user.id }] as any)
+          .select()
+          .single();
 
         if (error) throw error;
+        createdRecord = data;
       });
       toast({ title: "Pre-order placed!", description: "We'll notify you when the product is available." });
       fetchPreOrders();
-      return true;
+      return createdRecord;
     } catch (error: any) {
       toast({ title: "Error", description: getNetworkErrorMessage(error, "placing pre-order"), variant: "destructive" });
       return false;

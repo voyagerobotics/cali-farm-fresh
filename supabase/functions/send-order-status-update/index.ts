@@ -162,6 +162,27 @@ const handler = async (req: Request): Promise<Response> => {
           <div class="content">
             <p>Dear <strong>${escapeHtml(customerName)}</strong>,</p>
             <div class="message-box"><p style="margin: 0; font-size: 16px;">${statusInfo.message}</p></div>
+            ${newStatus === 'cancelled' ? `
+            <div style="background: #fef2f2; border: 1px solid #fecaca; border-radius: 12px; padding: 20px; margin: 20px 0; text-align: center;">
+              <div style="font-size: 40px; margin-bottom: 10px;">❌</div>
+              <p style="margin: 0; color: #991b1b; font-weight: 600; font-size: 16px;">This order has been cancelled</p>
+              <p style="margin: 8px 0 0; color: #b91c1c; font-size: 14px;">If you have any questions or need assistance, please don't hesitate to reach out to us.</p>
+            </div>
+            ` : newStatus === 'delivered' ? `
+            <div style="background: linear-gradient(135deg, #f0fdf4, #dcfce7); border: 1px solid #bbf7d0; border-radius: 12px; padding: 20px; margin: 20px 0; text-align: center;">
+              <div style="font-size: 40px; margin-bottom: 10px;">🎉</div>
+              <p style="margin: 0; color: #166534; font-weight: 600; font-size: 16px;">Your order has been delivered!</p>
+              <p style="margin: 8px 0 0; color: #15803d; font-size: 14px;">Enjoy your fresh, chemical-free produce. Thank you for choosing California Farms! 🌿</p>
+            </div>
+            <div class="progress-container">
+              <div class="progress-bar">
+                <div class="progress-step"><div class="progress-dot completed">✓</div><span class="progress-label">Confirmed</span></div>
+                <div class="progress-step"><div class="progress-dot completed">✓</div><span class="progress-label">Preparing</span></div>
+                <div class="progress-step"><div class="progress-dot completed">✓</div><span class="progress-label">Out for Delivery</span></div>
+                <div class="progress-step"><div class="progress-dot completed">✓</div><span class="progress-label">Delivered</span></div>
+              </div>
+            </div>
+            ` : `
             <div class="progress-container">
               <div class="progress-bar">
                 <div class="progress-step"><div class="progress-dot ${['confirmed', 'preparing', 'out_for_delivery', 'delivered'].includes(newStatus) ? 'completed' : ''}">✓</div><span class="progress-label">Confirmed</span></div>
@@ -170,6 +191,7 @@ const handler = async (req: Request): Promise<Response> => {
                 <div class="progress-step"><div class="progress-dot ${newStatus === 'delivered' ? 'completed' : ''}">🎉</div><span class="progress-label">Delivered</span></div>
               </div>
             </div>
+            `}
             ${newStatus === 'out_for_delivery' ? `<div class="delivery-info"><h4 style="margin: 0 0 10px; color: #92400e;">📍 Delivering To</h4><p style="margin: 0; color: #555;">${escapeHtml(deliveryAddress)}</p></div>` : ''}
             <div class="order-box">
               <p><strong>Order Number:</strong> ${escapeHtml(orderNumber)}</p>

@@ -170,7 +170,7 @@ const PreOrderDialog = ({
     const weightNote = selectedWeight ? `Weight: ${selectedWeight.label}` : "";
     const combinedNotes = [weightNote, form.notes].filter(Boolean).join(" | ");
 
-    const success = await createPreOrder({
+    const result = await createPreOrder({
       product_name: productName,
       banner_id: bannerId,
       customer_name: name,
@@ -187,7 +187,7 @@ const PreOrderDialog = ({
       delivery_distance_km: deliveryDistance,
     });
 
-    if (success) {
+    if (result) {
       try {
         await supabase.functions.invoke("send-preorder-confirmation", {
           body: {

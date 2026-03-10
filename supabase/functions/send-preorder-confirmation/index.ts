@@ -100,6 +100,7 @@ const handler = async (req: Request): Promise<Response> => {
       email, customerName, customerPhone, productName, quantity, unit,
       pricePerUnit, totalAmount, paymentStatus, razorpayPaymentId,
       notes, deliveryAddress, deliveryCharge, deliveryDistance,
+      preOrderId: passedPreOrderId, createdAt,
     }: PreOrderConfirmationRequest = await req.json();
 
     if (!email || !productName) {
@@ -107,9 +108,11 @@ const handler = async (req: Request): Promise<Response> => {
         { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } });
     }
 
-    const preOrderId = `PRE-${Date.now()}`;
+    const preOrderId = passedPreOrderId ? `PRE-${passedPreOrderId.substring(0, 8)}` : `PRE-${Date.now()}`;
     const isPaid = paymentStatus === "paid";
-    const orderDate = new Date().toLocaleString('en-IN', { dateStyle: 'full', timeStyle: 'short' });
+    const orderDate = createdAt
+      ? new Date(createdAt).toLocaleString('en-IN', { dateStyle: 'full', timeStyle: 'short', timeZone: 'Asia/Kolkata' })
+      : new Date().toLocaleString('en-IN', { dateStyle: 'full', timeStyle: 'short', timeZone: 'Asia/Kolkata' });
 
     const customerEmailHtml = `
       <!DOCTYPE html>

@@ -145,7 +145,13 @@ const handler = async (req: Request): Promise<Response> => {
           <div class="content">
             <div style="text-align: center;"><div class="badge">📋 Pre-Order ${isPaid ? 'Confirmed & Paid' : 'Received'}!</div></div>
             <p>Dear <strong>${escapeHtml(customerName)}</strong>,</p>
-            <p>Thank you for your pre-order! We've reserved the following product for you.</p>
+            <p>Thank you so much for your pre-order! 🌱 We've received it and your fresh goodness is on its way.</p>
+            <div style="background: linear-gradient(135deg, #f0fdf4, #ecfdf5); padding: 20px; border-radius: 12px; margin: 20px 0; border-left: 4px solid #22c55e;">
+              <p style="margin: 0 0 10px; font-size: 16px; color: #166534; font-weight: 600;">🍉 Good things take time...</p>
+              <p style="margin: 0; color: #15803d; line-height: 1.6;">At California Farms, we grow everything the way nature intended — <strong>completely chemical-free</strong>. No shortcuts, no pesticides, no artificial ripening. Our produce takes its own sweet time to grow, ripen, and reach that perfect burst of flavour.</p>
+              <p style="margin: 10px 0 0; color: #15803d; line-height: 1.6;">So when it reaches your doorstep, you'll know it was worth the wait. 🌿</p>
+            </div>
+            <p>We'll deliver your order as soon as it's ready — and trust us, it's almost there! 🎉</p>
             <div class="info-box">
               <p><strong>Pre-Order ID:</strong> ${escapeHtml(preOrderId)}</p>
               <p><strong>Date:</strong> ${orderDate}</p>

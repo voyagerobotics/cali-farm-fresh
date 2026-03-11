@@ -263,12 +263,27 @@ const handler = async (req: Request): Promise<Response> => {
     const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
 
     const data: RefundNotificationRequest = await req.json();
-    const { orderId, orderNumber, customerName, customerEmail, refundAmount, totalAmount, type, paymentMethod, paymentId } = data;
+    let { orderId, orderNumber, customerName, customerEmail, userId, refundAmount, totalAmount, type, paymentMethod, paymentId } = data;
+
+    // Look up customer email from auth if not provided
+    if (!customerEmail && userId) {
+      try {
+        const { data: userData } = await supabaseAdmin.auth.admin.getUserById(userId);
+        if (userData?.user?.email) {
+          customerEmail = userData.user.email;
+        }
+      } catch (e) {
+        console.error("Failed to look up user email:", e);
+      }
+    }
 
     if (!orderNumber || !customerEmail || !refundAmount || !type) {
-      return new Response(JSON.stringify({ error: "Missing required fields" }),
+      return new Response(JSON.stringify({ error: "Missing required fields", detail: !customerEmail ? "Customer email not found" : "Other fields missing" }),
         { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } });
     }
+
+    // Ensure customerEmail is set on data for template use
+    data.customerEmail = customerEmail;
 
     const isInitiated = type === "refund_initiated";
     const buildHtml = isInitiated ? buildRefundInitiatedHtml : buildRefundCompletedHtml;

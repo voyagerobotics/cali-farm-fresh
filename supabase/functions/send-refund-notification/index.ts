@@ -26,7 +26,8 @@ interface RefundNotificationRequest {
   orderId: string;
   orderNumber: string;
   customerName: string;
-  customerEmail: string;
+  customerEmail?: string;
+  userId?: string;
   refundAmount: number;
   totalAmount: number;
   type: "refund_initiated" | "refund_completed";

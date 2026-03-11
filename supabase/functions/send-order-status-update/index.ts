@@ -195,12 +195,19 @@ const handler = async (req: Request): Promise<Response> => {
             ${newStatus === 'out_for_delivery' ? `<div class="delivery-info"><h4 style="margin: 0 0 10px; color: #92400e;">📍 Delivering To</h4><p style="margin: 0; color: #555;">${escapeHtml(deliveryAddress)}</p></div>` : ''}
             <div class="order-box">
               <p><strong>Order Number:</strong> ${escapeHtml(orderNumber)}</p>
-              <p><strong>Status Updated:</strong> ${new Date().toLocaleString('en-IN', { dateStyle: 'full', timeStyle: 'short' })}</p>
+              <p><strong>Status Updated:</strong> ${new Date().toLocaleString('en-IN', { dateStyle: 'full', timeStyle: 'short', timeZone: 'Asia/Kolkata' })}</p>
             </div>
-            <p style="color: #666; font-size: 14px;">If you have any questions about your order, please don't hesitate to contact us.</p>
+            <div style="background: #f0fdf4; padding: 20px; border-radius: 8px; margin-top: 20px; text-align: center;">
+              <p style="margin: 0 0 8px; color: #166534; font-weight: 600;">Have questions or need help? 💬</p>
+              <p style="margin: 0; color: #15803d; font-size: 14px;">Reach out to us anytime at:</p>
+              <p style="margin: 8px 0 0;"><a href="mailto:californiafarmsindia@gmail.com" style="color: #2d5a3d; font-weight: 600; text-decoration: none;">californiafarmsindia@gmail.com</a></p>
+              <p style="margin: 4px 0 0;"><a href="mailto:shradhatakalkhede15@gmail.com" style="color: #2d5a3d; font-weight: 600; text-decoration: none;">shradhatakalkhede15@gmail.com</a></p>
+              <p style="margin: 8px 0 0; color: #15803d; font-size: 13px;">📞 +91 8149712801 | +91 7559421334</p>
+            </div>
           </div>
           <div class="footer">
             <p>Thank you for choosing California Farms India!</p>
+            <p>📧 californiafarmsindia@gmail.com | 📞 +91 8149712801</p>
             <p>© ${new Date().getFullYear()} California Farms India. All rights reserved.</p>
           </div>
         </div>

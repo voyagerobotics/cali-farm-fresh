@@ -104,6 +104,16 @@ export const usePreOrders = (isAdmin: boolean = false) => {
       });
       toast({ title: "Pre-order status updated" });
       fetchPreOrders();
+
+      // Send status update email (fire-and-forget)
+      try {
+        await supabase.functions.invoke("send-preorder-status-update", {
+          body: { preOrderId: id, newStatus: status },
+        });
+      } catch (emailError) {
+        console.error("Pre-order status email failed:", emailError);
+      }
+
       return true;
     } catch (error: any) {
       toast({ title: "Error", description: getNetworkErrorMessage(error, "updating pre-order"), variant: "destructive" });

@@ -26,7 +26,8 @@ interface RefundNotificationRequest {
   orderId: string;
   orderNumber: string;
   customerName: string;
-  customerEmail: string;
+  customerEmail?: string;
+  userId?: string;
   refundAmount: number;
   totalAmount: number;
   type: "refund_initiated" | "refund_completed";
@@ -132,8 +133,15 @@ function buildRefundInitiatedHtml(data: RefundNotificationRequest, isAdmin: bool
 
           ${!isAdmin ? `
           <p style="color: #666; font-size: 14px;">
-            You will receive another email once the refund has been successfully completed. If you have any questions, please don't hesitate to contact us.
+            You will receive another email once the refund has been successfully completed.
           </p>
+          <div style="background: #f0fdf4; padding: 20px; border-radius: 8px; margin-top: 20px; text-align: center;">
+            <p style="margin: 0 0 8px; color: #166534; font-weight: 600;">Have questions or need help? 💬</p>
+            <p style="margin: 0; color: #15803d; font-size: 14px;">Reach out to us anytime at:</p>
+            <p style="margin: 8px 0 0;"><a href="mailto:californiafarmsindia@gmail.com" style="color: #2d5a3d; font-weight: 600; text-decoration: none;">californiafarmsindia@gmail.com</a></p>
+            <p style="margin: 4px 0 0;"><a href="mailto:shradhatakalkhede15@gmail.com" style="color: #2d5a3d; font-weight: 600; text-decoration: none;">shradhatakalkhede15@gmail.com</a></p>
+            <p style="margin: 8px 0 0; color: #15803d; font-size: 13px;">📞 +91 8149712801 | +91 7559421334</p>
+          </div>
           ` : `
           <p style="color: #666; font-size: 14px; text-align: center;">
             <strong>Note:</strong> Please process this refund within the standard timeline. Update the payment status to track completion.
@@ -142,6 +150,7 @@ function buildRefundInitiatedHtml(data: RefundNotificationRequest, isAdmin: bool
         </div>
         <div class="footer">
           <p>Thank you for choosing California Farms India!</p>
+          <p>📧 californiafarmsindia@gmail.com | 📞 +91 8149712801</p>
           <p>© ${new Date().getFullYear()} California Farms India. All rights reserved.</p>
         </div>
       </div>
@@ -254,12 +263,27 @@ const handler = async (req: Request): Promise<Response> => {
     const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
 
     const data: RefundNotificationRequest = await req.json();
-    const { orderId, orderNumber, customerName, customerEmail, refundAmount, totalAmount, type, paymentMethod, paymentId } = data;
+    let { orderId, orderNumber, customerName, customerEmail, userId, refundAmount, totalAmount, type, paymentMethod, paymentId } = data;
+
+    // Look up customer email from auth if not provided
+    if (!customerEmail && userId) {
+      try {
+        const { data: userData } = await supabaseAdmin.auth.admin.getUserById(userId);
+        if (userData?.user?.email) {
+          customerEmail = userData.user.email;
+        }
+      } catch (e) {
+        console.error("Failed to look up user email:", e);
+      }
+    }
 
     if (!orderNumber || !customerEmail || !refundAmount || !type) {
-      return new Response(JSON.stringify({ error: "Missing required fields" }),
+      return new Response(JSON.stringify({ error: "Missing required fields", detail: !customerEmail ? "Customer email not found" : "Other fields missing" }),
         { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } });
     }
+
+    // Ensure customerEmail is set on data for template use
+    data.customerEmail = customerEmail;
 
     const isInitiated = type === "refund_initiated";
     const buildHtml = isInitiated ? buildRefundInitiatedHtml : buildRefundCompletedHtml;

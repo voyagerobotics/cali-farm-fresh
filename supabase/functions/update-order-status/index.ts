@@ -135,6 +135,33 @@ serve(async (req) => {
       emailWarning = `Status updated but email failed: ${emailError instanceof Error ? emailError.message : "Unknown error"}`;
     }
 
+    // Auto-send refund notification when cancelling a paid order
+    if (nextStatus === "cancelled" && existingOrder.payment_status === "paid") {
+      try {
+        await fetch(`${supabaseUrl}/functions/v1/send-refund-notification`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: authHeader,
+            apikey: anonKey,
+          },
+          body: JSON.stringify({
+            orderId: existingOrder.id,
+            orderNumber: existingOrder.order_number,
+            customerName: existingOrder.delivery_name,
+            userId: existingOrder.user_id,
+            refundAmount: existingOrder.total,
+            totalAmount: existingOrder.total,
+            type: "refund_initiated",
+            paymentMethod: existingOrder.payment_method,
+            paymentId: existingOrder.upi_reference,
+          }),
+        });
+      } catch (refundEmailError) {
+        console.error("Refund notification failed:", refundEmailError);
+      }
+    }
+
     return json({
       success: true,
       orderId,

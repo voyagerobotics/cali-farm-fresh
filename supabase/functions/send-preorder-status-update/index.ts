@@ -29,9 +29,6 @@ const CONTACT_SECTION = `
     <p style="margin: 8px 0 0;">
       <a href="mailto:californiafarmsindia@gmail.com" style="color: #2d5a3d; font-weight: 600; text-decoration: none;">californiafarmsindia@gmail.com</a>
     </p>
-    <p style="margin: 4px 0 0;">
-      <a href="mailto:shradhatakalkhede15@gmail.com" style="color: #2d5a3d; font-weight: 600; text-decoration: none;">shradhatakalkhede15@gmail.com</a>
-    </p>
     <p style="margin: 8px 0 0; color: #15803d; font-size: 13px;">📞 +91 8149712801 | +91 7559421334</p>
   </div>
 `;

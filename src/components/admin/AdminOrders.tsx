@@ -34,9 +34,18 @@ const AdminOrders = () => {
     setIsRefreshing(false);
   };
 
-  const filteredOrders = statusFilter === "all" 
-    ? orders 
-    : orders.filter(order => order.status === statusFilter);
+  const filteredOrders = useMemo(() => {
+    let result = statusFilter === "all" ? orders : orders.filter(order => order.status === statusFilter);
+    if (searchQuery.trim()) {
+      const q = searchQuery.trim().toLowerCase();
+      result = result.filter(order =>
+        order.order_number.toLowerCase().includes(q) ||
+        order.delivery_name.toLowerCase().includes(q) ||
+        order.delivery_phone.includes(q)
+      );
+    }
+    return result;
+  }, [orders, statusFilter, searchQuery]);
 
   const statusCounts = {
     all: orders.length,

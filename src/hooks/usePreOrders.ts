@@ -192,5 +192,5 @@ export const usePreOrders = (isAdmin: boolean = false) => {
     }
   }, [user, isAdmin]);
 
-  return { preOrders, isLoading, fetchPreOrders, createPreOrder, updatePreOrderStatus, deletePreOrder };
+  return { preOrders, isLoading, fetchPreOrders, createPreOrder, updatePreOrderStatus, updatePreOrderPaymentStatus, deletePreOrder };
 };

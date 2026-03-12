@@ -44,3 +44,21 @@ verify_jwt = false
 
 [functions.api-proxy]
 verify_jwt = false
+
+[functions.send-refund-notification]
+verify_jwt = false
+
+[functions.send-preorder-status-update]
+verify_jwt = false
+
+[functions.send-critical-error-alert]
+verify_jwt = false
+
+[functions.send-sales-report]
+verify_jwt = false
+
+[functions.create-razorpay-order]
+verify_jwt = false
+
+[functions.verify-razorpay-payment]
+verify_jwt = false

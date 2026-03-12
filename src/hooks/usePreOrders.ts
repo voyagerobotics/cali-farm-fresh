@@ -121,6 +121,52 @@ export const usePreOrders = (isAdmin: boolean = false) => {
     }
   };
 
+  const updatePreOrderPaymentStatus = async (id: string, paymentStatus: string) => {
+    try {
+      await withNetworkRetry(async () => {
+        const { error } = await supabase
+          .from("pre_orders" as any)
+          .update({ payment_status: paymentStatus } as any)
+          .eq("id", id);
+
+        if (error) throw error;
+      });
+
+      toast({ title: "Payment status updated" });
+
+      // Send refund email when marked as refunded
+      if (paymentStatus === "refunded") {
+        const po = preOrders.find(p => p.id === id);
+        if (po) {
+          try {
+            await supabase.functions.invoke("send-refund-notification", {
+              body: {
+                orderId: po.id,
+                orderNumber: `PRE-${po.id.substring(0, 8).toUpperCase()}`,
+                customerName: po.customer_name,
+                customerEmail: po.customer_email,
+                userId: po.user_id,
+                refundAmount: po.payment_amount || 0,
+                totalAmount: po.payment_amount || 0,
+                type: "refund_initiated",
+                paymentMethod: po.razorpay_payment_id ? "online" : "cod",
+                paymentId: po.razorpay_payment_id,
+              },
+            });
+          } catch (emailError) {
+            console.error("Failed to send pre-order refund notification:", emailError);
+          }
+        }
+      }
+
+      fetchPreOrders();
+      return true;
+    } catch (error: any) {
+      toast({ title: "Error", description: getNetworkErrorMessage(error, "updating payment status"), variant: "destructive" });
+      return false;
+    }
+  };
+
   const deletePreOrder = async (id: string) => {
     try {
       await withNetworkRetry(async () => {

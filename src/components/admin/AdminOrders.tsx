@@ -25,6 +25,7 @@ const AdminOrders = () => {
   const { orders, isLoading, refetch, updateOrderStatus, updatePaymentStatus } = useOrders(true);
   const [expandedOrder, setExpandedOrder] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<Order["status"] | "all">("all");
+  const [searchQuery, setSearchQuery] = useState("");
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   const handleRefresh = async () => {

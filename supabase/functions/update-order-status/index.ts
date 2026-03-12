@@ -84,7 +84,7 @@ serve(async (req) => {
 
     const { data: existingOrder, error: orderReadError } = await adminClient
       .from("orders")
-      .select("id, order_number, delivery_name, delivery_address, user_id")
+      .select("id, order_number, delivery_name, delivery_address, user_id, payment_status, payment_method, total, upi_reference")
       .eq("id", orderId)
       .maybeSingle();
 
@@ -92,9 +92,15 @@ serve(async (req) => {
       return json({ success: false, error: "Order not found" }, 404);
     }
 
+    // If cancelling a paid order, also update payment_status to refunded
+    const updatePayload: any = { status: nextStatus };
+    if (nextStatus === "cancelled" && existingOrder.payment_status === "paid") {
+      updatePayload.payment_status = "refunded";
+    }
+
     const { error: updateError } = await adminClient
       .from("orders")
-      .update({ status: nextStatus })
+      .update(updatePayload)
       .eq("id", orderId);
 
     if (updateError) {
@@ -127,6 +133,33 @@ serve(async (req) => {
       }
     } catch (emailError) {
       emailWarning = `Status updated but email failed: ${emailError instanceof Error ? emailError.message : "Unknown error"}`;
+    }
+
+    // Auto-send refund notification when cancelling a paid order
+    if (nextStatus === "cancelled" && existingOrder.payment_status === "paid") {
+      try {
+        await fetch(`${supabaseUrl}/functions/v1/send-refund-notification`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: authHeader,
+            apikey: anonKey,
+          },
+          body: JSON.stringify({
+            orderId: existingOrder.id,
+            orderNumber: existingOrder.order_number,
+            customerName: existingOrder.delivery_name,
+            userId: existingOrder.user_id,
+            refundAmount: existingOrder.total,
+            totalAmount: existingOrder.total,
+            type: "refund_initiated",
+            paymentMethod: existingOrder.payment_method,
+            paymentId: existingOrder.upi_reference,
+          }),
+        });
+      } catch (refundEmailError) {
+        console.error("Refund notification failed:", refundEmailError);
+      }
     }
 
     return json({

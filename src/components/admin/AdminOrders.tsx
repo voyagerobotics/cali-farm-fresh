@@ -1,6 +1,7 @@
 import { useState, useMemo } from "react";
-import { Clock, CheckCircle, Truck, Package, XCircle, ChevronDown, ChevronUp, CreditCard, Banknote, RefreshCw, AlertTriangle, ExternalLink } from "lucide-react";
+import { Clock, CheckCircle, Truck, Package, XCircle, ChevronDown, ChevronUp, CreditCard, Banknote, RefreshCw, AlertTriangle, ExternalLink, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Order, useOrders } from "@/hooks/useOrders";
 import MapPreview from "@/components/MapPreview";
 

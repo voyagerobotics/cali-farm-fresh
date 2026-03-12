@@ -1,6 +1,7 @@
 import { useState, useMemo } from "react";
-import { Clock, CheckCircle, Truck, Package, XCircle, ChevronDown, ChevronUp, CreditCard, Banknote, RefreshCw, AlertTriangle, ExternalLink } from "lucide-react";
+import { Clock, CheckCircle, Truck, Package, XCircle, ChevronDown, ChevronUp, CreditCard, Banknote, RefreshCw, AlertTriangle, ExternalLink, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Order, useOrders } from "@/hooks/useOrders";
 import MapPreview from "@/components/MapPreview";
 
@@ -24,6 +25,7 @@ const AdminOrders = () => {
   const { orders, isLoading, refetch, updateOrderStatus, updatePaymentStatus } = useOrders(true);
   const [expandedOrder, setExpandedOrder] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<Order["status"] | "all">("all");
+  const [searchQuery, setSearchQuery] = useState("");
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   const handleRefresh = async () => {
@@ -32,9 +34,18 @@ const AdminOrders = () => {
     setIsRefreshing(false);
   };
 
-  const filteredOrders = statusFilter === "all" 
-    ? orders 
-    : orders.filter(order => order.status === statusFilter);
+  const filteredOrders = useMemo(() => {
+    let result = statusFilter === "all" ? orders : orders.filter(order => order.status === statusFilter);
+    if (searchQuery.trim()) {
+      const q = searchQuery.trim().toLowerCase();
+      result = result.filter(order =>
+        order.order_number.toLowerCase().includes(q) ||
+        order.delivery_name.toLowerCase().includes(q) ||
+        order.delivery_phone.includes(q)
+      );
+    }
+    return result;
+  }, [orders, statusFilter, searchQuery]);
 
   const statusCounts = {
     all: orders.length,
@@ -109,6 +120,17 @@ const AdminOrders = () => {
           <RefreshCw className={`w-4 h-4 ${isRefreshing ? "animate-spin" : ""}`} />
           {isRefreshing ? "Refreshing..." : "Refresh"}
         </Button>
+      </div>
+
+      {/* Search */}
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+        <Input
+          placeholder="Search by Order ID, name or phone..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          className="pl-9"
+        />
       </div>
 
       {/* Status Filters */}

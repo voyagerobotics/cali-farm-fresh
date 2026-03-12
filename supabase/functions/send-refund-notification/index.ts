@@ -139,7 +139,6 @@ function buildRefundInitiatedHtml(data: RefundNotificationRequest, isAdmin: bool
             <p style="margin: 0 0 8px; color: #166534; font-weight: 600;">Have questions or need help? 💬</p>
             <p style="margin: 0; color: #15803d; font-size: 14px;">Reach out to us anytime at:</p>
             <p style="margin: 8px 0 0;"><a href="mailto:californiafarmsindia@gmail.com" style="color: #2d5a3d; font-weight: 600; text-decoration: none;">californiafarmsindia@gmail.com</a></p>
-            <p style="margin: 4px 0 0;"><a href="mailto:shradhatakalkhede15@gmail.com" style="color: #2d5a3d; font-weight: 600; text-decoration: none;">shradhatakalkhede15@gmail.com</a></p>
             <p style="margin: 8px 0 0; color: #15803d; font-size: 13px;">📞 +91 8149712801 | +91 7559421334</p>
           </div>
           ` : `
@@ -232,7 +231,6 @@ function buildRefundCompletedHtml(data: RefundNotificationRequest, isAdmin: bool
             <p style="margin: 0 0 8px; color: #166534; font-weight: 600;">Have questions or need help? 💬</p>
             <p style="margin: 0; color: #15803d; font-size: 14px;">Reach out to us anytime at:</p>
             <p style="margin: 8px 0 0;"><a href="mailto:californiafarmsindia@gmail.com" style="color: #2d5a3d; font-weight: 600; text-decoration: none;">californiafarmsindia@gmail.com</a></p>
-            <p style="margin: 4px 0 0;"><a href="mailto:shradhatakalkhede15@gmail.com" style="color: #2d5a3d; font-weight: 600; text-decoration: none;">shradhatakalkhede15@gmail.com</a></p>
             <p style="margin: 8px 0 0; color: #15803d; font-size: 13px;">📞 +91 8149712801 | +91 7559421334</p>
           </div>
           ` : `

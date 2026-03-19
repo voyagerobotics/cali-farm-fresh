@@ -1130,6 +1130,87 @@ export type Database = {
         }
         Relationships: []
       }
+      whatsapp_conversations: {
+        Row: {
+          cart: Json | null
+          conversation_state: string | null
+          created_at: string | null
+          delivery_address: string | null
+          delivery_name: string | null
+          delivery_phone: string | null
+          delivery_pincode: string | null
+          id: string
+          language: string | null
+          last_order_id: string | null
+          payment_method: string | null
+          phone_number: string
+          updated_at: string | null
+          user_id: string | null
+        }
+        Insert: {
+          cart?: Json | null
+          conversation_state?: string | null
+          created_at?: string | null
+          delivery_address?: string | null
+          delivery_name?: string | null
+          delivery_phone?: string | null
+          delivery_pincode?: string | null
+          id?: string
+          language?: string | null
+          last_order_id?: string | null
+          payment_method?: string | null
+          phone_number: string
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          cart?: Json | null
+          conversation_state?: string | null
+          created_at?: string | null
+          delivery_address?: string | null
+          delivery_name?: string | null
+          delivery_phone?: string | null
+          delivery_pincode?: string | null
+          id?: string
+          language?: string | null
+          last_order_id?: string | null
+          payment_method?: string | null
+          phone_number?: string
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
+      whatsapp_messages: {
+        Row: {
+          created_at: string | null
+          direction: string
+          id: string
+          message_text: string | null
+          message_type: string | null
+          phone_number: string
+          wa_message_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          direction: string
+          id?: string
+          message_text?: string | null
+          message_type?: string | null
+          phone_number: string
+          wa_message_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          direction?: string
+          id?: string
+          message_text?: string | null
+          message_type?: string | null
+          phone_number?: string
+          wa_message_id?: string | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

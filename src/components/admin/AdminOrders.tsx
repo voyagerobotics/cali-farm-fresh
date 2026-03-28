@@ -154,6 +154,28 @@ const AdminOrders = () => {
         ))}
       </div>
 
+      {/* Source Filters */}
+      <div className="flex gap-2">
+        {([
+          { id: "all" as const, label: "All Sources", icon: null },
+          { id: "website" as const, label: "Website", icon: Globe },
+          { id: "whatsapp" as const, label: "WhatsApp", icon: Smartphone },
+        ]).map(({ id, label, icon: Icon }) => (
+          <button
+            key={id}
+            onClick={() => setSourceFilter(id)}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
+              sourceFilter === id
+                ? "bg-primary text-primary-foreground"
+                : "bg-muted hover:bg-muted/80"
+            }`}
+          >
+            {Icon && <Icon className="w-3.5 h-3.5" />}
+            {label} ({id === "all" ? orders.length : orders.filter(o => (o.order_source || "website") === id).length})
+          </button>
+        ))}
+      </div>
+
       {/* Orders List */}
       {filteredOrders.length === 0 ? (
         <div className="text-center py-12 text-muted-foreground">

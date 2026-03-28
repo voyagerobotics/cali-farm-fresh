@@ -14,6 +14,8 @@ const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const whatsappToken = Deno.env.get("WHATSAPP_ACCESS_TOKEN")!;
 const phoneNumberId = Deno.env.get("WHATSAPP_PHONE_NUMBER_ID")!;
 const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY")!;
+const RAZORPAY_KEY_ID = Deno.env.get("RAZORPAY_KEY_ID")!;
+const RAZORPAY_KEY_SECRET = Deno.env.get("RAZORPAY_KEY_SECRET")!;
 
 const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
@@ -115,6 +117,141 @@ async function getRecentMessages(phone: string, limit = 10) {
   return (data || []).reverse();
 }
 
+// Create a Razorpay payment link for the order
+async function createRazorpayPaymentLink(
+  orderNumber: string,
+  amount: number,
+  customerName: string,
+  customerPhone: string,
+  description: string
+) {
+  const auth = btoa(`${RAZORPAY_KEY_ID.trim()}:${RAZORPAY_KEY_SECRET.trim()}`);
+
+  // Clean phone: remove country code prefix for Razorpay contact
+  const cleanPhone = customerPhone.replace(/^91/, "").replace(/^\+91/, "");
+
+  const response = await fetch("https://api.razorpay.com/v1/payment_links", {
+    method: "POST",
+    headers: {
+      Authorization: `Basic ${auth}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      amount: Math.round(amount * 100), // paise
+      currency: "INR",
+      description: description,
+      reference_id: orderNumber,
+      customer: {
+        name: customerName,
+        contact: `+91${cleanPhone}`,
+      },
+      notify: {
+        sms: false,
+        email: false,
+        whatsapp: false,
+      },
+      callback_url: `${supabaseUrl}/functions/v1/whatsapp-webhook?payment_callback=true&order_number=${orderNumber}&phone=${customerPhone}`,
+      callback_method: "get",
+      expire_by: Math.floor(Date.now() / 1000) + 30 * 60, // 30 min expiry
+      notes: {
+        order_number: orderNumber,
+        source: "whatsapp",
+        customer_phone: customerPhone,
+      },
+    }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error("Razorpay payment link error:", response.status, errorText);
+    throw new Error(`Failed to create payment link: ${errorText}`);
+  }
+
+  const data = await response.json();
+  console.log("Razorpay payment link created:", data.id, data.short_url);
+  return data;
+}
+
+// Create the order in database and generate payment link
+async function createOrderAndPaymentLink(phone: string, conversation: Record<string, unknown>) {
+  const cart = conversation.cart as Array<{ name: string; qty: number; price: number; unit: string; product_id?: string }>;
+  if (!cart || cart.length === 0) return null;
+
+  const subtotal = cart.reduce((sum, item) => sum + item.price * item.qty, 0);
+  const deliveryCharge = 0; // Can be calculated based on pincode/distance later
+  const total = subtotal + deliveryCharge;
+
+  // Generate order number
+  const { data: orderNumData } = await supabase.rpc("generate_order_number");
+  const orderNumber = orderNumData || `CFI-${Date.now()}`;
+
+  const customerName = (conversation.delivery_name as string) || "WhatsApp Customer";
+  const customerPhone = (conversation.delivery_phone as string) || phone;
+  const deliveryAddress = (conversation.delivery_address as string) || "";
+
+  // Create order with pending payment status
+  const { data: order, error: orderError } = await supabase
+    .from("orders")
+    .insert({
+      order_number: orderNumber,
+      user_id: (conversation.user_id as string) || null,
+      status: "pending",
+      payment_method: "online",
+      payment_status: "pending",
+      subtotal,
+      delivery_charge: deliveryCharge,
+      total,
+      delivery_name: customerName,
+      delivery_phone: customerPhone,
+      delivery_address: deliveryAddress,
+      order_date: new Date().toISOString().split("T")[0],
+      notes: `WhatsApp order from ${phone}`,
+    })
+    .select()
+    .single();
+
+  if (orderError) {
+    console.error("Error creating order:", orderError);
+    throw new Error("Failed to create order");
+  }
+
+  // Insert order items
+  const orderItems = cart.map((item) => ({
+    order_id: order.id,
+    product_id: item.product_id || null,
+    product_name: item.name,
+    quantity: item.qty,
+    unit_price: item.price,
+    total_price: item.price * item.qty,
+    unit: item.unit || "kg",
+  }));
+
+  const { error: itemsError } = await supabase.from("order_items").insert(orderItems);
+  if (itemsError) console.error("Error inserting order items:", itemsError);
+
+  // Create Razorpay payment link
+  const paymentLink = await createRazorpayPaymentLink(
+    orderNumber,
+    total,
+    customerName,
+    customerPhone,
+    `California Farms India - Order #${orderNumber}`
+  );
+
+  // Store the order ID in conversation
+  await updateConversation(phone, {
+    last_order_id: order.id,
+    conversation_state: "awaiting_payment",
+  });
+
+  return {
+    orderNumber,
+    total,
+    paymentUrl: paymentLink.short_url,
+    orderId: order.id,
+  };
+}
+
 // Call AI to generate a response
 async function getAIResponse(
   userMessage: string,
@@ -171,12 +308,20 @@ When clearing cart:
 When showing cart, list items with prices and total.
 
 CHECKOUT FLOW:
-When customer says "order" or "checkout", ask for delivery details one by one if not already provided:
+When customer says "order", "checkout", "place order", or similar, you MUST collect ALL delivery details:
 1. Full name
 2. Delivery address
-3. Phone number  
+3. Phone number
 4. Pincode
-Then confirm the order with COD payment.
+
+Once ALL 4 details are collected, include this tag in your response:
+<!--CHECKOUT_READY-->
+
+The system will automatically generate a Razorpay payment link and send it. Payment is online only (NO Cash on Delivery).
+
+If the conversation state is "awaiting_payment", remind the customer to complete payment using the link already sent. If they say "paid" or ask about status, tell them payment will be confirmed automatically.
+
+IMPORTANT: Do NOT confirm any order without payment. Always tell the customer they need to pay via the link to confirm the order.
 
 RECENT CHAT:
 ${historyText}`;
@@ -238,14 +383,71 @@ async function processCartUpdate(phone: string, aiResponse: string, conversation
     }
 
     await updateConversation(phone, { cart });
+    // Update local conversation object too
+    conversation.cart = cart;
   } catch (e) {
     console.error("Error processing cart update:", e);
   }
 }
 
-// Clean AI response (remove cart update tags)
+// Clean AI response (remove cart update and checkout tags)
 function cleanResponse(text: string): string {
-  return text.replace(/<!--CART_UPDATE:.*?-->/gs, "").trim();
+  return text
+    .replace(/<!--CART_UPDATE:.*?-->/gs, "")
+    .replace(/<!--CHECKOUT_READY-->/gs, "")
+    .trim();
+}
+
+// Handle Razorpay payment callback
+async function handlePaymentCallback(url: URL) {
+  const orderNumber = url.searchParams.get("order_number");
+  const phone = url.searchParams.get("phone");
+  const razorpayPaymentId = url.searchParams.get("razorpay_payment_id");
+  const razorpayPaymentLinkId = url.searchParams.get("razorpay_payment_link_id");
+  const razorpayPaymentLinkStatus = url.searchParams.get("razorpay_payment_link_status");
+
+  console.log("Payment callback:", { orderNumber, phone, razorpayPaymentLinkStatus, razorpayPaymentId });
+
+  if (orderNumber && razorpayPaymentLinkStatus === "paid") {
+    // Update order to paid & confirmed
+    const { error } = await supabase
+      .from("orders")
+      .update({
+        payment_status: "paid",
+        status: "confirmed",
+        upi_reference: razorpayPaymentId || razorpayPaymentLinkId,
+        payment_verified_at: new Date().toISOString(),
+      })
+      .eq("order_number", orderNumber);
+
+    if (error) {
+      console.error("Error updating order after payment:", error);
+    } else {
+      console.log(`Order ${orderNumber} marked as paid`);
+
+      // Send confirmation message on WhatsApp
+      if (phone) {
+        const cleanPhone = phone.replace(/^\+/, "");
+        await sendWhatsAppMessage(
+          cleanPhone,
+          `✅ Payment received! Your order #${orderNumber} is confirmed.\n\nWe're preparing your fresh produce! 🥬🚚\n\nThank you for ordering from California Farms India! 🌱`
+        );
+        await logMessage(cleanPhone, "outbound", `Payment confirmed for order #${orderNumber}`);
+
+        // Reset conversation state
+        await updateConversation(cleanPhone, {
+          conversation_state: "idle",
+          cart: [],
+        });
+      }
+    }
+  }
+
+  // Redirect to website
+  return new Response(null, {
+    status: 302,
+    headers: { Location: `https://zomical.com/orders` },
+  });
 }
 
 serve(async (req) => {
@@ -255,6 +457,11 @@ serve(async (req) => {
   }
 
   const url = new URL(req.url);
+
+  // ===== Payment Callback =====
+  if (url.searchParams.get("payment_callback") === "true") {
+    return handlePaymentCallback(url);
+  }
 
   // ===== GET: Meta Webhook Verification =====
   if (req.method === "GET") {
@@ -290,7 +497,6 @@ serve(async (req) => {
       // Check if it's a message (not a status update)
       const message = value?.messages?.[0];
       if (!message) {
-        // Status update or other event, acknowledge
         return new Response(JSON.stringify({ status: "ok" }), {
           status: 200,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -328,14 +534,30 @@ serve(async (req) => {
       // Process any cart updates
       await processCartUpdate(from, aiResponse, conversation);
 
-      // Clean and send response
-      const cleanedResponse = cleanResponse(aiResponse);
+      // Check if checkout is ready
+      const isCheckoutReady = aiResponse.includes("<!--CHECKOUT_READY-->");
 
-      // WhatsApp has a 4096 char limit, split if needed
+      // Clean and send the AI response first
+      const cleanedResponse = cleanResponse(aiResponse);
       const chunks = cleanedResponse.match(/.{1,4000}/gs) || [cleanedResponse];
       for (const chunk of chunks) {
         await sendWhatsAppMessage(from, chunk);
         await logMessage(from, "outbound", chunk);
+      }
+
+      // If checkout is ready, create order + payment link
+      if (isCheckoutReady) {
+        try {
+          const result = await createOrderAndPaymentLink(from, conversation);
+          if (result) {
+            const paymentMessage = `💳 *Payment Link for Order #${result.orderNumber}*\n\n💰 Total: ₹${result.total}\n\n👉 Pay here: ${result.paymentUrl}\n\n⏰ Link expires in 30 minutes.\nOrder will be confirmed automatically after payment! ✅`;
+            await sendWhatsAppMessage(from, paymentMessage);
+            await logMessage(from, "outbound", paymentMessage);
+          }
+        } catch (err) {
+          console.error("Error creating order/payment link:", err);
+          await sendWhatsAppMessage(from, "Sorry, there was an issue creating your payment link. Please try again! 🙏");
+        }
       }
 
       return new Response(JSON.stringify({ status: "ok" }), {

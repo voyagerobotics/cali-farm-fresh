@@ -33,6 +33,7 @@ export interface Order {
   order_date: string;
   created_at: string;
   updated_at: string;
+  order_source?: string;
   order_items?: OrderItem[];
 }
 

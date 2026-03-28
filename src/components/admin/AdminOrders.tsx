@@ -176,6 +176,11 @@ const AdminOrders = () => {
                       <div>
                         <div className="flex items-center gap-2">
                           <span className="font-bold">#{order.order_number}</span>
+                          {order.order_source === "whatsapp" && (
+                            <span className="text-xs px-2 py-0.5 rounded-full bg-green-500/10 text-green-600 flex items-center gap-1">
+                              <Smartphone className="w-3 h-3" /> WhatsApp
+                            </span>
+                          )}
                           <span className={`text-xs px-2 py-0.5 rounded-full ${statusConfig[order.status].color}`}>
                             {statusConfig[order.status].label}
                           </span>

@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { Clock, CheckCircle, Truck, Package, XCircle, ChevronDown, ChevronUp, CreditCard, Banknote, RefreshCw, AlertTriangle, ExternalLink, Search } from "lucide-react";
+import { Clock, CheckCircle, Truck, Package, XCircle, ChevronDown, ChevronUp, CreditCard, Banknote, RefreshCw, AlertTriangle, ExternalLink, Search, Smartphone, Globe } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Order, useOrders } from "@/hooks/useOrders";
@@ -25,6 +25,7 @@ const AdminOrders = () => {
   const { orders, isLoading, refetch, updateOrderStatus, updatePaymentStatus } = useOrders(true);
   const [expandedOrder, setExpandedOrder] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<Order["status"] | "all">("all");
+  const [sourceFilter, setSourceFilter] = useState<"all" | "website" | "whatsapp">("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [isRefreshing, setIsRefreshing] = useState(false);
 
@@ -36,6 +37,9 @@ const AdminOrders = () => {
 
   const filteredOrders = useMemo(() => {
     let result = statusFilter === "all" ? orders : orders.filter(order => order.status === statusFilter);
+    if (sourceFilter !== "all") {
+      result = result.filter(order => (order.order_source || "website") === sourceFilter);
+    }
     if (searchQuery.trim()) {
       const q = searchQuery.trim().toLowerCase();
       result = result.filter(order =>
@@ -45,7 +49,7 @@ const AdminOrders = () => {
       );
     }
     return result;
-  }, [orders, statusFilter, searchQuery]);
+  }, [orders, statusFilter, sourceFilter, searchQuery]);
 
   const statusCounts = {
     all: orders.length,
@@ -150,6 +154,28 @@ const AdminOrders = () => {
         ))}
       </div>
 
+      {/* Source Filters */}
+      <div className="flex gap-2">
+        {([
+          { id: "all" as const, label: "All Sources", icon: null },
+          { id: "website" as const, label: "Website", icon: Globe },
+          { id: "whatsapp" as const, label: "WhatsApp", icon: Smartphone },
+        ]).map(({ id, label, icon: Icon }) => (
+          <button
+            key={id}
+            onClick={() => setSourceFilter(id)}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
+              sourceFilter === id
+                ? "bg-primary text-primary-foreground"
+                : "bg-muted hover:bg-muted/80"
+            }`}
+          >
+            {Icon && <Icon className="w-3.5 h-3.5" />}
+            {label} ({id === "all" ? orders.length : orders.filter(o => (o.order_source || "website") === id).length})
+          </button>
+        ))}
+      </div>
+
       {/* Orders List */}
       {filteredOrders.length === 0 ? (
         <div className="text-center py-12 text-muted-foreground">
@@ -176,6 +202,11 @@ const AdminOrders = () => {
                       <div>
                         <div className="flex items-center gap-2">
                           <span className="font-bold">#{order.order_number}</span>
+                          {order.order_source === "whatsapp" && (
+                            <span className="text-xs px-2 py-0.5 rounded-full bg-green-500/10 text-green-600 flex items-center gap-1">
+                              <Smartphone className="w-3 h-3" /> WhatsApp
+                            </span>
+                          )}
                           <span className={`text-xs px-2 py-0.5 rounded-full ${statusConfig[order.status].color}`}>
                             {statusConfig[order.status].label}
                           </span>

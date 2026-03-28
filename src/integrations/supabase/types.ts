@@ -298,6 +298,7 @@ export type Database = {
           notes: string | null
           order_date: string
           order_number: string
+          order_source: string
           payment_method: Database["public"]["Enums"]["payment_method"]
           payment_screenshot_url: string | null
           payment_status: Database["public"]["Enums"]["payment_status"]
@@ -322,6 +323,7 @@ export type Database = {
           notes?: string | null
           order_date: string
           order_number: string
+          order_source?: string
           payment_method?: Database["public"]["Enums"]["payment_method"]
           payment_screenshot_url?: string | null
           payment_status?: Database["public"]["Enums"]["payment_status"]
@@ -346,6 +348,7 @@ export type Database = {
           notes?: string | null
           order_date?: string
           order_number?: string
+          order_source?: string
           payment_method?: Database["public"]["Enums"]["payment_method"]
           payment_screenshot_url?: string | null
           payment_status?: Database["public"]["Enums"]["payment_status"]

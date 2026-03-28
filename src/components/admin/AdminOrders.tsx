@@ -25,6 +25,7 @@ const AdminOrders = () => {
   const { orders, isLoading, refetch, updateOrderStatus, updatePaymentStatus } = useOrders(true);
   const [expandedOrder, setExpandedOrder] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<Order["status"] | "all">("all");
+  const [sourceFilter, setSourceFilter] = useState<"all" | "website" | "whatsapp">("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [isRefreshing, setIsRefreshing] = useState(false);
 
@@ -36,6 +37,9 @@ const AdminOrders = () => {
 
   const filteredOrders = useMemo(() => {
     let result = statusFilter === "all" ? orders : orders.filter(order => order.status === statusFilter);
+    if (sourceFilter !== "all") {
+      result = result.filter(order => (order.order_source || "website") === sourceFilter);
+    }
     if (searchQuery.trim()) {
       const q = searchQuery.trim().toLowerCase();
       result = result.filter(order =>
@@ -45,7 +49,7 @@ const AdminOrders = () => {
       );
     }
     return result;
-  }, [orders, statusFilter, searchQuery]);
+  }, [orders, statusFilter, sourceFilter, searchQuery]);
 
   const statusCounts = {
     all: orders.length,

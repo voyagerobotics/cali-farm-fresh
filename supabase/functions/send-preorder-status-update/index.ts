@@ -3,6 +3,8 @@ import { Resend } from "https://esm.sh/resend@2.0.0";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const resend = new Resend(Deno.env.get("RESEND_API_KEY"));
+const whatsappToken = Deno.env.get("WHATSAPP_ACCESS_TOKEN");
+const phoneNumberId = Deno.env.get("WHATSAPP_PHONE_NUMBER_ID");
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -45,6 +47,24 @@ const statusConfig: Record<string, { title: string; emoji: string; message: stri
     message: "Great news! Your pre-order has been confirmed. We're preparing your fresh, chemical-free produce with love and care.",
     color: "#2563eb",
   },
+  preparing: {
+    title: "Pre-Order Being Prepared",
+    emoji: "👨‍🍳",
+    message: "Your pre-order is now being prepared! We're carefully selecting and packing your fresh, chemical-free produce.",
+    color: "#7c3aed",
+  },
+  out_for_delivery: {
+    title: "Pre-Order Out for Delivery!",
+    emoji: "🚚",
+    message: "Exciting! Your pre-order is on its way to you. Our delivery partner will reach you soon with your fresh produce!",
+    color: "#059669",
+  },
+  delivered: {
+    title: "Pre-Order Delivered!",
+    emoji: "🎉",
+    message: "Your pre-order has been delivered successfully! Enjoy your fresh, chemical-free produce straight from our farm to your table.",
+    color: "#16a34a",
+  },
   cancelled: {
     title: "Pre-Order Cancelled",
     emoji: "❌",
@@ -64,6 +84,60 @@ const statusConfig: Record<string, { title: string; emoji: string; message: stri
     color: "#d97706",
   },
 };
+
+// WhatsApp template mapping for pre-order statuses
+const whatsappTemplateMap: Record<string, string> = {
+  confirmed: "order_confirmed",
+  out_for_delivery: "order_out_for_delivery",
+  delivered: "order_delivered",
+  fulfilled: "order_delivered",
+};
+
+async function sendWhatsAppTemplate(phone: string, templateName: string, params: string[]) {
+  if (!whatsappToken || !phoneNumberId) {
+    console.log("WhatsApp credentials not configured, skipping WhatsApp notification");
+    return;
+  }
+
+  // Format phone: ensure it starts with country code, no + sign
+  let formattedPhone = phone.replace(/[\s\-\(\)]/g, "");
+  if (formattedPhone.startsWith("+")) formattedPhone = formattedPhone.substring(1);
+  if (!formattedPhone.startsWith("91") && formattedPhone.length === 10) {
+    formattedPhone = "91" + formattedPhone;
+  }
+
+  const url = `https://graph.facebook.com/v21.0/${phoneNumberId}/messages`;
+  
+  try {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${whatsappToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        messaging_product: "whatsapp",
+        to: formattedPhone,
+        type: "template",
+        template: {
+          name: templateName,
+          language: { code: "en" },
+          components: [
+            {
+              type: "body",
+              parameters: params.map((p) => ({ type: "text", text: p })),
+            },
+          ],
+        },
+      }),
+    });
+    const data = await res.json();
+    console.log(`WhatsApp template '${templateName}' sent to ${formattedPhone}:`, JSON.stringify(data));
+    return data;
+  } catch (err) {
+    console.error(`WhatsApp template send failed for ${formattedPhone}:`, err);
+  }
+}
 
 async function logEmail(supabase: any, data: {
   recipient_email: string;
@@ -153,8 +227,30 @@ const handler = async (req: Request): Promise<Response> => {
       customerEmail = preOrder.customer_email;
     }
 
+    // ─── Send WhatsApp Template Message ───
+    const waTemplateName = whatsappTemplateMap[newStatus];
+    if (waTemplateName && preOrder.customer_phone) {
+      const preOrderNumber = `PRE-${preOrder.id.substring(0, 8).toUpperCase()}`;
+      const totalAmount = preOrder.payment_amount ? `₹${preOrder.payment_amount}` : "N/A";
+      
+      let templateParams: string[] = [];
+      
+      if (waTemplateName === "order_confirmed") {
+        // order_confirmed template: {{1}} = order number, {{2}} = total amount, {{3}} = delivery time
+        templateParams = [preOrderNumber, totalAmount, "As per schedule"];
+      } else if (waTemplateName === "order_out_for_delivery") {
+        // order_out_for_delivery template: {{1}} = order number, {{2}} = delivery time
+        templateParams = [preOrderNumber, "Shortly"];
+      } else if (waTemplateName === "order_delivered") {
+        // order_delivered template: {{1}} = order number
+        templateParams = [preOrderNumber];
+      }
+
+      await sendWhatsAppTemplate(preOrder.customer_phone, waTemplateName, templateParams);
+    }
+
     if (!customerEmail) {
-      return new Response(JSON.stringify({ success: true, message: "No customer email found" }),
+      return new Response(JSON.stringify({ success: true, message: "WhatsApp sent, no customer email found for email notification" }),
         { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } });
     }
 
@@ -165,6 +261,7 @@ const handler = async (req: Request): Promise<Response> => {
     }
 
     const statusDate = new Date().toLocaleString('en-IN', { dateStyle: 'full', timeStyle: 'short', timeZone: 'Asia/Kolkata' });
+    const preOrderNumber = `PRE-${preOrder.id.substring(0, 8).toUpperCase()}`;
 
     const emailHtml = `
       <!DOCTYPE html>
@@ -182,6 +279,14 @@ const handler = async (req: Request): Promise<Response> => {
           .info-box { background: #f5f5f5; padding: 20px; border-radius: 8px; margin: 20px 0; }
           .info-box p { margin: 8px 0; }
           .info-box strong { color: #2d5a3d; }
+          .progress-container { margin: 30px 0; }
+          .progress-bar { display: flex; justify-content: space-between; position: relative; }
+          .progress-bar::before { content: ''; position: absolute; top: 15px; left: 0; right: 0; height: 3px; background: #e0e0e0; z-index: 0; }
+          .progress-step { display: flex; flex-direction: column; align-items: center; z-index: 1; }
+          .progress-dot { width: 32px; height: 32px; border-radius: 50%; background: #e0e0e0; display: flex; align-items: center; justify-content: center; font-size: 14px; margin-bottom: 8px; }
+          .progress-dot.active { background: ${info.color}; color: white; }
+          .progress-dot.completed { background: #16a34a; color: white; }
+          .progress-label { font-size: 11px; color: #666; text-align: center; max-width: 60px; }
           .footer { background: #333; color: white; padding: 20px; text-align: center; font-size: 12px; }
         </style>
       </head>
@@ -190,14 +295,30 @@ const handler = async (req: Request): Promise<Response> => {
           <div class="header">
             <div style="font-size: 50px; margin-bottom: 10px;">${info.emoji}</div>
             <h1>${info.title}</h1>
-            <p>Pre-Order #PRE-${escapeHtml(preOrder.id.substring(0, 8))}</p>
+            <p>Pre-Order #${escapeHtml(preOrderNumber)}</p>
           </div>
           <div class="content">
             <p>Dear <strong>${escapeHtml(preOrder.customer_name)}</strong>,</p>
             <div style="background: linear-gradient(135deg, ${newStatus === 'cancelled' ? '#fef2f2' : '#f0fdf4'}, ${newStatus === 'cancelled' ? '#fff1f2' : '#ecfdf5'}); padding: 20px; border-radius: 12px; border-left: 4px solid ${info.color}; margin: 20px 0;">
               <p style="margin: 0; font-size: 16px; color: ${newStatus === 'cancelled' ? '#991b1b' : '#166534'}; line-height: 1.6;">${info.message}</p>
             </div>
-            ${newStatus === 'fulfilled' ? `
+            ${['confirmed', 'preparing', 'out_for_delivery', 'delivered', 'fulfilled'].includes(newStatus) && newStatus !== 'cancelled' ? `
+            <div class="progress-container">
+              <div class="progress-bar">
+                <div class="progress-step"><div class="progress-dot ${['confirmed', 'preparing', 'out_for_delivery', 'delivered', 'fulfilled'].includes(newStatus) ? 'completed' : ''}">✓</div><span class="progress-label">Confirmed</span></div>
+                <div class="progress-step"><div class="progress-dot ${['preparing', 'out_for_delivery', 'delivered', 'fulfilled'].includes(newStatus) ? 'completed' : ''}">📦</div><span class="progress-label">Preparing</span></div>
+                <div class="progress-step"><div class="progress-dot ${['out_for_delivery', 'delivered', 'fulfilled'].includes(newStatus) ? 'completed' : ''}">🚚</div><span class="progress-label">Out for Delivery</span></div>
+                <div class="progress-step"><div class="progress-dot ${['delivered', 'fulfilled'].includes(newStatus) ? 'completed' : ''}">🎉</div><span class="progress-label">Delivered</span></div>
+              </div>
+            </div>
+            ` : ''}
+            ${newStatus === 'out_for_delivery' && preOrder.delivery_address ? `
+            <div style="background: #fef3c7; padding: 15px; border-radius: 8px; margin-top: 20px;">
+              <h4 style="margin: 0 0 10px; color: #92400e;">📍 Delivering To</h4>
+              <p style="margin: 0; color: #555;">${escapeHtml(preOrder.delivery_address)}</p>
+            </div>
+            ` : ''}
+            ${newStatus === 'delivered' || newStatus === 'fulfilled' ? `
             <div style="background: linear-gradient(135deg, #f0fdf4, #dcfce7); border: 1px solid #bbf7d0; border-radius: 12px; padding: 20px; margin: 20px 0; text-align: center;">
               <div style="font-size: 40px; margin-bottom: 10px;">🌿</div>
               <p style="margin: 0; color: #166534; font-weight: 600;">Fresh from our farm to your table!</p>

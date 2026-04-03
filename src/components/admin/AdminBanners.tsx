@@ -387,6 +387,77 @@ const AdminBanners = () => {
         </CardContent>
       </Card>
 
+      {/* Edit Pre-Order Dialog */}
+      <Dialog open={!!editingPreOrder} onOpenChange={(open) => { if (!open) setEditingPreOrder(null); }}>
+        <DialogContent className="sm:max-w-md max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Edit Pre-Order</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <Label>Customer Name</Label>
+                <Input value={poForm.customer_name} onChange={(e) => setPoForm(f => ({ ...f, customer_name: e.target.value }))} />
+              </div>
+              <div className="space-y-2">
+                <Label>Phone</Label>
+                <Input value={poForm.customer_phone} onChange={(e) => setPoForm(f => ({ ...f, customer_phone: e.target.value }))} />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Email</Label>
+              <Input value={poForm.customer_email} onChange={(e) => setPoForm(f => ({ ...f, customer_email: e.target.value }))} />
+            </div>
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <Label>Quantity</Label>
+                <Input type="number" min={1} value={poForm.quantity} onChange={(e) => setPoForm(f => ({ ...f, quantity: Number(e.target.value) }))} />
+              </div>
+              <div className="space-y-2">
+                <Label>Payment Amount (₹)</Label>
+                <Input type="number" min={0} value={poForm.payment_amount} onChange={(e) => setPoForm(f => ({ ...f, payment_amount: Number(e.target.value) }))} />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Delivery Address</Label>
+              <Textarea value={poForm.delivery_address} onChange={(e) => setPoForm(f => ({ ...f, delivery_address: e.target.value }))} rows={2} />
+            </div>
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <Label>Pincode</Label>
+                <Input value={poForm.delivery_pincode} onChange={(e) => setPoForm(f => ({ ...f, delivery_pincode: e.target.value }))} />
+              </div>
+              <div className="space-y-2">
+                <Label>Delivery Charge (₹)</Label>
+                <Input type="number" min={0} value={poForm.delivery_charge} onChange={(e) => setPoForm(f => ({ ...f, delivery_charge: Number(e.target.value) }))} />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Notes</Label>
+              <Textarea value={poForm.notes} onChange={(e) => setPoForm(f => ({ ...f, notes: e.target.value }))} rows={2} />
+            </div>
+            <Button className="w-full" onClick={async () => {
+              if (editingPreOrder) {
+                const success = await updatePreOrder(editingPreOrder.id, {
+                  customer_name: poForm.customer_name,
+                  customer_phone: poForm.customer_phone,
+                  customer_email: poForm.customer_email || null,
+                  quantity: poForm.quantity,
+                  notes: poForm.notes || null,
+                  delivery_address: poForm.delivery_address || null,
+                  delivery_pincode: poForm.delivery_pincode || null,
+                  delivery_charge: poForm.delivery_charge,
+                  payment_amount: poForm.payment_amount,
+                } as any);
+                if (success) setEditingPreOrder(null);
+              }
+            }}>
+              Save Changes
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       {/* Banner Form Dialog */}
       <Dialog open={showForm} onOpenChange={(open) => { if (!open) resetForm(); }}>
         <DialogContent className="sm:max-w-lg max-h-[80vh] overflow-y-auto">

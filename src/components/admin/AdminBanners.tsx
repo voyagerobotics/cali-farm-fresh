@@ -24,6 +24,8 @@ const AdminBanners = () => {
   const { preOrders, isLoading: preOrdersLoading, updatePreOrder, updatePreOrderStatus, updatePreOrderPaymentStatus, deletePreOrder } = usePreOrders(true);
   const { uploadImage, isUploading } = useImageUpload();
   const { toast } = useToast();
+  const { products, refetch: refetchProducts } = useProducts(true);
+  const { createProduct, updateProduct: updateExistingProduct } = useProductMutations();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [editBanner, setEditBanner] = useState<PromotionalBanner | null>(null);
   const [showForm, setShowForm] = useState(false);

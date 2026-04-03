@@ -27,6 +27,11 @@ const AdminBanners = () => {
   const [showForm, setShowForm] = useState(false);
   const [notifyingProduct, setNotifyingProduct] = useState<string | null>(null);
   const [queueFilter, setQueueFilter] = useState("all");
+  const [editingPreOrder, setEditingPreOrder] = useState<PreOrder | null>(null);
+  const [poForm, setPoForm] = useState({
+    customer_name: "", customer_phone: "", customer_email: "", quantity: 1,
+    notes: "", delivery_address: "", delivery_pincode: "", delivery_charge: 0, payment_amount: 0,
+  });
   const [form, setForm] = useState({
     title: "",
     subtitle: "",

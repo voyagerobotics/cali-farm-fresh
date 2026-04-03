@@ -167,6 +167,25 @@ export const usePreOrders = (isAdmin: boolean = false) => {
     }
   };
 
+  const updatePreOrder = async (id: string, updates: Partial<Pick<PreOrder, 'customer_name' | 'customer_phone' | 'customer_email' | 'quantity' | 'notes' | 'delivery_address' | 'delivery_pincode' | 'delivery_charge' | 'payment_amount'>>) => {
+    try {
+      await withNetworkRetry(async () => {
+        const { error } = await supabase
+          .from("pre_orders" as any)
+          .update(updates as any)
+          .eq("id", id);
+
+        if (error) throw error;
+      });
+      toast({ title: "Pre-order updated" });
+      fetchPreOrders();
+      return true;
+    } catch (error: any) {
+      toast({ title: "Error", description: getNetworkErrorMessage(error, "updating pre-order"), variant: "destructive" });
+      return false;
+    }
+  };
+
   const deletePreOrder = async (id: string) => {
     try {
       await withNetworkRetry(async () => {
@@ -192,5 +211,5 @@ export const usePreOrders = (isAdmin: boolean = false) => {
     }
   }, [user, isAdmin]);
 
-  return { preOrders, isLoading, fetchPreOrders, createPreOrder, updatePreOrderStatus, updatePreOrderPaymentStatus, deletePreOrder };
+  return { preOrders, isLoading, fetchPreOrders, createPreOrder, updatePreOrder, updatePreOrderStatus, updatePreOrderPaymentStatus, deletePreOrder };
 };

@@ -16,6 +16,8 @@ import { usePreOrders, PreOrder } from "@/hooks/usePreOrders";
 import { useImageUpload } from "@/hooks/useImageUpload";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import { useProducts } from "@/hooks/useProducts";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
 const AdminBanners = () => {
   const { banners, isLoading, createBanner, updateBanner, deleteBanner } = usePromotionalBanners(false);

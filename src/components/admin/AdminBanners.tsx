@@ -22,10 +22,7 @@ const AdminBanners = () => {
   const { preOrders, isLoading: preOrdersLoading, updatePreOrder, updatePreOrderStatus, updatePreOrderPaymentStatus, deletePreOrder } = usePreOrders(true);
   const { uploadImage, isUploading } = useImageUpload();
   const { toast } = useToast();
-  const { products, refetch: refetchProducts } = useProducts(true);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [stockUpdateId, setStockUpdateId] = useState<string | null>(null);
-  const [stockValue, setStockValue] = useState<number>(0);
   const [editBanner, setEditBanner] = useState<PromotionalBanner | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [notifyingProduct, setNotifyingProduct] = useState<string | null>(null);

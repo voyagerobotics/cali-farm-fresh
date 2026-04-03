@@ -332,6 +332,26 @@ const AdminBanners = () => {
                         variant="ghost"
                         size="icon"
                         onClick={() => {
+                          setEditingPreOrder(po);
+                          setPoForm({
+                            customer_name: po.customer_name,
+                            customer_phone: po.customer_phone,
+                            customer_email: po.customer_email || "",
+                            quantity: po.quantity,
+                            notes: po.notes || "",
+                            delivery_address: po.delivery_address || "",
+                            delivery_pincode: po.delivery_pincode || "",
+                            delivery_charge: po.delivery_charge || 0,
+                            payment_amount: po.payment_amount || 0,
+                          });
+                        }}
+                      >
+                        <Edit className="w-4 h-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => {
                           if (window.confirm(`Delete pre-order from ${po.customer_name}?`)) {
                             deletePreOrder(po.id);
                           }

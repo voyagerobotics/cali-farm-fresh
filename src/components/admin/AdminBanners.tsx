@@ -1,5 +1,5 @@
 import { useState, useRef } from "react";
-import { Plus, Edit, Trash2, Eye, EyeOff, Loader2, Megaphone, ShoppingBag, Upload, X, ImageIcon, Bell, CreditCard, Tag, GripVertical } from "lucide-react";
+import { Plus, Edit, Trash2, Eye, EyeOff, Loader2, Megaphone, ShoppingBag, Upload, X, ImageIcon, Bell, CreditCard, Tag, GripVertical, PackagePlus } from "lucide-react";
 import { WeightOption } from "@/hooks/usePromotionalBanners";
 import { proxyImageUrl } from "@/lib/proxy-image-url";
 import { Button } from "@/components/ui/button";
@@ -16,13 +16,18 @@ import { usePreOrders, PreOrder } from "@/hooks/usePreOrders";
 import { useImageUpload } from "@/hooks/useImageUpload";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import { useProducts } from "@/hooks/useProducts";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
 const AdminBanners = () => {
   const { banners, isLoading, createBanner, updateBanner, deleteBanner } = usePromotionalBanners(false);
   const { preOrders, isLoading: preOrdersLoading, updatePreOrder, updatePreOrderStatus, updatePreOrderPaymentStatus, deletePreOrder } = usePreOrders(true);
   const { uploadImage, isUploading } = useImageUpload();
   const { toast } = useToast();
+  const { products, refetch: refetchProducts } = useProducts(true);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [stockUpdateId, setStockUpdateId] = useState<string | null>(null);
+  const [stockValue, setStockValue] = useState<number>(0);
   const [editBanner, setEditBanner] = useState<PromotionalBanner | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [notifyingProduct, setNotifyingProduct] = useState<string | null>(null);
@@ -348,6 +353,57 @@ const AdminBanners = () => {
                       >
                         <Edit className="w-4 h-4" />
                       </Button>
+                      <Popover open={stockUpdateId === po.id} onOpenChange={(open) => {
+                        if (open) {
+                          const matchedProduct = products.find(p => p.name.toLowerCase() === po.product_name.toLowerCase());
+                          setStockValue(matchedProduct?.stock_quantity || 0);
+                          setStockUpdateId(po.id);
+                        } else {
+                          setStockUpdateId(null);
+                        }
+                      }}>
+                        <PopoverTrigger asChild>
+                          <Button variant="ghost" size="icon" title="Update product stock">
+                            <PackagePlus className="w-4 h-4 text-primary" />
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-64 p-3" align="end">
+                          <div className="space-y-3">
+                            <div>
+                              <p className="text-sm font-semibold">{po.product_name}</p>
+                              {(() => {
+                                const mp = products.find(p => p.name.toLowerCase() === po.product_name.toLowerCase());
+                                return mp ? (
+                                  <p className="text-xs text-muted-foreground">Current stock: {mp.stock_quantity ?? 0} {mp.unit}</p>
+                                ) : (
+                                  <p className="text-xs text-destructive">Product not found in catalog</p>
+                                );
+                              })()}
+                            </div>
+                            <div className="space-y-1">
+                              <Label className="text-xs">New Stock Quantity</Label>
+                              <Input type="number" min={0} value={stockValue} onChange={(e) => setStockValue(Number(e.target.value))} className="h-8" />
+                            </div>
+                            <Button size="sm" className="w-full" onClick={async () => {
+                              const matchedProduct = products.find(p => p.name.toLowerCase() === po.product_name.toLowerCase());
+                              if (!matchedProduct) {
+                                toast({ title: "Product not found", description: `"${po.product_name}" doesn't exist in the products catalog.`, variant: "destructive" });
+                                return;
+                              }
+                              const { error } = await supabase.from("products").update({ stock_quantity: stockValue, is_available: stockValue > 0 }).eq("id", matchedProduct.id);
+                              if (error) {
+                                toast({ title: "Error", description: error.message, variant: "destructive" });
+                              } else {
+                                toast({ title: "Stock updated", description: `${matchedProduct.name} stock set to ${stockValue}` });
+                                refetchProducts();
+                                setStockUpdateId(null);
+                              }
+                            }}>
+                              Update Stock
+                            </Button>
+                          </div>
+                        </PopoverContent>
+                      </Popover>
                       <Button
                         variant="ghost"
                         size="icon"

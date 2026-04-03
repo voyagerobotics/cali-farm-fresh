@@ -101,6 +101,24 @@ const AdminBanners = () => {
       unit: (banner as any).unit || "kg",
       hide_quantity: (banner as any).hide_quantity || false,
       weight_options: (banner.weight_options as WeightOption[] || []),
+      // Load matching product stock info
+      stock_quantity: (() => {
+        const mp = products.find(p => p.name.toLowerCase() === banner.product_name.toLowerCase());
+        return mp?.stock_quantity ?? 0;
+      })(),
+      is_available: (() => {
+        const mp = products.find(p => p.name.toLowerCase() === banner.product_name.toLowerCase());
+        return mp?.is_available ?? true;
+      })(),
+      is_bestseller: (() => {
+        const mp = products.find(p => p.name.toLowerCase() === banner.product_name.toLowerCase());
+        return mp?.is_bestseller ?? false;
+      })(),
+      is_fresh_today: (() => {
+        const mp = products.find(p => p.name.toLowerCase() === banner.product_name.toLowerCase());
+        return mp?.is_fresh_today ?? false;
+      })(),
+      create_product: !!products.find(p => p.name.toLowerCase() === banner.product_name.toLowerCase()),
     });
     setShowForm(true);
   };

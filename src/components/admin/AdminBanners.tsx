@@ -72,6 +72,11 @@ const AdminBanners = () => {
       unit: "kg",
       hide_quantity: false,
       weight_options: [],
+      stock_quantity: 0,
+      is_available: true,
+      is_bestseller: false,
+      is_fresh_today: false,
+      create_product: true,
     });
     setEditBanner(null);
     setShowForm(false);

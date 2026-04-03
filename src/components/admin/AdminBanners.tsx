@@ -134,9 +134,55 @@ const AdminBanners = () => {
   const handleSave = async () => {
     if (!form.title || !form.product_name) return;
 
+    const bannerData = {
+      title: form.title, subtitle: form.subtitle, description: form.description,
+      product_name: form.product_name, image_url: form.image_url,
+      badge_text: form.badge_text, cta_text: form.cta_text,
+      background_color: form.background_color, text_color: form.text_color,
+      is_active: form.is_active, payment_required: form.payment_required,
+      price_per_unit: form.price_per_unit, unit: form.unit,
+      hide_quantity: form.hide_quantity, weight_options: form.weight_options,
+    };
+
     const success = editBanner
-      ? await updateBanner(editBanner.id, form)
-      : await createBanner(form);
+      ? await updateBanner(editBanner.id, bannerData)
+      : await createBanner(bannerData);
+
+    if (success && form.create_product) {
+      // Create or update the matching product with stock info
+      const existingProduct = products.find(p => p.name.toLowerCase() === form.product_name.toLowerCase());
+      if (existingProduct) {
+        try {
+          await updateExistingProduct(existingProduct.id, {
+            stock_quantity: form.stock_quantity,
+            is_available: form.is_available,
+            is_bestseller: form.is_bestseller,
+            is_fresh_today: form.is_fresh_today,
+            image_url: form.image_url || existingProduct.image_url,
+          });
+          refetchProducts();
+        } catch (err) {
+          console.error("Failed to update product stock:", err);
+        }
+      } else {
+        try {
+          await createProduct({
+            name: form.product_name,
+            price: form.price_per_unit || 0,
+            unit: form.unit,
+            description: form.description,
+            image_url: form.image_url,
+            category: "fruits",
+            stock_quantity: form.stock_quantity,
+            is_available: form.is_available,
+          });
+          refetchProducts();
+          toast({ title: "Product created", description: `${form.product_name} also added to product catalog.` });
+        } catch (err) {
+          console.error("Failed to create product:", err);
+        }
+      }
+    }
 
     if (success) {
       resetForm();

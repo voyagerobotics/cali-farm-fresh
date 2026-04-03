@@ -729,6 +729,68 @@ const AdminBanners = () => {
               </div>
             </div>
 
+            {/* Stock & Product Management */}
+            <div className="bg-muted/50 rounded-lg p-4 border border-border space-y-4">
+              <div className="flex items-center justify-between">
+                <Label className="text-sm font-semibold flex items-center gap-2">
+                  <Package className="w-4 h-4" /> Product Stock Management
+                </Label>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-muted-foreground">Sync to product catalog</span>
+                  <Switch checked={form.create_product} onCheckedChange={(v) => setForm(f => ({ ...f, create_product: v }))} />
+                </div>
+              </div>
+              {form.create_product && (
+                <>
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label className="text-sm">Stock Quantity</Label>
+                      <Input
+                        type="number"
+                        min={0}
+                        value={form.stock_quantity}
+                        onChange={(e) => setForm(f => ({ ...f, stock_quantity: Number(e.target.value) }))}
+                        placeholder="e.g. 50"
+                      />
+                    </div>
+                    <div className="flex items-center gap-4 pt-6">
+                      <div className="flex items-center gap-2">
+                        <Checkbox
+                          checked={form.is_available}
+                          onCheckedChange={(v) => setForm(f => ({ ...f, is_available: !!v }))}
+                        />
+                        <Label className="text-sm font-medium text-green-700">In Stock</Label>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap gap-4">
+                    <div className="flex items-center gap-2">
+                      <Checkbox
+                        checked={form.is_bestseller}
+                        onCheckedChange={(v) => setForm(f => ({ ...f, is_bestseller: !!v }))}
+                      />
+                      <Label className="text-sm">Best Seller</Label>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Checkbox
+                        checked={form.is_fresh_today}
+                        onCheckedChange={(v) => setForm(f => ({ ...f, is_fresh_today: !!v }))}
+                      />
+                      <Label className="text-sm">Fresh Today</Label>
+                    </div>
+                  </div>
+                  {(() => {
+                    const mp = products.find(p => p.name.toLowerCase() === form.product_name.toLowerCase());
+                    return mp ? (
+                      <p className="text-xs text-muted-foreground">✅ Linked to existing product: <strong>{mp.name}</strong> (current stock: {mp.stock_quantity ?? 0})</p>
+                    ) : form.product_name ? (
+                      <p className="text-xs text-primary">➕ A new product "{form.product_name}" will be created in the catalog</p>
+                    ) : null;
+                  })()}
+                </>
+              )}
+            </div>
+
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
                 <Label>Button Text</Label>

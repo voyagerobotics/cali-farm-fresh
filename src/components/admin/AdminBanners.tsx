@@ -1,5 +1,5 @@
 import { useState, useRef } from "react";
-import { Plus, Edit, Trash2, Eye, EyeOff, Loader2, Megaphone, ShoppingBag, Upload, X, ImageIcon, Bell, CreditCard, Tag, GripVertical } from "lucide-react";
+import { Plus, Edit, Trash2, Eye, EyeOff, Loader2, Megaphone, ShoppingBag, Upload, X, ImageIcon, Bell, CreditCard, Tag, GripVertical, Package } from "lucide-react";
 import { WeightOption } from "@/hooks/usePromotionalBanners";
 import { proxyImageUrl } from "@/lib/proxy-image-url";
 import { Button } from "@/components/ui/button";
@@ -16,12 +16,16 @@ import { usePreOrders, PreOrder } from "@/hooks/usePreOrders";
 import { useImageUpload } from "@/hooks/useImageUpload";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import { useProducts, useProductMutations } from "@/hooks/useProducts";
+import { Checkbox } from "@/components/ui/checkbox";
 
 const AdminBanners = () => {
   const { banners, isLoading, createBanner, updateBanner, deleteBanner } = usePromotionalBanners(false);
   const { preOrders, isLoading: preOrdersLoading, updatePreOrder, updatePreOrderStatus, updatePreOrderPaymentStatus, deletePreOrder } = usePreOrders(true);
   const { uploadImage, isUploading } = useImageUpload();
   const { toast } = useToast();
+  const { products, refetch: refetchProducts } = useProducts(true);
+  const { createProduct, updateProduct: updateExistingProduct } = useProductMutations();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [editBanner, setEditBanner] = useState<PromotionalBanner | null>(null);
   const [showForm, setShowForm] = useState(false);
@@ -48,6 +52,12 @@ const AdminBanners = () => {
     unit: "kg",
     hide_quantity: false,
     weight_options: [] as WeightOption[],
+    // Stock management
+    stock_quantity: 0,
+    is_available: true,
+    is_bestseller: false,
+    is_fresh_today: false,
+    create_product: true,
   });
   const [editingWeightIdx, setEditingWeightIdx] = useState<number | null>(null);
   const [weightForm, setWeightForm] = useState<WeightOption>({ label: "", min_weight: 0, max_weight: 0, price: 0, is_hidden: false });
@@ -62,6 +72,11 @@ const AdminBanners = () => {
       unit: "kg",
       hide_quantity: false,
       weight_options: [],
+      stock_quantity: 0,
+      is_available: true,
+      is_bestseller: false,
+      is_fresh_today: false,
+      create_product: true,
     });
     setEditBanner(null);
     setShowForm(false);
@@ -86,6 +101,24 @@ const AdminBanners = () => {
       unit: (banner as any).unit || "kg",
       hide_quantity: (banner as any).hide_quantity || false,
       weight_options: (banner.weight_options as WeightOption[] || []),
+      // Load matching product stock info
+      stock_quantity: (() => {
+        const mp = products.find(p => p.name.toLowerCase() === banner.product_name.toLowerCase());
+        return mp?.stock_quantity ?? 0;
+      })(),
+      is_available: (() => {
+        const mp = products.find(p => p.name.toLowerCase() === banner.product_name.toLowerCase());
+        return mp?.is_available ?? true;
+      })(),
+      is_bestseller: (() => {
+        const mp = products.find(p => p.name.toLowerCase() === banner.product_name.toLowerCase());
+        return mp?.is_bestseller ?? false;
+      })(),
+      is_fresh_today: (() => {
+        const mp = products.find(p => p.name.toLowerCase() === banner.product_name.toLowerCase());
+        return mp?.is_fresh_today ?? false;
+      })(),
+      create_product: !!products.find(p => p.name.toLowerCase() === banner.product_name.toLowerCase()),
     });
     setShowForm(true);
   };
@@ -101,9 +134,55 @@ const AdminBanners = () => {
   const handleSave = async () => {
     if (!form.title || !form.product_name) return;
 
+    const bannerData = {
+      title: form.title, subtitle: form.subtitle, description: form.description,
+      product_name: form.product_name, image_url: form.image_url,
+      badge_text: form.badge_text, cta_text: form.cta_text,
+      background_color: form.background_color, text_color: form.text_color,
+      is_active: form.is_active, payment_required: form.payment_required,
+      price_per_unit: form.price_per_unit, unit: form.unit,
+      hide_quantity: form.hide_quantity, weight_options: form.weight_options,
+    };
+
     const success = editBanner
-      ? await updateBanner(editBanner.id, form)
-      : await createBanner(form);
+      ? await updateBanner(editBanner.id, bannerData)
+      : await createBanner(bannerData);
+
+    if (success && form.create_product) {
+      // Create or update the matching product with stock info
+      const existingProduct = products.find(p => p.name.toLowerCase() === form.product_name.toLowerCase());
+      if (existingProduct) {
+        try {
+          await updateExistingProduct(existingProduct.id, {
+            stock_quantity: form.stock_quantity,
+            is_available: form.is_available,
+            is_bestseller: form.is_bestseller,
+            is_fresh_today: form.is_fresh_today,
+            image_url: form.image_url || existingProduct.image_url,
+          });
+          refetchProducts();
+        } catch (err) {
+          console.error("Failed to update product stock:", err);
+        }
+      } else {
+        try {
+          await createProduct({
+            name: form.product_name,
+            price: form.price_per_unit || 0,
+            unit: form.unit,
+            description: form.description,
+            image_url: form.image_url,
+            category: "fruits",
+            stock_quantity: form.stock_quantity,
+            is_available: form.is_available,
+          });
+          refetchProducts();
+          toast({ title: "Product created", description: `${form.product_name} also added to product catalog.` });
+        } catch (err) {
+          console.error("Failed to create product:", err);
+        }
+      }
+    }
 
     if (success) {
       resetForm();
@@ -648,6 +727,68 @@ const AdminBanners = () => {
                 </div>
                 <Switch checked={form.hide_quantity} onCheckedChange={(v) => setForm(f => ({ ...f, hide_quantity: v }))} />
               </div>
+            </div>
+
+            {/* Stock & Product Management */}
+            <div className="bg-muted/50 rounded-lg p-4 border border-border space-y-4">
+              <div className="flex items-center justify-between">
+                <Label className="text-sm font-semibold flex items-center gap-2">
+                  <Package className="w-4 h-4" /> Product Stock Management
+                </Label>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-muted-foreground">Sync to product catalog</span>
+                  <Switch checked={form.create_product} onCheckedChange={(v) => setForm(f => ({ ...f, create_product: v }))} />
+                </div>
+              </div>
+              {form.create_product && (
+                <>
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label className="text-sm">Stock Quantity</Label>
+                      <Input
+                        type="number"
+                        min={0}
+                        value={form.stock_quantity}
+                        onChange={(e) => setForm(f => ({ ...f, stock_quantity: Number(e.target.value) }))}
+                        placeholder="e.g. 50"
+                      />
+                    </div>
+                    <div className="flex items-center gap-4 pt-6">
+                      <div className="flex items-center gap-2">
+                        <Checkbox
+                          checked={form.is_available}
+                          onCheckedChange={(v) => setForm(f => ({ ...f, is_available: !!v }))}
+                        />
+                        <Label className="text-sm font-medium text-green-700">In Stock</Label>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap gap-4">
+                    <div className="flex items-center gap-2">
+                      <Checkbox
+                        checked={form.is_bestseller}
+                        onCheckedChange={(v) => setForm(f => ({ ...f, is_bestseller: !!v }))}
+                      />
+                      <Label className="text-sm">Best Seller</Label>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Checkbox
+                        checked={form.is_fresh_today}
+                        onCheckedChange={(v) => setForm(f => ({ ...f, is_fresh_today: !!v }))}
+                      />
+                      <Label className="text-sm">Fresh Today</Label>
+                    </div>
+                  </div>
+                  {(() => {
+                    const mp = products.find(p => p.name.toLowerCase() === form.product_name.toLowerCase());
+                    return mp ? (
+                      <p className="text-xs text-muted-foreground">✅ Linked to existing product: <strong>{mp.name}</strong> (current stock: {mp.stock_quantity ?? 0})</p>
+                    ) : form.product_name ? (
+                      <p className="text-xs text-primary">➕ A new product "{form.product_name}" will be created in the catalog</p>
+                    ) : null;
+                  })()}
+                </>
+              )}
             </div>
 
             <div className="grid gap-4 md:grid-cols-2">

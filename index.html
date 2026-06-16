@@ -3,13 +3,37 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/png" href="/favicon.png" />
-    <!-- Google tag (gtag.js) -->
-    <script async src="https://www.googletagmanager.com/gtag/js?id=G-2NBDKNYY39"></script>
+
+    <!-- Preconnect to critical third-party origins to speed up LCP -->
+    <link rel="preconnect" href="https://www.googletagmanager.com" crossorigin />
+    <link rel="preconnect" href="https://tawtsykkppopmyxhqkbw.supabase.co" crossorigin />
+    <link rel="dns-prefetch" href="https://checkout.razorpay.com" />
+
+    <!-- Google tag (gtag.js) — deferred until browser is idle to avoid blocking LCP/INP -->
     <script>
       window.dataLayer = window.dataLayer || [];
       function gtag(){dataLayer.push(arguments);}
       gtag('js', new Date());
-      gtag('config', 'G-2NBDKNYY39');
+      gtag('config', 'G-2NBDKNYY39', { 'transport_type': 'beacon' });
+      (function(){
+        var loaded = false;
+        function loadGA(){
+          if (loaded) return; loaded = true;
+          var s = document.createElement('script');
+          s.async = true;
+          s.src = 'https://www.googletagmanager.com/gtag/js?id=G-2NBDKNYY39';
+          document.head.appendChild(s);
+        }
+        if ('requestIdleCallback' in window) {
+          requestIdleCallback(loadGA, { timeout: 4000 });
+        } else {
+          window.addEventListener('load', function(){ setTimeout(loadGA, 1500); });
+        }
+        // Also load on first user interaction (covers fast bounces)
+        ['pointerdown','keydown','scroll','touchstart'].forEach(function(ev){
+          window.addEventListener(ev, loadGA, { once: true, passive: true });
+        });
+      })();
     </script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <!-- SPA routing fix for GitHub Pages -->

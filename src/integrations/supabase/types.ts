@@ -953,6 +953,89 @@ export type Database = {
           },
         ]
       }
+      uptime_incidents: {
+        Row: {
+          alert_sent_at: string | null
+          created_at: string
+          duration_seconds: number | null
+          ended_at: string | null
+          error_message: string | null
+          id: string
+          recovery_sent_at: string | null
+          started_at: string
+          status_code: number | null
+          url: string
+        }
+        Insert: {
+          alert_sent_at?: string | null
+          created_at?: string
+          duration_seconds?: number | null
+          ended_at?: string | null
+          error_message?: string | null
+          id?: string
+          recovery_sent_at?: string | null
+          started_at?: string
+          status_code?: number | null
+          url: string
+        }
+        Update: {
+          alert_sent_at?: string | null
+          created_at?: string
+          duration_seconds?: number | null
+          ended_at?: string | null
+          error_message?: string | null
+          id?: string
+          recovery_sent_at?: string | null
+          started_at?: string
+          status_code?: number | null
+          url?: string
+        }
+        Relationships: []
+      }
+      uptime_monitor_state: {
+        Row: {
+          current_incident_id: string | null
+          down_since: string | null
+          id: number
+          is_down: boolean
+          last_checked_at: string | null
+          last_error: string | null
+          last_status_code: number | null
+          updated_at: string
+          url: string
+        }
+        Insert: {
+          current_incident_id?: string | null
+          down_since?: string | null
+          id?: number
+          is_down?: boolean
+          last_checked_at?: string | null
+          last_error?: string | null
+          last_status_code?: number | null
+          updated_at?: string
+          url: string
+        }
+        Update: {
+          current_incident_id?: string | null
+          down_since?: string | null
+          id?: number
+          is_down?: boolean
+          last_checked_at?: string | null
+          last_error?: string | null
+          last_status_code?: number | null
+          updated_at?: string
+          url?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "uptime_monitor_state_current_incident_id_fkey"
+            columns: ["current_incident_id"]
+            isOneToOne: false
+            referencedRelation: "uptime_incidents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_activity_logs: {
         Row: {
           action_details: Json | null

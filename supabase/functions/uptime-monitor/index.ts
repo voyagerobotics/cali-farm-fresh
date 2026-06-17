@@ -341,9 +341,11 @@ serve(async (req) => {
       });
     } else {
       // UP
+      let shouldClearIncident = true;
       if (state.is_down && state.current_incident_id) {
         const downSince = state.down_since ? new Date(state.down_since) : now;
         const durationSec = Math.floor((now.getTime() - downSince.getTime()) / 1000);
+        logMonitor("website recovered; evaluating recovery notification", { incidentId: state.current_incident_id, url, durationSec });
 
         const { data: inc } = await supabase
           .from("uptime_incidents")
@@ -373,6 +375,7 @@ serve(async (req) => {
               .eq("id", state.current_incident_id);
             logMonitor("catch-up outage and recovery email delivered to all recipients", { incidentId: state.current_incident_id, url, durationSec, emailResult });
           } else {
+            shouldClearIncident = false;
             logMonitor("catch-up outage and recovery email delivery incomplete", { incidentId: state.current_incident_id, url, durationSec, emailResult });
           }
         } else if (inc?.alert_sent_at && !inc.recovery_sent_at) {
@@ -390,15 +393,16 @@ serve(async (req) => {
               .eq("id", state.current_incident_id);
             logMonitor("recovery email delivered to all recipients", { incidentId: state.current_incident_id, url, durationSec, emailResult });
           } else {
+            shouldClearIncident = false;
             logMonitor("recovery email delivery incomplete; will retry next up check", { incidentId: state.current_incident_id, url, durationSec, emailResult });
           }
         }
       }
 
       await supabase.from("uptime_monitor_state").update({
-        is_down: false,
-        down_since: null,
-        current_incident_id: null,
+        is_down: !shouldClearIncident,
+        down_since: shouldClearIncident ? null : state.down_since,
+        current_incident_id: shouldClearIncident ? null : state.current_incident_id,
         last_status_code: result.status,
         last_error: null,
         last_checked_at: now.toISOString(),

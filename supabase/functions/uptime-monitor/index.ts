@@ -164,11 +164,27 @@ serve(async (req) => {
             duration_seconds: durationSec,
           })
           .eq("id", state.current_incident_id)
-          .select("alert_sent_at, recovery_sent_at")
+          .select("alert_sent_at, recovery_sent_at, status_code, error_message")
           .single();
 
-        // Only send recovery if we had alerted (i.e. >1 min outage) and not yet sent
-        if (inc?.alert_sent_at && !inc.recovery_sent_at) {
+        // Catch-up: if outage met threshold but alert was never sent (brief flap
+        // between two cron ticks), send a combined outage+recovery email now.
+        if (inc && !inc.alert_sent_at && durationSec >= DOWNTIME_ALERT_THRESHOLD_SECONDS) {
+          try {
+            await resend.emails.send({
+              from: "Uptime Monitor <orders@zomical.com>",
+              to: ALERT_RECIPIENTS,
+              subject: `⚠️ ${url} had an outage (${fmtDuration(durationSec)}) — now recovered`,
+              html: downEmailHtml(url, downSince, inc.status_code, inc.error_message, durationSec)
+                + recoveryEmailHtml(url, downSince, now, durationSec),
+            });
+            await supabase.from("uptime_incidents")
+              .update({ alert_sent_at: now.toISOString(), recovery_sent_at: now.toISOString() })
+              .eq("id", state.current_incident_id);
+          } catch (e) {
+            console.error("Failed to send catch-up alert:", e);
+          }
+        } else if (inc?.alert_sent_at && !inc.recovery_sent_at) {
           try {
             await resend.emails.send({
               from: "Uptime Monitor <orders@zomical.com>",

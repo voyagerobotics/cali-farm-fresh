@@ -97,6 +97,43 @@ const ProductDetail = () => {
     fetchProduct();
   }, [id]);
 
+  // Inject Product JSON-LD structured data
+  useEffect(() => {
+    if (!product) return;
+    const stockQty = product.stock_quantity;
+    const available = product.is_available && (stockQty === null || stockQty === undefined || stockQty > 0);
+    const images = (product.image_urls && product.image_urls.length > 0)
+      ? product.image_urls
+      : (product.image_url ? [product.image_url] : []);
+    const jsonLd: Record<string, any> = {
+      "@context": "https://schema.org/",
+      "@type": "Product",
+      name: product.name,
+      description: product.description || `${product.name} - Farm fresh, chemical-free from California Farms.`,
+      image: images,
+      sku: product.id,
+      brand: { "@type": "Brand", name: "California Farms" },
+      offers: {
+        "@type": "Offer",
+        url: `https://zomical.com/product/${product.id}`,
+        priceCurrency: "INR",
+        price: product.price,
+        availability: available
+          ? "https://schema.org/InStock"
+          : "https://schema.org/OutOfStock",
+        itemCondition: "https://schema.org/NewCondition",
+      },
+    };
+    const script = document.createElement("script");
+    script.type = "application/ld+json";
+    script.dataset.productJsonld = "true";
+    script.text = JSON.stringify(jsonLd);
+    document.head.appendChild(script);
+    return () => {
+      script.remove();
+    };
+  }, [product]);
+
   const hasVariants = variants.length > 0;
   const basePrice = selectedVariant ? selectedVariant.price : (product?.price || 0);
   

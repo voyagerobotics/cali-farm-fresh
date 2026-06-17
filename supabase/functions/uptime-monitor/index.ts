@@ -14,6 +14,112 @@ const ALERT_RECIPIENTS = [
 ];
 
 const DOWNTIME_ALERT_THRESHOLD_SECONDS = 60;
+const EMAIL_FROM = "Uptime Monitor <orders@zomical.com>";
+
+type EmailKind = "uptime_test" | "uptime_down_alert" | "uptime_recovery_alert" | "uptime_outage_recovery_alert";
+
+const logMonitor = (message: string, details: Record<string, unknown> = {}) => {
+  console.log(`[uptime-monitor] ${message}`, JSON.stringify(details));
+};
+
+async function logEmail(supabase: any, data: {
+  recipient_email: string;
+  subject: string;
+  email_type: EmailKind;
+  status: "sent" | "failed" | "skipped";
+  resend_id?: string;
+  error_message?: string;
+  metadata?: Record<string, unknown>;
+}) {
+  try {
+    await supabase.from("email_logs").insert(data);
+  } catch (e) {
+    logMonitor("email log write failed", { error: e instanceof Error ? e.message : String(e), email_type: data.email_type, recipient: data.recipient_email });
+  }
+}
+
+async function alreadySent(supabase: any, incidentId: string, emailType: EmailKind, recipient: string) {
+  const { data, error } = await supabase
+    .from("email_logs")
+    .select("id")
+    .eq("recipient_email", recipient)
+    .eq("email_type", emailType)
+    .eq("status", "sent")
+    .contains("metadata", { incident_id: incidentId })
+    .limit(1);
+
+  if (error) {
+    logMonitor("email dedupe lookup failed", { incidentId, emailType, recipient, error: error.message });
+    return false;
+  }
+
+  return Array.isArray(data) && data.length > 0;
+}
+
+async function sendUptimeEmail(supabase: any, resend: Resend, params: {
+  incidentId?: string;
+  emailType: EmailKind;
+  subject: string;
+  html: string;
+  metadata?: Record<string, unknown>;
+}) {
+  const results: Array<{ recipient: string; sent: boolean; skipped?: boolean; error?: string }> = [];
+
+  for (const recipient of ALERT_RECIPIENTS) {
+    const shouldSkip = params.incidentId
+      ? await alreadySent(supabase, params.incidentId, params.emailType, recipient)
+      : false;
+
+    if (shouldSkip) {
+      logMonitor("email skipped because recipient already has sent log", { recipient, emailType: params.emailType, incidentId: params.incidentId });
+      results.push({ recipient, sent: true, skipped: true });
+      continue;
+    }
+
+    try {
+      logMonitor("sending uptime email", { recipient, emailType: params.emailType, incidentId: params.incidentId });
+      const { data, error } = await resend.emails.send({
+        from: EMAIL_FROM,
+        to: [recipient],
+        subject: params.subject,
+        html: params.html,
+      });
+
+      if (error) throw new Error(JSON.stringify(error));
+
+      await logEmail(supabase, {
+        recipient_email: recipient,
+        subject: params.subject,
+        email_type: params.emailType,
+        status: "sent",
+        resend_id: data?.id || undefined,
+        metadata: { ...params.metadata, incident_id: params.incidentId },
+      });
+      logMonitor("uptime email sent", { recipient, emailType: params.emailType, resendId: data?.id, incidentId: params.incidentId });
+      results.push({ recipient, sent: true });
+    } catch (e) {
+      const errorMessage = e instanceof Error ? e.message : String(e);
+      await logEmail(supabase, {
+        recipient_email: recipient,
+        subject: params.subject,
+        email_type: params.emailType,
+        status: "failed",
+        error_message: errorMessage,
+        metadata: { ...params.metadata, incident_id: params.incidentId },
+      });
+      logMonitor("uptime email failed", { recipient, emailType: params.emailType, error: errorMessage, incidentId: params.incidentId });
+      results.push({ recipient, sent: false, error: errorMessage });
+    }
+  }
+
+  return {
+    allSent: results.every((result) => result.sent),
+    sentCount: results.filter((result) => result.sent && !result.skipped).length,
+    skippedCount: results.filter((result) => result.skipped).length,
+    failedCount: results.filter((result) => !result.sent).length,
+    results,
+  };
+}
 
 const fmtIST = (d: Date) =>
   d.toLocaleString("en-IN", { dateStyle: "full", timeStyle: "long", timeZone: "Asia/Kolkata" });
@@ -31,8 +137,10 @@ async function checkUrl(url: string): Promise<{ ok: boolean; status: number | nu
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 20000);
   try {
+    logMonitor("checking website", { url });
     const res = await fetch(url, { method: "GET", redirect: "follow", signal: controller.signal });
     if (res.status < 200 || res.status >= 400) {
+      logMonitor("website returned error status", { url, status: res.status });
       return { ok: false, status: res.status, error: `HTTP ${res.status}` };
     }
 
@@ -46,6 +154,7 @@ async function checkUrl(url: string): Promise<{ ok: boolean; status: number | nu
       .map((match) => match[1]);
 
     if (moduleSrcs.some((src) => src.startsWith("/src/") || src.includes("/src/"))) {
+      logMonitor("website failed health check", { url, status: res.status, reason: "source files served" });
       return { ok: false, status: res.status, error: "Broken deployment: page is loading source files instead of built app files" };
     }
 
@@ -54,6 +163,7 @@ async function checkUrl(url: string): Promise<{ ok: boolean; status: number | nu
       const assetRes = await fetch(assetUrl, { method: "GET", redirect: "follow", signal: controller.signal });
       const assetType = assetRes.headers.get("content-type") ?? "";
       if (!assetRes.ok || !/(javascript|ecmascript|application\/x-javascript)/i.test(assetType)) {
+        logMonitor("website failed asset health check", { url, assetUrl, status: assetRes.status, contentType: assetType });
         return {
           ok: false,
           status: assetRes.status,
@@ -62,8 +172,10 @@ async function checkUrl(url: string): Promise<{ ok: boolean; status: number | nu
       }
     }
 
+    logMonitor("website check passed", { url, status: res.status, moduleCount: moduleSrcs.length });
     return { ok: true, status: res.status, error: null };
   } catch (e) {
+    logMonitor("website check failed", { url, error: e instanceof Error ? e.message : String(e) });
     return { ok: false, status: null, error: e instanceof Error ? e.message : String(e) };
   } finally {
     clearTimeout(timeout);

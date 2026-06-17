@@ -56,6 +56,11 @@ async function alreadySent(supabase: any, incidentId: string, emailType: EmailKi
   return Array.isArray(data) && data.length > 0;
 }
 
+async function emailDeliveryComplete(supabase: any, incidentId: string, emailType: EmailKind) {
+  const checks = await Promise.all(ALERT_RECIPIENTS.map((recipient) => alreadySent(supabase, incidentId, emailType, recipient)));
+  return checks.every(Boolean);
+}
+
 async function sendUptimeEmail(supabase: any, resend: Resend, params: {
   incidentId?: string;
   emailType: EmailKind;
@@ -307,7 +312,11 @@ serve(async (req) => {
           .eq("id", incidentId)
           .single();
 
-        if (inc && !inc.alert_sent_at) {
+        const downAlertComplete = incidentId
+          ? await emailDeliveryComplete(supabase, incidentId, "uptime_down_alert")
+          : false;
+
+        if (inc && (!inc.alert_sent_at || !downAlertComplete)) {
           const emailResult = await sendUptimeEmail(supabase, resend, {
             incidentId,
             emailType: "uptime_down_alert",
@@ -323,6 +332,8 @@ serve(async (req) => {
           } else {
             logMonitor("downtime alert delivery incomplete; will retry next check", { incidentId, url, durationSec, emailResult });
           }
+        } else if (inc && downAlertComplete) {
+          logMonitor("downtime alert already delivered to all recipients", { incidentId, url, durationSec });
         }
       }
 

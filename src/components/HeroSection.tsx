@@ -24,7 +24,7 @@ const HeroSection = () => {
         decoding="async"
         className="absolute inset-0 w-full h-full object-cover"
       />
-      <div className="absolute inset-0 bg-gradient-to-r from-foreground/80 via-foreground/60 to-foreground/40" />
+      <div className="absolute inset-0 bg-gradient-to-r from-foreground/70 via-foreground/40 to-foreground/10" />
 
       {/* Content */}
       <div className="relative z-10 container mx-auto px-4 py-32">

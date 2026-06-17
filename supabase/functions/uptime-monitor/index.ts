@@ -90,6 +90,31 @@ function recoveryEmailHtml(url: string, startedAt: Date, endedAt: Date, duration
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
+  const urlPath = new URL(req.url).pathname;
+  if (urlPath.endsWith("/test") || urlPath.endsWith("/test/")) {
+    try {
+      const resend = new Resend(Deno.env.get("RESEND_API_KEY")!);
+      const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+      const { data: state } = await supabase.from("uptime_monitor_state").select("url").eq("id", 1).maybeSingle();
+      const monitoredUrl = state?.url as string | undefined ?? "https://zomical.com";
+      await resend.emails.send({
+        from: "Uptime Monitor <orders@zomical.com>",
+        to: ALERT_RECIPIENTS,
+        subject: `✅ Uptime Monitor — delivery test for ${monitoredUrl}`,
+        html: testEmailHtml(monitoredUrl),
+      });
+      return new Response(JSON.stringify({ success: true, message: "Test email sent" }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    } catch (e) {
+      console.error("uptime-monitor test error:", e);
+      return new Response(JSON.stringify({ error: e instanceof Error ? e.message : String(e) }), {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+  }
+
   try {
     const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
     const resend = new Resend(Deno.env.get("RESEND_API_KEY")!);

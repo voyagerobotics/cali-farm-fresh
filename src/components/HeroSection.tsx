@@ -16,7 +16,7 @@ const HeroSection = () => {
   return <section className="relative min-h-screen flex items-center justify-center overflow-hidden">
       {/* Background Image — rendered as <img> for explicit dimensions, fetchpriority, and preload matching */}
       <img
-        src="/hero-farm.webp"
+        src="/hero-farm.jpg"
         alt="Fresh farm vegetables from California Farms India"
         width="1920"
         height="1080"

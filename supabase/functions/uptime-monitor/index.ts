@@ -32,7 +32,37 @@ async function checkUrl(url: string): Promise<{ ok: boolean; status: number | nu
   const timeout = setTimeout(() => controller.abort(), 20000);
   try {
     const res = await fetch(url, { method: "GET", redirect: "follow", signal: controller.signal });
-    return { ok: res.status < 500, status: res.status, error: res.status >= 500 ? `HTTP ${res.status}` : null };
+    if (res.status < 200 || res.status >= 400) {
+      return { ok: false, status: res.status, error: `HTTP ${res.status}` };
+    }
+
+    const contentType = res.headers.get("content-type") ?? "";
+    if (!contentType.toLowerCase().includes("text/html")) {
+      return { ok: true, status: res.status, error: null };
+    }
+
+    const html = await res.text();
+    const moduleSrcs = [...html.matchAll(/<script\b[^>]*type=["']module["'][^>]*src=["']([^"']+)["'][^>]*>/gi)]
+      .map((match) => match[1]);
+
+    if (moduleSrcs.some((src) => src.startsWith("/src/") || src.includes("/src/"))) {
+      return { ok: false, status: res.status, error: "Broken deployment: page is loading source files instead of built app files" };
+    }
+
+    for (const src of moduleSrcs.slice(0, 3)) {
+      const assetUrl = new URL(src, res.url).toString();
+      const assetRes = await fetch(assetUrl, { method: "GET", redirect: "follow", signal: controller.signal });
+      const assetType = assetRes.headers.get("content-type") ?? "";
+      if (!assetRes.ok || !/(javascript|ecmascript|application\/x-javascript)/i.test(assetType)) {
+        return {
+          ok: false,
+          status: assetRes.status,
+          error: `Broken app asset: ${assetUrl} returned ${assetRes.status} ${assetType || "unknown content type"}`,
+        };
+      }
+    }
+
+    return { ok: true, status: res.status, error: null };
   } catch (e) {
     return { ok: false, status: null, error: e instanceof Error ? e.message : String(e) };
   } finally {

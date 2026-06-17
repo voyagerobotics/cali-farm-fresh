@@ -239,13 +239,13 @@ serve(async (req) => {
       const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
       const { data: state } = await supabase.from("uptime_monitor_state").select("url").eq("id", 1).maybeSingle();
       const monitoredUrl = state?.url as string | undefined ?? "https://zomical.com";
-      await resend.emails.send({
-        from: "Uptime Monitor <orders@zomical.com>",
-        to: ALERT_RECIPIENTS,
+      const result = await sendUptimeEmail(supabase, resend, {
+        emailType: "uptime_test",
         subject: `✅ Uptime Monitor — delivery test for ${monitoredUrl}`,
         html: testEmailHtml(monitoredUrl),
+        metadata: { url: monitoredUrl, trigger: "manual_test" },
       });
-      return new Response(JSON.stringify({ success: true, message: "Test email sent" }), {
+      return new Response(JSON.stringify({ success: result.allSent, message: "Test email sent", result }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     } catch (e) {
@@ -272,6 +272,7 @@ serve(async (req) => {
     const url = state.url as string;
     const result = await checkUrl(url);
     const now = new Date();
+    logMonitor("monitor check result", { url, ok: result.ok, status: result.status, error: result.error, wasDown: state.is_down, currentIncidentId: state.current_incident_id });
 
     if (!result.ok) {
       // DOWN
@@ -292,6 +293,7 @@ serve(async (req) => {
           .select("id")
           .single();
         incidentId = inc?.id ?? null;
+        logMonitor("downtime incident opened", { url, incidentId, status: result.status, error: result.error, startedAt: now.toISOString() });
       }
 
       const durationSec = Math.floor((now.getTime() - downSince.getTime()) / 1000);
@@ -306,17 +308,20 @@ serve(async (req) => {
           .single();
 
         if (inc && !inc.alert_sent_at) {
-          try {
-            await resend.emails.send({
-              from: "Uptime Monitor <orders@zomical.com>",
-              to: ALERT_RECIPIENTS,
-              subject: `🚨 ${url} is DOWN (${result.status ? `HTTP ${result.status}` : "Unreachable"})`,
-              html: downEmailHtml(url, downSince, result.status, result.error, durationSec),
-            });
+          const emailResult = await sendUptimeEmail(supabase, resend, {
+            incidentId,
+            emailType: "uptime_down_alert",
+            subject: `🚨 ${url} is DOWN (${result.status ? `HTTP ${result.status}` : "Unreachable"})`,
+            html: downEmailHtml(url, downSince, result.status, result.error, durationSec),
+            metadata: { url, duration_seconds: durationSec, status_code: result.status, error: result.error },
+          });
+
+          if (emailResult.allSent) {
             await supabase.from("uptime_incidents").update({ alert_sent_at: now.toISOString() }).eq("id", incidentId);
             alertJustSent = true;
-          } catch (e) {
-            console.error("Failed to send down alert:", e);
+            logMonitor("downtime alert delivered to all recipients", { incidentId, url, durationSec, emailResult });
+          } else {
+            logMonitor("downtime alert delivery incomplete; will retry next check", { incidentId, url, durationSec, emailResult });
           }
         }
       }
@@ -353,33 +358,39 @@ serve(async (req) => {
         // Catch-up: if outage met threshold but alert was never sent (brief flap
         // between two cron ticks), send a combined outage+recovery email now.
         if (inc && !inc.alert_sent_at && durationSec >= DOWNTIME_ALERT_THRESHOLD_SECONDS) {
-          try {
-            await resend.emails.send({
-              from: "Uptime Monitor <orders@zomical.com>",
-              to: ALERT_RECIPIENTS,
-              subject: `⚠️ ${url} had an outage (${fmtDuration(durationSec)}) — now recovered`,
-              html: downEmailHtml(url, downSince, inc.status_code, inc.error_message, durationSec)
-                + recoveryEmailHtml(url, downSince, now, durationSec),
-            });
+          const emailResult = await sendUptimeEmail(supabase, resend, {
+            incidentId: state.current_incident_id,
+            emailType: "uptime_outage_recovery_alert",
+            subject: `⚠️ ${url} had an outage (${fmtDuration(durationSec)}) — now recovered`,
+            html: downEmailHtml(url, downSince, inc.status_code, inc.error_message, durationSec)
+              + recoveryEmailHtml(url, downSince, now, durationSec),
+            metadata: { url, duration_seconds: durationSec, status_code: inc.status_code, error: inc.error_message },
+          });
+
+          if (emailResult.allSent) {
             await supabase.from("uptime_incidents")
               .update({ alert_sent_at: now.toISOString(), recovery_sent_at: now.toISOString() })
               .eq("id", state.current_incident_id);
-          } catch (e) {
-            console.error("Failed to send catch-up alert:", e);
+            logMonitor("catch-up outage and recovery email delivered to all recipients", { incidentId: state.current_incident_id, url, durationSec, emailResult });
+          } else {
+            logMonitor("catch-up outage and recovery email delivery incomplete", { incidentId: state.current_incident_id, url, durationSec, emailResult });
           }
         } else if (inc?.alert_sent_at && !inc.recovery_sent_at) {
-          try {
-            await resend.emails.send({
-              from: "Uptime Monitor <orders@zomical.com>",
-              to: ALERT_RECIPIENTS,
-              subject: `✅ ${url} is back UP (downtime ${fmtDuration(durationSec)})`,
-              html: recoveryEmailHtml(url, downSince, now, durationSec),
-            });
+          const emailResult = await sendUptimeEmail(supabase, resend, {
+            incidentId: state.current_incident_id,
+            emailType: "uptime_recovery_alert",
+            subject: `✅ ${url} is back UP (downtime ${fmtDuration(durationSec)})`,
+            html: recoveryEmailHtml(url, downSince, now, durationSec),
+            metadata: { url, duration_seconds: durationSec },
+          });
+
+          if (emailResult.allSent) {
             await supabase.from("uptime_incidents")
               .update({ recovery_sent_at: now.toISOString() })
               .eq("id", state.current_incident_id);
-          } catch (e) {
-            console.error("Failed to send recovery email:", e);
+            logMonitor("recovery email delivered to all recipients", { incidentId: state.current_incident_id, url, durationSec, emailResult });
+          } else {
+            logMonitor("recovery email delivery incomplete; will retry next up check", { incidentId: state.current_incident_id, url, durationSec, emailResult });
           }
         }
       }

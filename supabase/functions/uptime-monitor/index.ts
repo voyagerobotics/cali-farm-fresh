@@ -40,6 +40,22 @@ async function checkUrl(url: string): Promise<{ ok: boolean; status: number | nu
   }
 }
 
+function testEmailHtml(url: string) {
+  return `<!DOCTYPE html><html><body style="font-family:-apple-system,sans-serif;background:#f0f9ff;padding:24px;margin:0">
+  <div style="max-width:600px;margin:0 auto;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 4px 6px rgba(0,0,0,.1)">
+    <div style="background:linear-gradient(135deg,#0ea5e9,#0284c7);color:#fff;padding:24px;text-align:center">
+      <h1 style="margin:0;font-size:22px">✅ Uptime Monitor Delivery Test</h1>
+    </div>
+    <div style="padding:24px;color:#111">
+      <p>Hello,</p>
+      <p>This is a test email from the uptime monitor for <strong><a href="${url}">${url}</a></strong>.</p>
+      <p>You are receiving this because this email address is configured to receive downtime and recovery alerts for the website.</p>
+      <p>If you can see this message, your email address is correctly set up and future <strong>"website down"</strong> and <strong>"website recovered"</strong> alerts will be delivered to this inbox.</p>
+      <p style="color:#6b7280;font-size:13px;margin-top:24px">No action is needed. The monitor checks the website every few minutes and will email you only when an issue is detected or resolved.</p>
+    </div>
+  </div></body></html>`;
+}
+
 function downEmailHtml(url: string, startedAt: Date, statusCode: number | null, error: string | null, durationSec: number) {
   return `<!DOCTYPE html><html><body style="font-family:-apple-system,sans-serif;background:#fef2f2;padding:24px;margin:0">
   <div style="max-width:600px;margin:0 auto;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 4px 6px rgba(0,0,0,.1)">
@@ -73,6 +89,31 @@ function recoveryEmailHtml(url: string, startedAt: Date, endedAt: Date, duration
 
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+
+  const urlPath = new URL(req.url).pathname;
+  if (urlPath.endsWith("/test") || urlPath.endsWith("/test/")) {
+    try {
+      const resend = new Resend(Deno.env.get("RESEND_API_KEY")!);
+      const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+      const { data: state } = await supabase.from("uptime_monitor_state").select("url").eq("id", 1).maybeSingle();
+      const monitoredUrl = state?.url as string | undefined ?? "https://zomical.com";
+      await resend.emails.send({
+        from: "Uptime Monitor <orders@zomical.com>",
+        to: ALERT_RECIPIENTS,
+        subject: `✅ Uptime Monitor — delivery test for ${monitoredUrl}`,
+        html: testEmailHtml(monitoredUrl),
+      });
+      return new Response(JSON.stringify({ success: true, message: "Test email sent" }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    } catch (e) {
+      console.error("uptime-monitor test error:", e);
+      return new Response(JSON.stringify({ error: e instanceof Error ? e.message : String(e) }), {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+  }
 
   try {
     const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);

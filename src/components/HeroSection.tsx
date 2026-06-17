@@ -1,6 +1,5 @@
 import { Button } from "@/components/ui/button";
 import { ArrowRight, Sparkles } from "lucide-react";
-import heroImage from "@/assets/hero-farm.jpg";
 const HeroSection = () => {
   const scrollToContact = () => {
     const element = document.getElementById("contact");
@@ -15,12 +14,17 @@ const HeroSection = () => {
     });
   };
   return <section className="relative min-h-screen flex items-center justify-center overflow-hidden">
-      {/* Background Image */}
-      <div className="absolute inset-0 bg-cover bg-center bg-no-repeat" style={{
-      backgroundImage: `url(${heroImage})`
-    }}>
-        <div className="absolute inset-0 bg-gradient-to-r from-foreground/80 via-foreground/60 to-foreground/40" />
-      </div>
+      {/* Background Image — rendered as <img> for explicit dimensions, fetchpriority, and preload matching */}
+      <img
+        src="/hero-farm.webp"
+        alt="Fresh farm vegetables from California Farms India"
+        width="1920"
+        height="1080"
+        fetchPriority="high"
+        decoding="async"
+        className="absolute inset-0 w-full h-full object-cover"
+      />
+      <div className="absolute inset-0 bg-gradient-to-r from-foreground/80 via-foreground/60 to-foreground/40" />
 
       {/* Content */}
       <div className="relative z-10 container mx-auto px-4 py-32">

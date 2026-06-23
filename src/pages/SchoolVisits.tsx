@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ArrowLeft, CalendarDays, Clock, GraduationCap, IndianRupee, Users, MapPin, Sparkles, CheckCircle2, Sun, Phone, Mail, MessageCircle, Loader2, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";

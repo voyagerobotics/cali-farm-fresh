@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { ArrowLeft, CalendarDays, Clock, GraduationCap, IndianRupee, Users, MapPin, Sparkles, CheckCircle2, Sun, Phone, Mail, MessageCircle } from "lucide-react";
+import { ArrowLeft, CalendarDays, Clock, GraduationCap, IndianRupee, Users, MapPin, Sparkles, CheckCircle2, Sun, Phone, Mail, MessageCircle, Loader2, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -10,6 +10,8 @@ import { useNavigate } from "react-router-dom";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
+import { useFarmVisitSettings } from "@/hooks/useFarmVisitSettings";
 
 import visit1 from "@/assets/school-visit-1.jpg.asset.json";
 import visit2 from "@/assets/school-visit-2.jpg.asset.json";
@@ -25,8 +27,16 @@ const GALLERY = [
   { src: visit5.url, caption: "Live Farm Talks with Experts" },
 ];
 
+const GRADE_LABELS: Record<string, string> = {
+  "1-6": "Grade 1 – Grade 6",
+  "7-10": "Grade 7 – Grade 10",
+  engineering: "Engineering College",
+  college: "Other College",
+};
+
 const SchoolVisits = () => {
   const navigate = useNavigate();
+  const { settings } = useFarmVisitSettings();
 
   const [form, setForm] = useState({
     schoolName: "",
@@ -38,20 +48,25 @@ const SchoolVisits = () => {
     preferredDate: "",
     notes: "",
   });
+  const [submitting, setSubmitting] = useState(false);
+  const [submittedRef, setSubmittedRef] = useState<string | null>(null);
 
   const set = (k: keyof typeof form, v: string) => setForm((p) => ({ ...p, [k]: v }));
 
   const perStudent = useMemo(() => {
     if (!form.gradeLevel) return 0;
-    return form.gradeLevel === "engineering" || form.gradeLevel === "college" ? 100 : 50;
-  }, [form.gradeLevel]);
+    return form.gradeLevel === "engineering" || form.gradeLevel === "college"
+      ? settings.farm_visit_price_college
+      : settings.farm_visit_price_school;
+  }, [form.gradeLevel, settings]);
 
   const maxStudents = useMemo(() => {
-    if (form.gradeLevel === "1-6") return 50;
-    if (form.gradeLevel === "7-10") return 100;
-    if (form.gradeLevel === "engineering" || form.gradeLevel === "college") return 200;
+    if (form.gradeLevel === "1-6") return settings.farm_visit_max_primary;
+    if (form.gradeLevel === "7-10") return settings.farm_visit_max_secondary;
+    if (form.gradeLevel === "engineering" || form.gradeLevel === "college")
+      return settings.farm_visit_max_college;
     return 0;
-  }, [form.gradeLevel]);
+  }, [form.gradeLevel, settings]);
 
   const estimate = (Number(form.studentCount) || 0) * perStudent;
 
@@ -67,49 +82,132 @@ const SchoolVisits = () => {
     return null;
   };
 
-  const buildMessage = () => {
-    const gradeLabel =
-      form.gradeLevel === "1-6"
-        ? "Grade 1 – Grade 6"
-        : form.gradeLevel === "7-10"
-        ? "Grade 7 – Grade 10"
-        : form.gradeLevel === "engineering"
-        ? "Engineering College"
-        : form.gradeLevel === "college"
-        ? "College (other)"
-        : "—";
-    return [
-      "🌱 *New Farm Visit Request – California Farms India*",
-      "",
-      `School / College: ${form.schoolName}`,
-      `Contact Person: ${form.contactPerson}`,
-      `Phone: +91 ${form.phone}`,
-      form.email ? `Email: ${form.email}` : null,
-      `Grade Level: ${gradeLabel}`,
-      `Number of Students: ${form.studentCount}`,
-      `Preferred Date: ${form.preferredDate}`,
-      `Estimated Cover Charges: ₹${estimate.toLocaleString("en-IN")} (₹${perStudent}/student)`,
-      form.notes ? `\nNotes:\n${form.notes}` : null,
-    ]
-      .filter(Boolean)
-      .join("\n");
-  };
-
-  const handleWhatsApp = () => {
+  const handleSubmit = async () => {
     const err = validate();
     if (err) return toast.error(err);
-    const msg = encodeURIComponent(buildMessage());
-    window.open(`https://wa.me/918149712801?text=${msg}`, "_blank");
-    toast.success("Opening WhatsApp – send the message to confirm your request");
+
+    setSubmitting(true);
+    try {
+      const { data, error } = await supabase
+        .from("farm_visit_bookings")
+        .insert({
+          school_name: form.schoolName.trim(),
+          contact_person: form.contactPerson.trim(),
+          phone: form.phone.trim(),
+          email: form.email.trim() || null,
+          grade_level: GRADE_LABELS[form.gradeLevel] || form.gradeLevel,
+          student_count: Number(form.studentCount),
+          preferred_date: form.preferredDate,
+          notes: form.notes.trim() || null,
+          estimated_charge: estimate,
+          per_student_charge: perStudent,
+          status: "new",
+        })
+        .select("id")
+        .single();
+
+      if (error) throw error;
+
+      // Fire-and-forget email notification (don't block confirmation)
+      supabase.functions
+        .invoke("send-farm-visit-booking", {
+          body: {
+            bookingId: data.id,
+            schoolName: form.schoolName.trim(),
+            contactPerson: form.contactPerson.trim(),
+            phone: form.phone.trim(),
+            email: form.email.trim() || undefined,
+            gradeLevel: form.gradeLevel,
+            gradeLabel: GRADE_LABELS[form.gradeLevel] || form.gradeLevel,
+            studentCount: Number(form.studentCount),
+            preferredDate: form.preferredDate,
+            notes: form.notes.trim() || undefined,
+            estimatedCharge: estimate,
+            perStudentCharge: perStudent,
+          },
+        })
+        .catch((e) => console.error("Email dispatch failed:", e));
+
+      setSubmittedRef(data.id);
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    } catch (e: any) {
+      console.error(e);
+      toast.error(e?.message || "Could not submit your request. Please try again.");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
-  const handleEmail = () => {
-    const err = validate();
-    if (err) return toast.error(err);
-    const subject = encodeURIComponent(`Farm Visit Booking – ${form.schoolName}`);
-    const body = encodeURIComponent(buildMessage());
-    window.location.href = `mailto:californiafarmsindia@gmail.com?subject=${subject}&body=${body}`;
-  };
+  /* -------- Confirmation View -------- */
+  if (submittedRef) {
+    return (
+      <div className="min-h-screen bg-background">
+        <Navbar />
+        <main className="pt-32 pb-20">
+          <div className="container mx-auto px-4 max-w-2xl">
+            <Card className="border-primary/30 overflow-hidden">
+              <div className="bg-gradient-to-br from-primary to-primary/80 text-primary-foreground p-8 text-center">
+                <div className="w-16 h-16 rounded-full bg-primary-foreground/15 flex items-center justify-center mx-auto mb-4">
+                  <CheckCircle2 className="w-8 h-8" />
+                </div>
+                <h1 className="font-heading text-3xl font-bold mb-2">Request Received! 🌱</h1>
+                <p className="text-primary-foreground/85">
+                  Thank you, {form.contactPerson}. Your farm visit request is in.
+                </p>
+              </div>
+              <CardContent className="p-8 space-y-5">
+                <div className="rounded-xl bg-muted/50 p-5">
+                  <p className="text-xs text-muted-foreground uppercase tracking-wide font-semibold mb-2">
+                    Reference ID
+                  </p>
+                  <p className="font-mono text-sm text-foreground">{submittedRef.slice(0, 8).toUpperCase()}</p>
+                </div>
+
+                <div className="space-y-3 text-sm text-foreground">
+                  <Row label="School / College" value={form.schoolName} />
+                  <Row label="Grade Level" value={GRADE_LABELS[form.gradeLevel]} />
+                  <Row label="Students" value={form.studentCount} />
+                  <Row
+                    label="Preferred Date"
+                    value={new Date(form.preferredDate).toLocaleDateString("en-IN", {
+                      weekday: "long",
+                      day: "numeric",
+                      month: "long",
+                      year: "numeric",
+                    })}
+                  />
+                  <Row label="Estimated Charges" value={`₹${estimate.toLocaleString("en-IN")}`} />
+                </div>
+
+                <div className="rounded-xl border border-primary/20 bg-primary/5 p-5">
+                  <p className="font-semibold text-foreground mb-2">What happens next?</p>
+                  <ul className="text-sm text-muted-foreground space-y-1.5 list-disc list-inside">
+                    <li>Our team will review your request within <strong>1 working day</strong>.</li>
+                    <li>We'll call or email you to confirm the date and arrival details.</li>
+                    {form.email && (
+                      <li>A confirmation copy has been sent to <strong>{form.email}</strong>.</li>
+                    )}
+                  </ul>
+                </div>
+
+                <div className="flex flex-col sm:flex-row gap-3 pt-2">
+                  <Button className="flex-1" onClick={() => navigate("/")}>Back to Home</Button>
+                  <Button
+                    variant="outline"
+                    className="flex-1"
+                    onClick={() => window.open("https://wa.me/918149712801?text=Hi%2C%20I%20just%20submitted%20a%20farm%20visit%20request.", "_blank")}
+                  >
+                    <MessageCircle className="w-4 h-4 mr-2" /> Reach us on WhatsApp
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </main>
+        <Footer />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background">
@@ -117,11 +215,7 @@ const SchoolVisits = () => {
 
       <main className="pt-32 pb-16">
         <div className="container mx-auto px-4">
-          <Button
-            variant="ghost"
-            onClick={() => navigate("/")}
-            className="mb-6 -ml-2"
-          >
+          <Button variant="ghost" onClick={() => navigate("/")} className="mb-6 -ml-2">
             <ArrowLeft className="w-4 h-4 mr-2" /> Back to Home
           </Button>
 
@@ -145,11 +239,8 @@ const SchoolVisits = () => {
                   food, nature and sustainability.
                 </p>
                 <div className="flex flex-wrap gap-3">
-                  <Button
-                    size="lg"
-                    onClick={() => document.getElementById("book")?.scrollIntoView({ behavior: "smooth" })}
-                  >
-                    Book a Farm Visit
+                  <Button size="lg" onClick={() => document.getElementById("book")?.scrollIntoView({ behavior: "smooth" })}>
+                    Book a Farm Visit <ArrowRight className="w-4 h-4 ml-2" />
                   </Button>
                   <Button
                     size="lg"
@@ -163,8 +254,8 @@ const SchoolVisits = () => {
               <div className="relative">
                 <div className="grid grid-cols-2 gap-3">
                   <img
-                    src={GALLERY[0].src}
-                    alt="School farm visit hero"
+                    src={GALLERY[1].src}
+                    alt="Farm tour at the dragon fruit orchard"
                     className="rounded-2xl shadow-xl object-cover w-full h-48 md:h-64 col-span-2"
                     loading="eager"
                   />
@@ -188,14 +279,14 @@ const SchoolVisits = () => {
             <InfoCard
               icon={<CalendarDays className="w-5 h-5" />}
               title="Visit Season"
-              value="15 July → 15 February"
+              value={settings.farm_visit_period}
               hint="Best of the harvest months"
             />
             <InfoCard
               icon={<Clock className="w-5 h-5" />}
               title="Visit Hours"
-              value="8:00 AM – 11:00 AM"
-              hint="Monday to Friday"
+              value={settings.farm_visit_hours}
+              hint={settings.farm_visit_days}
             />
             <InfoCard
               icon={<GraduationCap className="w-5 h-5" />}
@@ -220,9 +311,9 @@ const SchoolVisits = () => {
                   <h2 className="font-heading text-2xl font-bold">Per-Visit Student Limit</h2>
                 </div>
                 <ul className="space-y-4">
-                  <CapacityRow grade="Up to Grade 6" count="50 students" />
-                  <CapacityRow grade="Up to Grade 10" count="100 students" />
-                  <CapacityRow grade="Engineering Colleges" count="200 students" />
+                  <CapacityRow grade="Up to Grade 6" count={`${settings.farm_visit_max_primary} students`} />
+                  <CapacityRow grade="Up to Grade 10" count={`${settings.farm_visit_max_secondary} students`} />
+                  <CapacityRow grade="Engineering Colleges" count={`${settings.farm_visit_max_college} students`} />
                 </ul>
               </CardContent>
             </Card>
@@ -234,13 +325,18 @@ const SchoolVisits = () => {
                   <h2 className="font-heading text-2xl font-bold">Cover Charges</h2>
                 </div>
                 <div className="space-y-4">
-                  <PriceRow label="Students up to Grade 10" price="₹50" suffix="per student" />
-                  <PriceRow label="Higher / College / Engineering" price="₹100" suffix="per student" highlight />
+                  <PriceRow label="Students up to Grade 10" price={`₹${settings.farm_visit_price_school}`} suffix="per student" />
+                  <PriceRow label="Higher / College / Engineering" price={`₹${settings.farm_visit_price_college}`} suffix="per student" highlight />
                 </div>
                 <p className="text-xs text-muted-foreground mt-5 leading-relaxed">
                   Includes guided farm tour, live farmer interaction and access to the
                   greenhouse, orchard and solar dryer demo zones.
                 </p>
+                {settings.farm_visit_notes && (
+                  <p className="text-xs text-primary mt-3 font-medium">
+                    ℹ️ {settings.farm_visit_notes}
+                  </p>
+                )}
               </CardContent>
             </Card>
           </section>
@@ -274,17 +370,15 @@ const SchoolVisits = () => {
             <Card className="border-primary/30 overflow-hidden">
               <div className="grid lg:grid-cols-5">
                 <div className="lg:col-span-2 bg-gradient-to-br from-primary to-primary/80 text-primary-foreground p-8 md:p-10">
-                  <h2 className="font-heading text-3xl font-bold mb-3">
-                    Book Your Farm Visit
-                  </h2>
+                  <h2 className="font-heading text-3xl font-bold mb-3">Book Your Farm Visit</h2>
                   <p className="text-primary-foreground/85 mb-6 leading-relaxed">
                     Fill in the details and we'll confirm your visit slot within one
                     working day.
                   </p>
 
                   <div className="space-y-4 text-sm">
-                    <BookingPoint icon={<Clock className="w-4 h-4" />} text="Mon – Fri, 8 AM to 11 AM" />
-                    <BookingPoint icon={<CalendarDays className="w-4 h-4" />} text="15 July to 15 February" />
+                    <BookingPoint icon={<Clock className="w-4 h-4" />} text={`${settings.farm_visit_days}, ${settings.farm_visit_hours}`} />
+                    <BookingPoint icon={<CalendarDays className="w-4 h-4" />} text={settings.farm_visit_period} />
                     <BookingPoint icon={<CheckCircle2 className="w-4 h-4" />} text="Guided tour + farmer talk" />
                   </div>
 
@@ -314,7 +408,7 @@ const SchoolVisits = () => {
                         placeholder="9876543210"
                       />
                     </Field>
-                    <Field label="Email">
+                    <Field label="Email (recommended)">
                       <Input type="email" value={form.email} onChange={(e) => set("email", e.target.value)} placeholder="you@school.edu" />
                     </Field>
 
@@ -322,9 +416,9 @@ const SchoolVisits = () => {
                       <Select value={form.gradeLevel} onValueChange={(v) => set("gradeLevel", v)}>
                         <SelectTrigger><SelectValue placeholder="Select grade" /></SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="1-6">Grade 1 – Grade 6 (max 50)</SelectItem>
-                          <SelectItem value="7-10">Grade 7 – Grade 10 (max 100)</SelectItem>
-                          <SelectItem value="engineering">Engineering College (max 200)</SelectItem>
+                          <SelectItem value="1-6">Grade 1 – Grade 6 (max {settings.farm_visit_max_primary})</SelectItem>
+                          <SelectItem value="7-10">Grade 7 – Grade 10 (max {settings.farm_visit_max_secondary})</SelectItem>
+                          <SelectItem value="engineering">Engineering College (max {settings.farm_visit_max_college})</SelectItem>
                           <SelectItem value="college">Other College</SelectItem>
                         </SelectContent>
                       </Select>
@@ -342,7 +436,7 @@ const SchoolVisits = () => {
                     </Field>
 
                     <Field label="Preferred Date *">
-                      <Input type="date" value={form.preferredDate} onChange={(e) => set("preferredDate", e.target.value)} />
+                      <Input type="date" value={form.preferredDate} onChange={(e) => set("preferredDate", e.target.value)} min={new Date().toISOString().split("T")[0]} />
                     </Field>
 
                     <Field label="Notes (optional)" className="sm:col-span-2">
@@ -369,14 +463,15 @@ const SchoolVisits = () => {
                     </div>
                   )}
 
-                  <div className="mt-6 flex flex-col sm:flex-row gap-3">
-                    <Button size="lg" className="flex-1" onClick={handleWhatsApp}>
-                      <MessageCircle className="w-4 h-4 mr-2" /> Book via WhatsApp
-                    </Button>
-                    <Button size="lg" variant="outline" className="flex-1" onClick={handleEmail}>
-                      <Mail className="w-4 h-4 mr-2" /> Book via Email
-                    </Button>
-                  </div>
+                  <Button size="lg" className="w-full mt-6" onClick={handleSubmit} disabled={submitting}>
+                    {submitting ? (
+                      <>
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" /> Submitting…
+                      </>
+                    ) : (
+                      <>Submit Booking Request <ArrowRight className="w-4 h-4 ml-2" /></>
+                    )}
+                  </Button>
 
                   <p className="text-xs text-muted-foreground mt-4">
                     By submitting you agree to be contacted by California Farms India
@@ -395,7 +490,7 @@ const SchoolVisits = () => {
   );
 };
 
-/* ---------- small helpers ---------- */
+/* ---------- helpers ---------- */
 
 const InfoCard = ({ icon, title, value, hint }: { icon: React.ReactNode; title: string; value: string; hint: string }) => (
   <Card className="border-border/60 hover:border-primary/40 transition-colors">
@@ -453,6 +548,13 @@ const Field = ({ label, children, className = "" }: { label: string; children: R
   <div className={className}>
     <Label className="text-xs font-semibold text-foreground mb-1.5 block">{label}</Label>
     {children}
+  </div>
+);
+
+const Row = ({ label, value }: { label: string; value: React.ReactNode }) => (
+  <div className="flex items-start justify-between gap-4 py-2 border-b border-border last:border-0">
+    <span className="text-muted-foreground">{label}</span>
+    <span className="font-semibold text-right">{value}</span>
   </div>
 );
 

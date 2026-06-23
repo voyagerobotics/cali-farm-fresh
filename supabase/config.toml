@@ -68,3 +68,7 @@ verify_jwt = false
 
 [functions.uptime-monitor]
 verify_jwt = false
+
+[functions.send-farm-visit-booking]
+verify_jwt = false
+

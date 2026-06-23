@@ -21,6 +21,7 @@ import AboutUs from "./pages/AboutUs";
 import ContactUs from "./pages/ContactUs";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
 import MyPreOrders from "./pages/MyPreOrders";
+import SchoolVisits from "./pages/SchoolVisits";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient({
@@ -63,6 +64,7 @@ const App = () => (
                 <Route path="/about" element={<AboutUs />} />
                 <Route path="/contact" element={<ContactUs />} />
                 <Route path="/privacy-policy" element={<PrivacyPolicy />} />
+                <Route path="/school-visits" element={<SchoolVisits />} />
                 <Route path="*" element={<NotFound />} />
               </Routes>
             </BrowserRouter>

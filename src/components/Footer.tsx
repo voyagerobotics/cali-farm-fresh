@@ -97,6 +97,14 @@ const Footer = () => {
                   My Orders
                 </button>
               </li>
+              <li>
+                <button 
+                  onClick={() => navigate("/school-visits")} 
+                  className="text-background/70 hover:text-secondary transition-colors text-sm"
+                >
+                  School Farm Visits
+                </button>
+              </li>
             </ul>
           </div>
 

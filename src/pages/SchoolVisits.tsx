@@ -13,19 +13,14 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useFarmVisitSettings } from "@/hooks/useFarmVisitSettings";
 
-import visit1 from "@/assets/school-visit-1.jpg.asset.json";
-import visit2 from "@/assets/school-visit-2.jpg.asset.json";
-import visit3 from "@/assets/school-visit-3.jpg.asset.json";
-import visit4 from "@/assets/school-visit-4.jpg.asset.json";
-import visit5 from "@/assets/school-visit-5.jpg.asset.json";
-
 const GALLERY = [
-  { src: visit1.url, caption: "Learning Beyond the Classroom" },
-  { src: visit2.url, caption: "Inside the Dragon Fruit Orchard" },
-  { src: visit3.url, caption: "Kids Exploring Nature & Farming" },
-  { src: visit4.url, caption: "Hands-on with Crops & Flowers" },
-  { src: visit5.url, caption: "Live Farm Talks with Experts" },
+  { src: "/school-visits/school-visit-1.jpg", caption: "Learning Beyond the Classroom" },
+  { src: "/school-visits/school-visit-2.jpg", caption: "Inside the Dragon Fruit Orchard" },
+  { src: "/school-visits/school-visit-3.jpg", caption: "Kids Exploring Nature & Farming" },
+  { src: "/school-visits/school-visit-4.jpg", caption: "Hands-on with Crops & Flowers" },
+  { src: "/school-visits/school-visit-5.jpg", caption: "Live Farm Talks with Experts" },
 ];
+
 
 const GRADE_LABELS: Record<string, string> = {
   "1-6": "Grade 1 – Grade 6",

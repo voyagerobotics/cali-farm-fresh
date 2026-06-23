@@ -1,7 +1,7 @@
 import { GraduationCap, ArrowRight, CalendarDays, Clock, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
-import visitHero from "@/assets/school-visit-2.jpg.asset.json";
+const visitHero = { url: "/school-visits/school-visit-2.jpg" };
 import { useFarmVisitSettings } from "@/hooks/useFarmVisitSettings";
 
 const SchoolVisitCTA = () => {

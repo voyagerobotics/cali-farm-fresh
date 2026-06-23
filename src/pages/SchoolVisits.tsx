@@ -51,6 +51,11 @@ const SchoolVisits = () => {
   const [submitting, setSubmitting] = useState(false);
   const [submittedRef, setSubmittedRef] = useState<string | null>(null);
 
+  // Always land at the top of the page (above the hero) when opening from CTAs
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+  }, []);
+
   const set = (k: keyof typeof form, v: string) => setForm((p) => ({ ...p, [k]: v }));
 
   const perStudent = useMemo(() => {

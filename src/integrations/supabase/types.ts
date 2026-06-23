@@ -161,6 +161,60 @@ export type Database = {
         }
         Relationships: []
       }
+      farm_visit_bookings: {
+        Row: {
+          admin_notes: string | null
+          contact_person: string
+          created_at: string
+          email: string | null
+          estimated_charge: number
+          grade_level: string
+          id: string
+          notes: string | null
+          per_student_charge: number
+          phone: string
+          preferred_date: string
+          school_name: string
+          status: string
+          student_count: number
+          updated_at: string
+        }
+        Insert: {
+          admin_notes?: string | null
+          contact_person: string
+          created_at?: string
+          email?: string | null
+          estimated_charge?: number
+          grade_level: string
+          id?: string
+          notes?: string | null
+          per_student_charge?: number
+          phone: string
+          preferred_date: string
+          school_name: string
+          status?: string
+          student_count: number
+          updated_at?: string
+        }
+        Update: {
+          admin_notes?: string | null
+          contact_person?: string
+          created_at?: string
+          email?: string | null
+          estimated_charge?: number
+          grade_level?: string
+          id?: string
+          notes?: string | null
+          per_student_charge?: number
+          phone?: string
+          preferred_date?: string
+          school_name?: string
+          status?: string
+          student_count?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       offline_customers: {
         Row: {
           address: string | null
@@ -798,6 +852,16 @@ export type Database = {
           created_at: string
           delivery_rate_per_km: number | null
           delivery_time_slot: string
+          farm_visit_days: string
+          farm_visit_enabled: boolean
+          farm_visit_hours: string
+          farm_visit_max_college: number
+          farm_visit_max_primary: number
+          farm_visit_max_secondary: number
+          farm_visit_notes: string | null
+          farm_visit_period: string
+          farm_visit_price_college: number
+          farm_visit_price_school: number
           free_delivery_threshold: number | null
           id: string
           map_url: string | null
@@ -815,6 +879,16 @@ export type Database = {
           created_at?: string
           delivery_rate_per_km?: number | null
           delivery_time_slot?: string
+          farm_visit_days?: string
+          farm_visit_enabled?: boolean
+          farm_visit_hours?: string
+          farm_visit_max_college?: number
+          farm_visit_max_primary?: number
+          farm_visit_max_secondary?: number
+          farm_visit_notes?: string | null
+          farm_visit_period?: string
+          farm_visit_price_college?: number
+          farm_visit_price_school?: number
           free_delivery_threshold?: number | null
           id?: string
           map_url?: string | null
@@ -832,6 +906,16 @@ export type Database = {
           created_at?: string
           delivery_rate_per_km?: number | null
           delivery_time_slot?: string
+          farm_visit_days?: string
+          farm_visit_enabled?: boolean
+          farm_visit_hours?: string
+          farm_visit_max_college?: number
+          farm_visit_max_primary?: number
+          farm_visit_max_secondary?: number
+          farm_visit_notes?: string | null
+          farm_visit_period?: string
+          farm_visit_price_college?: number
+          farm_visit_price_school?: number
           free_delivery_threshold?: number | null
           id?: string
           map_url?: string | null

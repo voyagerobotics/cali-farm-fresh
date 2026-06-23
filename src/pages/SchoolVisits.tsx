@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ArrowLeft, CalendarDays, Clock, GraduationCap, IndianRupee, Users, MapPin, Sparkles, CheckCircle2, Sun, Phone, Mail, MessageCircle, Loader2, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -50,6 +50,11 @@ const SchoolVisits = () => {
   });
   const [submitting, setSubmitting] = useState(false);
   const [submittedRef, setSubmittedRef] = useState<string | null>(null);
+
+  // Always land at the top of the page (above the hero) when opening from CTAs
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+  }, []);
 
   const set = (k: keyof typeof form, v: string) => setForm((p) => ({ ...p, [k]: v }));
 

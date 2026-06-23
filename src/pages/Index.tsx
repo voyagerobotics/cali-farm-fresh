@@ -9,6 +9,7 @@ const AboutSection = lazy(() => import("@/components/AboutSection"));
 const ProductsSection = lazy(() => import("@/components/ProductsSection"));
 const BenefitsSection = lazy(() => import("@/components/BenefitsSection"));
 const TestimonialsSection = lazy(() => import("@/components/TestimonialsSection"));
+const SchoolVisitCTA = lazy(() => import("@/components/SchoolVisitCTA"));
 const ContactSection = lazy(() => import("@/components/ContactSection"));
 const Footer = lazy(() => import("@/components/Footer"));
 
@@ -28,6 +29,7 @@ const Index = () => {
           <ProductsSection />
           <BenefitsSection />
           <TestimonialsSection />
+          <SchoolVisitCTA />
           <ContactSection />
         </Suspense>
       </main>

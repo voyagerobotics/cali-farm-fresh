@@ -89,7 +89,7 @@ const SchoolVisits = () => {
     setSubmitting(true);
     try {
       const bookingId = crypto.randomUUID();
-      const { data, error } = await supabase
+      const { error } = await supabase
         .from("farm_visit_bookings")
         .insert({
           id: bookingId,

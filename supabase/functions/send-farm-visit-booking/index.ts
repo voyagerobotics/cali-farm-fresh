@@ -78,6 +78,7 @@ const handler = async (req: Request): Promise<Response> => {
   try {
     const body: BookingBody = await req.json();
     const {
+      bookingId,
       schoolName,
       contactPerson,
       phone,
@@ -97,6 +98,8 @@ const handler = async (req: Request): Promise<Response> => {
       );
     }
 
+    const refId = (bookingId || "").slice(0, 8).toUpperCase() || "—";
+
     const niceDate = new Date(preferredDate).toLocaleDateString("en-IN", {
       weekday: "long",
       year: "numeric",
@@ -105,6 +108,7 @@ const handler = async (req: Request): Promise<Response> => {
     });
 
     const detailRows = `
+      <tr><td style="padding:8px 12px;color:#666">Reference ID</td><td style="padding:8px 12px;font-family:monospace;font-weight:700;color:#2d5a3d">${esc(refId)}</td></tr>
       <tr><td style="padding:8px 12px;color:#666">School / College</td><td style="padding:8px 12px;font-weight:600">${esc(schoolName)}</td></tr>
       <tr><td style="padding:8px 12px;color:#666">Contact Person</td><td style="padding:8px 12px">${esc(contactPerson)}</td></tr>
       <tr><td style="padding:8px 12px;color:#666">Phone</td><td style="padding:8px 12px">+91 ${esc(phone)}</td></tr>
@@ -113,7 +117,7 @@ const handler = async (req: Request): Promise<Response> => {
       <tr><td style="padding:8px 12px;color:#666">Students</td><td style="padding:8px 12px">${esc(studentCount)}</td></tr>
       <tr><td style="padding:8px 12px;color:#666">Preferred Date</td><td style="padding:8px 12px"><strong>${esc(niceDate)}</strong></td></tr>
       <tr><td style="padding:8px 12px;color:#666">Estimated Charges</td><td style="padding:8px 12px"><strong>₹${esc(estimatedCharge.toLocaleString("en-IN"))}</strong> <span style="color:#888">(₹${esc(perStudentCharge)}/student)</span></td></tr>
-      ${notes ? `<tr><td style="padding:8px 12px;color:#666;vertical-align:top">Notes</td><td style="padding:8px 12px;white-space:pre-wrap">${esc(notes)}</td></tr>` : ""}
+      <tr><td style="padding:8px 12px;color:#666;vertical-align:top">Notes</td><td style="padding:8px 12px;white-space:pre-wrap">${notes ? esc(notes) : '<span style="color:#999">—</span>'}</td></tr>
     `;
 
     const shell = (title: string, intro: string, footerNote: string) => `

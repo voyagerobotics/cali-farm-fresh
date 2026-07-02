@@ -244,12 +244,14 @@ const SchoolVisits = () => {
                   <Button size="lg" onClick={() => document.getElementById("book")?.scrollIntoView({ behavior: "smooth" })}>
                     Book a Farm Visit <ArrowRight className="w-4 h-4 ml-2" />
                   </Button>
-                  <Button
-                    size="lg"
-                    variant="outline"
-                    onClick={() => window.open("https://wa.me/918149712801?text=Hi%2C%20I%20would%20like%20to%20enquire%20about%20a%20school%20farm%20visit.", "_blank")}
-                  >
-                    <MessageCircle className="w-4 h-4 mr-2" /> Quick Enquiry
+                  <Button asChild size="lg" variant="outline">
+                    <a
+                      href="https://wa.me/918149712801?text=Hi%2C%20I%20would%20like%20to%20enquire%20about%20a%20school%20farm%20visit."
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      <MessageCircle className="w-4 h-4 mr-2" /> Quick Enquiry
+                    </a>
                   </Button>
                 </div>
               </div>

@@ -88,9 +88,11 @@ const SchoolVisits = () => {
 
     setSubmitting(true);
     try {
-      const { data, error } = await supabase
+      const bookingId = crypto.randomUUID();
+      const { error } = await supabase
         .from("farm_visit_bookings")
         .insert({
+          id: bookingId,
           school_name: form.schoolName.trim(),
           contact_person: form.contactPerson.trim(),
           phone: form.phone.trim(),
@@ -102,9 +104,7 @@ const SchoolVisits = () => {
           estimated_charge: estimate,
           per_student_charge: perStudent,
           status: "new",
-        })
-        .select("id")
-        .single();
+        });
 
       if (error) throw error;
 
@@ -112,7 +112,7 @@ const SchoolVisits = () => {
       supabase.functions
         .invoke("send-farm-visit-booking", {
           body: {
-            bookingId: data.id,
+            bookingId,
             schoolName: form.schoolName.trim(),
             contactPerson: form.contactPerson.trim(),
             phone: form.phone.trim(),
@@ -128,7 +128,7 @@ const SchoolVisits = () => {
         })
         .catch((e) => console.error("Email dispatch failed:", e));
 
-      setSubmittedRef(data.id);
+      setSubmittedRef(bookingId);
       window.scrollTo({ top: 0, behavior: "smooth" });
     } catch (e: any) {
       console.error(e);

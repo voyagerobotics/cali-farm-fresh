@@ -24,12 +24,12 @@ const Index = () => {
       <main>
         <HeroSection />
         <Suspense fallback={<SectionFallback />}>
+          <SchoolVisitCTA />
           <PromotionalBanners />
           <AboutSection />
           <ProductsSection />
           <BenefitsSection />
           <TestimonialsSection />
-          <SchoolVisitCTA />
           <ContactSection />
         </Suspense>
       </main>

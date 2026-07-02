@@ -192,12 +192,14 @@ const SchoolVisits = () => {
 
                 <div className="flex flex-col sm:flex-row gap-3 pt-2">
                   <Button className="flex-1" onClick={() => navigate("/")}>Back to Home</Button>
-                  <Button
-                    variant="outline"
-                    className="flex-1"
-                    onClick={() => window.open("https://wa.me/918149712801?text=Hi%2C%20I%20just%20submitted%20a%20farm%20visit%20request.", "_blank")}
-                  >
-                    <MessageCircle className="w-4 h-4 mr-2" /> Reach us on WhatsApp
+                  <Button asChild variant="outline" className="flex-1">
+                    <a
+                      href="https://wa.me/918149712801?text=Hi%2C%20I%20just%20submitted%20a%20farm%20visit%20request."
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      <MessageCircle className="w-4 h-4 mr-2" /> Reach us on WhatsApp
+                    </a>
                   </Button>
                 </div>
               </CardContent>

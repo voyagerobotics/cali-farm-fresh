@@ -204,7 +204,9 @@ serve(async (req) => {
       if (status === "out_for_delivery") {
         buttons.push({ id: `resched:${orderNumber}`, title: "🗓️ Reschedule" });
       }
+      buttons.push({ id: `summary:${orderNumber}`, title: "🧾 Order summary" });
       buttons.push({ id: `support:${orderNumber}`, title: "💬 Contact Support" });
+
 
       const interactive = await waSend({
         to,

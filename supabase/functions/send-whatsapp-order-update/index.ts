@@ -156,10 +156,11 @@ serve(async (req) => {
       orderNumber: orderNumberOverride,
       total: totalOverride,
       reason,
+      preview,
     } = await req.json();
 
     if (!status) return json({ success: false, error: "Missing status" }, 400);
-    if (!whatsappToken || !whatsappPhoneNumberId) {
+    if (!preview && (!whatsappToken || !whatsappPhoneNumberId)) {
       return json({ success: false, sent: false, reason: "not_configured" });
     }
 
@@ -189,6 +190,34 @@ serve(async (req) => {
       }
     }
 
+    if (preview) {
+      orderNumber = orderNumber || "CFI-SAMPLE-0001";
+      const previewName = String(name || "Customer").split(" ")[0];
+      let previewBody = textMap[status]?.({
+        name: previewName,
+        orderNumber,
+        eta: buildEta(status, orderRow),
+        total: total ?? 499,
+      });
+      if (!previewBody) return json({ success: true, preview: true, supported: false, reason: "no_message_for_status" });
+      if (status === "payment_failed" && reason) previewBody += `\n\n_Reason: ${String(reason).slice(0, 120)}_`;
+      const previewButtons: string[] = [];
+      if (buttonStatuses.has(status)) {
+        if (status === "out_for_delivery") previewButtons.push("🗓️ Reschedule");
+        previewButtons.push("🧾 Order summary");
+        previewButtons.push("💬 Contact Support");
+      }
+      return json({
+        success: true,
+        preview: true,
+        supported: true,
+        body: previewBody,
+        buttons: previewButtons,
+        template: templateMap[status] || null,
+        footer: previewButtons.length ? "California Farms India • zomical.com" : null,
+      });
+    }
+
     const to = phone ? formatIndianPhone(phone) : null;
     if (!to || !orderNumber) return json({ success: false, sent: false, reason: "missing_phone_or_order" });
 
@@ -199,6 +228,7 @@ serve(async (req) => {
     if (status === "payment_failed" && reason) {
       body += `\n\n_Reason: ${String(reason).slice(0, 120)}_`;
     }
+
 
     // 1) Rich interactive message with quick-reply buttons handled by our bot
     //    (free-form, valid inside the 24h customer-service window)

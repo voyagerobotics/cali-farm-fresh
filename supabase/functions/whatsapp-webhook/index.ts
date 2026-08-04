@@ -852,11 +852,19 @@ serve(async (req) => {
 
       const isCheckoutReady = aiResponse.includes("<!--CHECKOUT_READY-->");
       const cleanedResponse = cleanResponse(aiResponse);
-      const chunks = cleanedResponse.match(/.{1,4000}/gs) || [cleanedResponse];
-      for (const chunk of chunks) {
-        await sendWhatsAppMessage(from, chunk);
-        await logMessage(from, "outbound", chunk);
+      if (cleanedResponse) {
+        const chunks = cleanedResponse.match(/.{1,4000}/gs) || [cleanedResponse];
+        for (const chunk of chunks) {
+          await sendWhatsAppMessage(from, chunk);
+          await logMessage(from, "outbound", chunk);
+        }
       }
+
+      // Send rich product photo cards (price, pack sizes, live stock)
+      try {
+        await sendProductShowcase(from, aiResponse, products as Array<Record<string, any>>);
+      } catch (e) { console.error("Product showcase error:", e); }
+
 
       if (isCheckoutReady) {
         try {

@@ -286,11 +286,14 @@ function rescheduleRows(orderNumber: string) {
       rows.push({ id: `reslot:${orderNumber}:today:${w.id}`, title: `Today ${w.label}`, description: istDay(now) });
     }
   }
+  const todayRows = rows.slice(0, 4);
+  const tomorrowRows = SLOT_WINDOWS.map((w) => ({
+    id: `reslot:${orderNumber}:tmrw:${w.id}`,
+    title: `Tmrw ${w.label}`,
+    description: istDay(tomorrow),
+  }));
+  return [...todayRows, ...tomorrowRows].slice(0, 10);
 
-  for (const w of SLOT_WINDOWS) {
-    rows.push({ id: `reslot:${orderNumber}:tmrw:${w.id}`, title: `Tmrw ${w.label}`, description: istDay(tomorrow) });
-  }
-  return rows.slice(0, 10);
 }
 
 function slotLabelFromId(dayKey: string, windowId: string) {

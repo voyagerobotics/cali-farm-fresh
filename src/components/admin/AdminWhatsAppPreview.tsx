@@ -5,27 +5,20 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-
-const STATUSES: { id: string; label: string }[] = [
-  { id: "confirmed", label: "Order confirmed" },
-  { id: "preparing", label: "Order packed" },
-  { id: "out_for_delivery", label: "Out for delivery" },
-  { id: "delivered", label: "Delivered" },
-  { id: "cancelled", label: "Cancelled" },
-  { id: "payment_failed", label: "Payment failed" },
-  { id: "payment_pending", label: "Payment pending" },
-  { id: "refund_requested", label: "Refund requested" },
-  { id: "refund_processed", label: "Refund processed" },
-];
+import { WA_STATUSES as STATUSES, WA_LANGUAGES } from "@/components/admin/AdminWhatsAppTemplates";
 
 interface PreviewData {
   supported: boolean;
   body?: string;
   buttons?: string[];
   template?: string | null;
+  templateLanguage?: string | null;
+  language?: string;
+  hasTranslation?: boolean;
   footer?: string | null;
   reason?: string;
 }
+
 
 /** Renders WhatsApp-style bold/italic markup as HTML-ish React nodes */
 const renderWhatsAppText = (text: string) =>

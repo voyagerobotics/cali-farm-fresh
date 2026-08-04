@@ -106,6 +106,8 @@ const Admin = () => {
         {activeTab === "customers" && <AdminCustomers />}
         {activeTab === "banners" && <AdminBanners />}
         {activeTab === "emails" && <AdminEmailLogs />}
+        {activeTab === "whatsapp" && <AdminWhatsAppPreview />}
+
         {activeTab === "farm-visits" && <AdminFarmVisits />}
         {activeTab === "logs" && <AdminLogs />}
         {activeTab === "settings" && <AdminSettings />}

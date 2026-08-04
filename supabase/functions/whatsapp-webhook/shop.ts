@@ -188,13 +188,13 @@ function productCard(p: Product): string {
   return lines.join("\n");
 }
 
-function cartLines(cart: any[]): { text: string; total: number } {
+function cartLines(cart: any[], numbered = false): { text: string; total: number } {
   let total = 0;
   const lines: string[] = [];
-  cart.forEach((c) => {
+  cart.forEach((c, i) => {
     const sum = Number(c.price) * Number(c.qty);
     total += sum;
-    lines.push(`• ${c.name} ×${c.qty} — ₹${sum}`);
+    lines.push(`${numbered ? `*${i + 1}.*` : "•"} ${c.name} ×${c.qty} — ₹${sum}`);
   });
   return { text: lines.join("\n"), total };
 }
@@ -260,14 +260,21 @@ export async function handleShopMessage(ctx: ShopCtx): Promise<boolean> {
 
   const showCart = async (prefix?: string) => {
     if (!cart.length) {
+      await setMc({ view: "cart", ids: [] });
       await say(`${prefix ? prefix + "\n\n" : ""}🛒 Your cart is empty.\n\nType *MENU* to start shopping.`);
       return;
     }
-    const { text, total } = cartLines(cart);
+    const { text, total } = cartLines(cart, true);
+    await setMc({ view: "cart", ids: cart.map((c) => c.product_id ?? c.name) });
     await sayButtons(
-      `${prefix ? prefix + "\n\n" : ""}🛒 *Your Cart*\n${text}\n\n💰 *Total: ₹${total}*\n🚚 FREE delivery above ₹399`,
+      `${prefix ? prefix + "\n\n" : ""}🛒 *Your Cart*\n${text}\n\n💰 *Total: ₹${total}*\n🚚 FREE delivery above ₹399\n\n✏️ *Edit your cart*\n• *+1* / *-1* → change qty of item 1\n• *1 x3* → set item 1 quantity to 3\n• *REMOVE 1* → remove item 1\n• *CLEAR* → empty the cart`,
       [{ id: "menu", title: "🛍️ Keep Shopping" }, { id: "checkout", title: "✅ Checkout" }],
     );
+  };
+
+  const saveCart = async () => {
+    await ctx.updateConversation(phone, { cart });
+    conversation.cart = cart;
   };
 
   const addToCart = async (product: Product) => {
@@ -279,10 +286,77 @@ export async function handleShopMessage(ctx: ShopCtx): Promise<boolean> {
     const idx = cart.findIndex((c) => norm(c.name) === norm(product.name));
     if (idx >= 0) cart[idx].qty += 1;
     else cart.push({ name: product.name, qty: 1, price: effectivePrice(product), unit: product.unit, product_id: product.id });
-    await ctx.updateConversation(phone, { cart });
-    conversation.cart = cart;
+    await saveCart();
     await showCart("✅ *Added to Cart*");
   };
+
+  // Cart editing: qty change / removal
+  const editCart = async (): Promise<boolean> => {
+    const clean = t.replace(/\s+/g, " ").trim();
+
+    if (["clear", "empty cart", "clear cart", "remove all"].includes(clean)) {
+      if (!cart.length) { await showCart(); return true; }
+      cart.length = 0;
+      await saveCart();
+      await say("🗑️ Cart cleared.\n\nType *MENU* to start shopping again.");
+      return true;
+    }
+
+    const resolve = (n: number) => (n >= 1 && n <= cart.length ? n - 1 : -1);
+
+    // REMOVE 2 / DELETE 2 / REMOVE tomato
+    let m = clean.match(/^(?:remove|delete|del)\s+(.+)$/);
+    if (m) {
+      const arg = m[1].trim();
+      let idx = /^\d+$/.test(arg) ? resolve(parseInt(arg, 10)) : cart.findIndex((c) => norm(c.name).includes(arg));
+      if (idx < 0) { await say("❓ I couldn't find that item in your cart. Check the numbers above."); return true; }
+      const [removed] = cart.splice(idx, 1);
+      await saveCart();
+      await showCart(`🗑️ *${removed.name}* removed from your cart.`);
+      return true;
+    }
+
+    // "1 x3" / "1 = 3" / "1 qty 3"
+    m = clean.match(/^(\d+)\s*(?:x|\*|=|qty|quantity)\s*(\d+)$/);
+    if (m) {
+      const idx = resolve(parseInt(m[1], 10));
+      const qty = parseInt(m[2], 10);
+      if (idx < 0) { await say("❓ That item number isn't in your cart."); return true; }
+      if (qty <= 0) {
+        const [removed] = cart.splice(idx, 1);
+        await saveCart();
+        await showCart(`🗑️ *${removed.name}* removed from your cart.`);
+        return true;
+      }
+      cart[idx].qty = Math.min(qty, 99);
+      await saveCart();
+      await showCart(`✏️ *${cart[idx].name}* quantity set to ${cart[idx].qty}.`);
+      return true;
+    }
+
+    // "+1" / "-2" / "1+" / "1-"
+    m = clean.match(/^([+-])\s*(\d+)$/) || clean.match(/^(\d+)\s*([+-])$/);
+    if (m) {
+      const sign = /[+-]/.test(m[1]) ? m[1] : m[2];
+      const num = /[+-]/.test(m[1]) ? m[2] : m[1];
+      const idx = resolve(parseInt(num, 10));
+      if (idx < 0) { await say("❓ That item number isn't in your cart."); return true; }
+      const next = Number(cart[idx].qty) + (sign === "+" ? 1 : -1);
+      if (next <= 0) {
+        const [removed] = cart.splice(idx, 1);
+        await saveCart();
+        await showCart(`🗑️ *${removed.name}* removed from your cart.`);
+        return true;
+      }
+      cart[idx].qty = Math.min(next, 99);
+      await saveCart();
+      await showCart(`✏️ *${cart[idx].name}* × ${cart[idx].qty}.`);
+      return true;
+    }
+
+    return false;
+  };
+
 
   // ── Checkout collection flow ──
   if (state.startsWith("co_")) {
@@ -361,7 +435,28 @@ export async function handleShopMessage(ctx: ShopCtx): Promise<boolean> {
     return true;
   }
 
-  if (t === "cart" || t === "my cart") { await showCart(); return true; }
+  if (t === "cart" || t === "my cart" || t === "view cart" || t === "edit cart") { await showCart(); return true; }
+
+  // Cart edit buttons
+  const btn = t.match(/^(qty\+|qty-|rm):(\d+)$/);
+  if (btn) {
+    const idx = parseInt(btn[2], 10) - 1;
+    const item = cart[idx];
+    if (!item) { await showCart("❓ That item is no longer in your cart."); return true; }
+    if (btn[1] === "rm" || (btn[1] === "qty-" && Number(item.qty) <= 1)) {
+      cart.splice(idx, 1);
+      await saveCart();
+      await showCart(`🗑️ *${item.name}* removed from your cart.`);
+      return true;
+    }
+    item.qty = btn[1] === "qty+" ? Math.min(Number(item.qty) + 1, 99) : Number(item.qty) - 1;
+    await saveCart();
+    await showCart(`✏️ *${item.name}* × ${item.qty}.`);
+    return true;
+  }
+
+  // Cart edits (qty change / remove / clear)
+  if (await editCart()) return true;
 
   if (t === "checkout" || t === "buy now" || t === "place order") {
     if (!cart.length) { await say("🛒 Your cart is empty. Type *MENU* to start shopping."); return true; }
@@ -409,6 +504,20 @@ export async function handleShopMessage(ctx: ShopCtx): Promise<boolean> {
   // Numeric selection
   if (/^\d{1,2}$/.test(t)) {
     const n = parseInt(t, 10);
+    if (mc.view === "cart" && cart.length) {
+      const item = cart[n - 1];
+      if (item) {
+        await sayButtons(
+          `🛒 *${item.name}*\n₹${item.price} / ${item.unit} × ${item.qty} = ₹${Number(item.price) * Number(item.qty)}\n\nChange this item:`,
+          [
+            { id: `qty+:${n}`, title: "➕ Add one" },
+            { id: `qty-:${n}`, title: "➖ Remove one" },
+            { id: `rm:${n}`, title: "🗑️ Remove item" },
+          ],
+        );
+        return true;
+      }
+    }
     if (mc.view === "list" && Array.isArray(mc.ids)) {
       const id = mc.ids[n - 1];
       const p = products.find((x) => x.id === id);

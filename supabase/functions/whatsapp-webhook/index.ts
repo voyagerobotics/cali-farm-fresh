@@ -1,6 +1,8 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.89.0";
 import { Resend } from "https://esm.sh/resend@2.0.0";
+import { handleShopMessage } from "./shop.ts";
+
 
 const VERIFY_TOKEN = "zomical_whatsapp_verify_2024";
 
@@ -68,6 +70,43 @@ async function sendWhatsAppImage(to: string, imageUrl: string, caption: string) 
   if (data.error) {
     // Fallback to text so the customer still gets the info
     await sendWhatsAppMessage(to, caption);
+  }
+  return data;
+}
+
+// Send an interactive message with up to 3 quick-reply buttons
+async function sendWhatsAppButtons(
+  to: string,
+  bodyText: string,
+  buttons: Array<{ id: string; title: string }>,
+) {
+  const url = `https://graph.facebook.com/v21.0/${phoneNumberId}/messages`;
+  const res = await fetch(url, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${whatsappToken}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      messaging_product: "whatsapp",
+      to,
+      type: "interactive",
+      interactive: {
+        type: "button",
+        body: { text: bodyText.slice(0, 1024) },
+        action: {
+          buttons: buttons.slice(0, 3).map((b) => ({
+            type: "reply",
+            reply: { id: b.id.slice(0, 256), title: b.title.slice(0, 20) },
+          })),
+        },
+      },
+    }),
+  });
+  const data = await res.json();
+  if (data.error) {
+    console.error("WhatsApp button send error:", JSON.stringify(data.error));
+    await sendWhatsAppMessage(to, bodyText);
   }
   return data;
 }
@@ -538,13 +577,17 @@ async function getAIResponse(
     .map((m) => `${m.direction === "inbound" ? "Customer" : "Agent"}: ${m.message_text}`)
     .join("\n");
 
-  const systemPrompt = `You are a friendly WhatsApp ordering assistant for California Farms India, a farm-fresh vegetable delivery service in Nagpur.
+  const systemPrompt = `You are a premium WhatsApp shopping assistant for California Farms India, a farm-fresh grocery delivery service in Nagpur (zomical.com).
 
 RULES:
 - Be bilingual: respond in Hindi if the customer writes in Hindi, otherwise English. Mix naturally.
-- Keep messages SHORT (WhatsApp style, max 300 chars per message).
-- Use emojis naturally 🥬🥕🍅
+- NEVER send long product lists. The app has a numbered category menu that does browsing for you.
+- Keep every reply to ONE short screen (max 300 chars). No walls of text.
+- Use emojis sparingly but warmly 🥬🥕🍅
 - Always show prices in ₹
+- End replies by guiding the customer back to navigation, e.g. "Type *MENU* to browse categories 🌿".
+- Never invent products, prices or stock — use only the live catalog below.
+
 
 AVAILABLE PRODUCTS:
 ${productCatalog}
@@ -780,7 +823,22 @@ async function handlePaymentCallback(url: URL) {
           `✅ Payment received! Your order #${orderNumber} is confirmed.\n\n💰 Subtotal: ₹${order.subtotal}${deliveryChargeText}\n💵 Total: ₹${order.total}\n\nWe're preparing your fresh produce! 🥬🚚\n\nThank you for ordering from California Farms India! 🌱`
         );
         await logMessage(cleanPhone, "outbound", `Payment confirmed for order #${orderNumber}`);
-        await updateConversation(cleanPhone, { conversation_state: "idle", cart: [] });
+        await updateConversation(cleanPhone, { conversation_state: "idle", cart: [], menu_context: {} });
+
+        // Recommend related products after every purchase
+        try {
+          const products = await getAvailableProducts();
+          const bought = new Set((orderItems || []).map((i: any) => String(i.product_name).toLowerCase()));
+          const recos = (products as Array<Record<string, any>>)
+            .filter((p) => !bought.has(String(p.name).toLowerCase()) && (p.stock_quantity == null || Number(p.stock_quantity) > 0))
+            .slice(0, 3);
+          if (recos.length) {
+            const msg = `✨ *Customers also loved*\n${recos.map((p) => `• ${p.name} — ₹${effectivePrice(p)}/${p.unit}`).join("\n")}\n\nType *MENU* to shop again 🌿`;
+            await sendWhatsAppMessage(cleanPhone, msg);
+            await logMessage(cleanPhone, "outbound", msg);
+          }
+        } catch (e) { console.error("Reco error:", e); }
+
       }
     }
   }
@@ -831,11 +889,16 @@ serve(async (req) => {
       }
 
       const from = message.from;
-      const messageText = message.text?.body || "";
+      const buttonId: string | null =
+        message.interactive?.button_reply?.id ||
+        message.interactive?.list_reply?.id ||
+        message.button?.payload ||
+        null;
+      const messageText = message.text?.body || message.interactive?.button_reply?.title || "";
       const waMessageId = message.id;
 
-      console.log(`Message from ${from}: ${messageText}`);
-      await logMessage(from, "inbound", messageText, waMessageId);
+      console.log(`Message from ${from}: ${messageText} (button: ${buttonId})`);
+      await logMessage(from, "inbound", buttonId || messageText, waMessageId);
 
       const conversation = await getConversation(from);
       if (!conversation) {
@@ -847,8 +910,35 @@ serve(async (req) => {
 
       const [products, chatHistory] = await Promise.all([getAvailableProducts(), getRecentMessages(from)]);
 
+      // Premium menu-driven shopping engine handles navigation, browsing,
+      // product cards, cart and checkout deterministically. The AI only steps
+      // in for free-form conversation it can't resolve.
+      try {
+        const handled = await handleShopMessage({
+          phone: from,
+          text: messageText,
+          buttonId,
+          conversation: conversation as Record<string, any>,
+          products: products as Array<Record<string, any>>,
+          sendText: sendWhatsAppMessage,
+          sendImage: sendWhatsAppImage,
+          sendButtons: sendWhatsAppButtons,
+          updateConversation,
+          log: (p, d, t) => logMessage(p, d, t),
+          createOrder: createOrderAndPaymentLink,
+        });
+        if (handled) {
+          return new Response(JSON.stringify({ status: "ok" }), {
+            status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+      } catch (e) {
+        console.error("Shop engine error:", e);
+      }
+
       const aiResponse = await getAIResponse(messageText, conversation, products, chatHistory);
       await processCartUpdate(from, aiResponse, conversation);
+
 
       const isCheckoutReady = aiResponse.includes("<!--CHECKOUT_READY-->");
       const cleanedResponse = cleanResponse(aiResponse);

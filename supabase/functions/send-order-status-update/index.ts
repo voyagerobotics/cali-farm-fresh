@@ -398,7 +398,7 @@ const handler = async (req: Request): Promise<Response> => {
         { status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } });
     }
 
-    return new Response(JSON.stringify({ success: true, emailId: emailResponse?.data?.id }),
+    return new Response(JSON.stringify({ success: true, emailId: emailResponse?.data?.id, whatsapp: whatsappResult }),
       { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } });
   } catch (error: any) {
     console.error("Error sending status update:", error);

@@ -243,11 +243,23 @@ const AdminWhatsAppPreview = () => {
                 )}
               </div>
             </div>
-            {preview?.template && (
+            {preview?.supported && !preview?.hasTranslation && (
+              <p className="text-xs text-yellow-600 mt-3 text-center">
+                No {language.toUpperCase()} wording exists for this status — the English text above is used instead.
+              </p>
+            )}
+            {preview?.template ? (
               <p className="text-xs text-muted-foreground mt-3 text-center">
                 Outside the 24h window this falls back to approved template{" "}
-                <code className="font-mono">{preview.template}</code>.
+                <code className="font-mono">{preview.template}</code>
+                {preview.templateLanguage ? ` (${preview.templateLanguage.toUpperCase()})` : ""}.
               </p>
+            ) : (
+              preview?.supported && (
+                <p className="text-xs text-muted-foreground mt-3 text-center">
+                  No approved template for this status — outside the 24h window the plain-text fallback above is sent.
+                </p>
+              )
             )}
           </div>
         </div>

@@ -363,6 +363,7 @@ export type Database = {
           updated_at: string
           upi_reference: string | null
           user_id: string | null
+          whatsapp_opt_out: boolean
         }
         Insert: {
           created_at?: string
@@ -388,6 +389,7 @@ export type Database = {
           updated_at?: string
           upi_reference?: string | null
           user_id?: string | null
+          whatsapp_opt_out?: boolean
         }
         Update: {
           created_at?: string
@@ -413,6 +415,7 @@ export type Database = {
           updated_at?: string
           upi_reference?: string | null
           user_id?: string | null
+          whatsapp_opt_out?: boolean
         }
         Relationships: []
       }
@@ -1300,6 +1303,68 @@ export type Database = {
         }
         Relationships: []
       }
+      whatsapp_activity_log: {
+        Row: {
+          body: string | null
+          button_id: string | null
+          channel: string | null
+          created_at: string
+          direction: string
+          error: string | null
+          event_type: string
+          id: string
+          language: string | null
+          order_id: string | null
+          order_number: string | null
+          phone_number: string
+          status: string | null
+          success: boolean
+          template_name: string | null
+        }
+        Insert: {
+          body?: string | null
+          button_id?: string | null
+          channel?: string | null
+          created_at?: string
+          direction?: string
+          error?: string | null
+          event_type?: string
+          id?: string
+          language?: string | null
+          order_id?: string | null
+          order_number?: string | null
+          phone_number: string
+          status?: string | null
+          success?: boolean
+          template_name?: string | null
+        }
+        Update: {
+          body?: string | null
+          button_id?: string | null
+          channel?: string | null
+          created_at?: string
+          direction?: string
+          error?: string | null
+          event_type?: string
+          id?: string
+          language?: string | null
+          order_id?: string | null
+          order_number?: string | null
+          phone_number?: string
+          status?: string | null
+          success?: boolean
+          template_name?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_activity_log_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       whatsapp_conversations: {
         Row: {
           cart: Json | null
@@ -1384,6 +1449,69 @@ export type Database = {
           message_type?: string | null
           phone_number?: string
           wa_message_id?: string | null
+        }
+        Relationships: []
+      }
+      whatsapp_opt_outs: {
+        Row: {
+          created_at: string
+          id: string
+          opted_out: boolean
+          phone_number: string
+          reason: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          opted_out?: boolean
+          phone_number: string
+          reason?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          opted_out?: boolean
+          phone_number?: string
+          reason?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      whatsapp_templates: {
+        Row: {
+          created_at: string
+          id: string
+          is_active: boolean
+          is_approved: boolean
+          language: string
+          notes: string | null
+          status_key: string
+          template_name: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          is_approved?: boolean
+          language?: string
+          notes?: string | null
+          status_key: string
+          template_name: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          is_approved?: boolean
+          language?: string
+          notes?: string | null
+          status_key?: string
+          template_name?: string
+          updated_at?: string
         }
         Relationships: []
       }

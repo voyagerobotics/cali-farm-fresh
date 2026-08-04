@@ -321,9 +321,13 @@ export async function handleShopMessage(ctx: ShopCtx): Promise<boolean> {
     }
     if (state === "co_time") {
       const slot = raw.startsWith("time:") ? raw.slice(5) : raw;
-      const conv = { ...conversation, delivery_time: slot };
-      await ctx.updateConversation(phone, { conversation_state: "co_confirm" });
+      const baseAddr = String(conversation.delivery_address || "").replace(/\s*\|\s*Preferred time:.*$/, "");
+      const addrWithTime = `${baseAddr} | Preferred time: ${slot}`;
+      const conv = { ...conversation, delivery_address: addrWithTime };
+      conversation.delivery_address = addrWithTime;
+      await ctx.updateConversation(phone, { delivery_address: addrWithTime, conversation_state: "co_confirm" });
       const { text, total } = cartLines(cart);
+
       await sayButtons(
         `📋 *Order Summary*\n${text}\n\n💰 Items: ₹${total}\n👤 ${conv.delivery_name}\n📞 ${conv.delivery_phone}\n📍 ${conv.delivery_address}\n⏰ ${slot}\n\n💳 Payment: *UPI / Card / Netbanking* (secure online link)`,
         [{ id: "confirm", title: "✅ Confirm Order" }, { id: "menu", title: "🔙 Cancel" }],

@@ -142,29 +142,17 @@ const handler = async (req: Request): Promise<Response> => {
     // ── WhatsApp status update (independent of email) ──
     let whatsappResult: any = { sent: false, reason: "skipped" };
     try {
-      let phone: string | null = null;
-      if (orderId) {
-        const { data: orderRow } = await supabaseAdmin
-          .from("orders")
-          .select("delivery_phone, delivery_name")
-          .eq("id", orderId)
-          .maybeSingle();
-        phone = orderRow?.delivery_phone ?? null;
-      }
-      if (phone) {
-        whatsappResult = await sendWhatsAppStatusUpdate({
-          phone,
-          name: (customerName || "there").split(" ")[0],
-          orderNumber,
-          status: newStatus,
-        });
-      } else {
-        whatsappResult = { sent: false, reason: "no_phone" };
-      }
+      whatsappResult = await sendWhatsAppStatusUpdate({
+        orderId,
+        name: customerName,
+        orderNumber,
+        status: newStatus,
+      });
     } catch (waError: any) {
       console.error("WhatsApp status update error:", waError?.message);
       whatsappResult = { sent: false, reason: "error" };
     }
+
 
     if (!customerEmail) {
       return new Response(JSON.stringify({ success: true, whatsapp: whatsappResult, message: "No customer email found, WhatsApp only" }),

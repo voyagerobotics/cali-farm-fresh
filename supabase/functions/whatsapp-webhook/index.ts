@@ -74,6 +74,43 @@ async function sendWhatsAppImage(to: string, imageUrl: string, caption: string) 
   return data;
 }
 
+// Send an interactive message with up to 3 quick-reply buttons
+async function sendWhatsAppButtons(
+  to: string,
+  bodyText: string,
+  buttons: Array<{ id: string; title: string }>,
+) {
+  const url = `https://graph.facebook.com/v21.0/${phoneNumberId}/messages`;
+  const res = await fetch(url, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${whatsappToken}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      messaging_product: "whatsapp",
+      to,
+      type: "interactive",
+      interactive: {
+        type: "button",
+        body: { text: bodyText.slice(0, 1024) },
+        action: {
+          buttons: buttons.slice(0, 3).map((b) => ({
+            type: "reply",
+            reply: { id: b.id.slice(0, 256), title: b.title.slice(0, 20) },
+          })),
+        },
+      },
+    }),
+  });
+  const data = await res.json();
+  if (data.error) {
+    console.error("WhatsApp button send error:", JSON.stringify(data.error));
+    await sendWhatsAppMessage(to, bodyText);
+  }
+  return data;
+}
+
 // ─── Database Helpers ───
 async function getAvailableProducts() {
   const { data, error } = await supabase

@@ -189,11 +189,39 @@ const handler = async (req: Request): Promise<Response> => {
       return new Response(JSON.stringify({ error: "Missing required fields" }),
         { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } });
     }
-    
+
+    // ── WhatsApp status update (independent of email) ──
+    let whatsappResult: any = { sent: false, reason: "skipped" };
+    try {
+      let phone: string | null = null;
+      if (orderId) {
+        const { data: orderRow } = await supabaseAdmin
+          .from("orders")
+          .select("delivery_phone, delivery_name")
+          .eq("id", orderId)
+          .maybeSingle();
+        phone = orderRow?.delivery_phone ?? null;
+      }
+      if (phone) {
+        whatsappResult = await sendWhatsAppStatusUpdate({
+          phone,
+          name: (customerName || "there").split(" ")[0],
+          orderNumber,
+          status: newStatus,
+        });
+      } else {
+        whatsappResult = { sent: false, reason: "no_phone" };
+      }
+    } catch (waError: any) {
+      console.error("WhatsApp status update error:", waError?.message);
+      whatsappResult = { sent: false, reason: "error" };
+    }
+
     if (!customerEmail) {
-      return new Response(JSON.stringify({ success: true, message: "No customer email found, skipping notification" }),
+      return new Response(JSON.stringify({ success: true, whatsapp: whatsappResult, message: "No customer email found, WhatsApp only" }),
         { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } });
     }
+
 
     const statusInfo = statusMessages[newStatus];
     if (!statusInfo) {

@@ -116,13 +116,34 @@ const AdminWhatsAppPreview = () => {
           <MessageSquare className="w-6 h-6 text-primary" /> WhatsApp Message Preview
         </h2>
         <p className="text-sm text-muted-foreground">
-          Check the exact text and buttons a customer receives for each order status, then send a test to yourself.
+          Check the exact text and buttons a customer receives for each order status and language, then send a test to
+          yourself.
         </p>
       </div>
 
       <div className="grid lg:grid-cols-[320px_1fr] gap-6">
         {/* Controls */}
         <div className="space-y-4 bg-card border border-border rounded-xl p-4">
+          <div className="space-y-2">
+            <Label>Language</Label>
+            <div className="flex gap-1">
+              {WA_LANGUAGES.map((l) => (
+                <button
+                  key={l.id}
+                  onClick={() => setLanguage(l.id)}
+                  className={`flex-1 text-sm px-2 py-2 rounded-lg transition-colors ${
+                    language === l.id ? "bg-primary text-primary-foreground" : "hover:bg-muted text-foreground"
+                  }`}
+                >
+                  {l.id.toUpperCase()}
+                </button>
+              ))}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Live messages use the customer's chat language automatically, falling back to English.
+            </p>
+          </div>
+
           <div className="space-y-2">
             <Label>Status</Label>
             <div className="grid grid-cols-1 gap-1">
@@ -141,6 +162,8 @@ const AdminWhatsAppPreview = () => {
               ))}
             </div>
           </div>
+
+
 
           <div className="space-y-2">
             <Label htmlFor="wa-order">Order number (optional)</Label>

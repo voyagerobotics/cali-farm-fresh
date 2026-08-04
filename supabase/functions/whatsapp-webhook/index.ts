@@ -47,11 +47,36 @@ async function sendWhatsAppMessage(to: string, text: string) {
   return data;
 }
 
+// Send an image with a caption (product card)
+async function sendWhatsAppImage(to: string, imageUrl: string, caption: string) {
+  const url = `https://graph.facebook.com/v21.0/${phoneNumberId}/messages`;
+  const res = await fetch(url, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${whatsappToken}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      messaging_product: "whatsapp",
+      to,
+      type: "image",
+      image: { link: imageUrl, caption: caption.slice(0, 1020) },
+    }),
+  });
+  const data = await res.json();
+  console.log("WhatsApp image send response:", JSON.stringify(data));
+  if (data.error) {
+    // Fallback to text so the customer still gets the info
+    await sendWhatsAppMessage(to, caption);
+  }
+  return data;
+}
+
 // ─── Database Helpers ───
 async function getAvailableProducts() {
   const { data, error } = await supabase
     .from("products")
-    .select("id, name, price, unit, stock_quantity, category, is_available, description, discount_enabled, discount_type, discount_value")
+    .select("id, name, price, unit, stock_quantity, category, is_available, description, discount_enabled, discount_type, discount_value, image_url, image_urls, product_variants(name, price, stock_quantity, is_available, display_order)")
     .eq("is_available", true)
     .eq("is_hidden", false)
     .order("category")
@@ -59,6 +84,62 @@ async function getAvailableProducts() {
   if (error) { console.error("Error fetching products:", error); return []; }
   return data || [];
 }
+
+// Effective (discounted) price for a product
+function effectivePrice(p: Record<string, any>): number {
+  const base = Number(p.price) || 0;
+  if (p.discount_enabled && p.discount_value) {
+    if (p.discount_type === "percentage") return Math.round(base * (1 - Number(p.discount_value) / 100));
+    return Math.max(0, base - Number(p.discount_value));
+  }
+  return base;
+}
+
+function productImage(p: Record<string, any>): string | null {
+  if (p.image_url) return p.image_url;
+  if (Array.isArray(p.image_urls) && p.image_urls.length > 0) return p.image_urls[0];
+  return null;
+}
+
+// Build a rich WhatsApp caption for a product (price, variants, stock)
+function buildProductCaption(p: Record<string, any>): string {
+  const eff = effectivePrice(p);
+  const lines: string[] = [];
+  lines.push(`*${p.name}*`);
+  if (eff !== Number(p.price)) {
+    lines.push(`💰 ₹${eff}/${p.unit}  ~₹${p.price}~  🔖 SALE`);
+  } else {
+    lines.push(`💰 ₹${eff}/${p.unit}`);
+  }
+
+  const variants = (Array.isArray(p.product_variants) ? p.product_variants : [])
+    .filter((v: any) => v.is_available !== false)
+    .sort((a: any, b: any) => (a.display_order ?? 0) - (b.display_order ?? 0));
+  if (variants.length > 0) {
+    lines.push("");
+    lines.push("📦 *Pack sizes:*");
+    for (const v of variants) {
+      const vStock = v.stock_quantity == null ? "" : v.stock_quantity > 0 ? ` (${v.stock_quantity} left)` : " (out of stock)";
+      lines.push(`  • ${v.name} — ₹${v.price}${vStock}`);
+    }
+  } else {
+    lines.push("");
+    lines.push(`📦 *Pack sizes:*`);
+    lines.push(`  • 500 g — ₹${Math.round(eff / 2)}`);
+    lines.push(`  • 1 ${p.unit} — ₹${eff}`);
+  }
+
+  const stock = p.stock_quantity;
+  if (stock == null) lines.push(`\n✅ In stock`);
+  else if (stock <= 0) lines.push(`\n❌ Out of stock`);
+  else if (stock <= 5) lines.push(`\n⚡ Only ${stock} ${p.unit} left — hurry!`);
+  else lines.push(`\n✅ In stock (${stock} ${p.unit})`);
+
+  if (p.description) lines.push(`\n_${String(p.description).slice(0, 160)}_`);
+  lines.push(`\n🛒 Reply *"Add ${p.name}"* to add to cart`);
+  return lines.join("\n");
+}
+
 
 async function getConversation(phone: string) {
   const { data, error } = await supabase
@@ -430,20 +511,21 @@ async function getAIResponse(
   products: Array<Record<string, unknown>>, chatHistory: Array<Record<string, unknown>>
 ) {
   const productCatalog = products
-    .map((p) => {
-      let priceStr = `₹${p.price}/${p.unit}`;
-      if (p.discount_enabled && p.discount_value) {
-        if (p.discount_type === 'percentage') {
-          const discounted = (p.price as number) * (1 - (p.discount_value as number) / 100);
-          priceStr = `₹${Math.round(discounted)}/${p.unit} (${p.discount_value}% off, was ₹${p.price})`;
-        } else {
-          const discounted = (p.price as number) - (p.discount_value as number);
-          priceStr = `₹${discounted}/${p.unit} (₹${p.discount_value} off, was ₹${p.price})`;
-        }
-      }
-      return `- ${p.name}: ${priceStr} (stock: ${p.stock_quantity})`;
+    .map((p: any) => {
+      const eff = effectivePrice(p);
+      let priceStr = `₹${eff}/${p.unit}`;
+      if (eff !== Number(p.price)) priceStr += ` (was ₹${p.price})`;
+      const variants = (Array.isArray(p.product_variants) ? p.product_variants : [])
+        .filter((v: any) => v.is_available !== false);
+      const variantStr = variants.length > 0
+        ? ` | packs: ${variants.map((v: any) => `${v.name} ₹${v.price}`).join(", ")}`
+        : ` | packs: 500g ₹${Math.round(eff / 2)}, 1${p.unit} ₹${eff}`;
+      const stockStr = p.stock_quantity == null ? "in stock" : p.stock_quantity <= 0 ? "OUT OF STOCK" : `${p.stock_quantity} ${p.unit} left`;
+      const photo = productImage(p) ? " | 📷 photo available" : "";
+      return `- ${p.name}: ${priceStr}${variantStr} (${stockStr})${photo}`;
     })
     .join("\n");
+
 
   const cart = conversation.cart || [];
   const cartSummary = Array.isArray(cart) && cart.length > 0
@@ -490,6 +572,15 @@ When removing items:
 <!--CART_UPDATE:{"action":"remove","items":[{"name":"Product Name"}]}-->
 When clearing cart:
 <!--CART_UPDATE:{"action":"clear"}-->
+
+PRODUCT PHOTOS (VERY IMPORTANT):
+Whenever the customer asks to see products, the catalog, a category, prices, stock, or a specific item, ALWAYS send photo cards by adding this tag at the END of your reply:
+<!--SHOW_PRODUCTS:["Exact Product Name 1","Exact Product Name 2"]-->
+- Use EXACT product names from the AVAILABLE PRODUCTS list.
+- Send up to 5 products per reply (the most relevant / bestselling ones first).
+- The system automatically sends a beautiful photo card for each with price, 500g/1kg pack prices and live stock — so keep YOUR text very short (1-2 lines like "Here are our fresh picks today 🥬") and DO NOT repeat prices or stock in your text.
+- If the customer asks for "more" or another category, send the next set of products the same way.
+
 
 CHECKOUT FLOW:
 When customer says "order", "checkout", "place order" or similar, collect ALL delivery details step by step:
@@ -566,8 +657,45 @@ async function processDeliveryDetails(phone: string, aiResponse: string, convers
 }
 
 function cleanResponse(text: string): string {
-  return text.replace(/<!--CART_UPDATE:.*?-->/gs, "").replace(/<!--CHECKOUT_READY-->/gs, "").trim();
+  return text
+    .replace(/<!--CART_UPDATE:.*?-->/gs, "")
+    .replace(/<!--SHOW_PRODUCTS:.*?-->/gs, "")
+    .replace(/<!--CHECKOUT_READY-->/gs, "")
+    .trim();
 }
+
+// Send photo cards for the products the AI asked to showcase
+async function sendProductShowcase(
+  phone: string, aiResponse: string, products: Array<Record<string, any>>
+): Promise<boolean> {
+  const match = aiResponse.match(/<!--SHOW_PRODUCTS:(.*?)-->/s);
+  if (!match) return false;
+  let names: string[] = [];
+  try {
+    const parsed = JSON.parse(match[1]);
+    if (Array.isArray(parsed)) names = parsed.map((n) => String(n));
+  } catch (e) { console.error("Bad SHOW_PRODUCTS payload:", e); return false; }
+
+  let sent = 0;
+  for (const name of names.slice(0, 5)) {
+    const p = products.find((x) => String(x.name).toLowerCase() === name.toLowerCase())
+      || products.find((x) => String(x.name).toLowerCase().includes(name.toLowerCase()));
+    if (!p) continue;
+    const caption = buildProductCaption(p);
+    const img = productImage(p);
+    if (img) await sendWhatsAppImage(phone, img, caption);
+    else await sendWhatsAppMessage(phone, caption);
+    await logMessage(phone, "outbound", caption);
+    sent++;
+  }
+  if (sent > 0) {
+    const footer = `🌱 *Order more on our website:* https://zomical.com/products\n🚚 ₹10/km delivery • FREE above ₹399`;
+    await sendWhatsAppMessage(phone, footer);
+    await logMessage(phone, "outbound", footer);
+  }
+  return sent > 0;
+}
+
 
 // ─── Payment Callback ───
 async function handlePaymentCallback(url: URL) {
@@ -724,11 +852,19 @@ serve(async (req) => {
 
       const isCheckoutReady = aiResponse.includes("<!--CHECKOUT_READY-->");
       const cleanedResponse = cleanResponse(aiResponse);
-      const chunks = cleanedResponse.match(/.{1,4000}/gs) || [cleanedResponse];
-      for (const chunk of chunks) {
-        await sendWhatsAppMessage(from, chunk);
-        await logMessage(from, "outbound", chunk);
+      if (cleanedResponse) {
+        const chunks = cleanedResponse.match(/.{1,4000}/gs) || [cleanedResponse];
+        for (const chunk of chunks) {
+          await sendWhatsAppMessage(from, chunk);
+          await logMessage(from, "outbound", chunk);
+        }
       }
+
+      // Send rich product photo cards (price, pack sizes, live stock)
+      try {
+        await sendProductShowcase(from, aiResponse, products as Array<Record<string, any>>);
+      } catch (e) { console.error("Product showcase error:", e); }
+
 
       if (isCheckoutReady) {
         try {

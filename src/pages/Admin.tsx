@@ -14,8 +14,10 @@ import AdminCustomers from "@/components/admin/AdminCustomers";
 import AdminBanners from "@/components/admin/AdminBanners";
 import AdminEmailLogs from "@/components/admin/AdminEmailLogs";
 import AdminFarmVisits from "@/components/admin/AdminFarmVisits";
+import AdminWhatsAppPreview from "@/components/admin/AdminWhatsAppPreview";
 
-type TabType = "analytics" | "orders" | "products" | "categories" | "customers" | "banners" | "emails" | "farm-visits" | "settings" | "logs";
+type TabType = "analytics" | "orders" | "products" | "categories" | "customers" | "banners" | "emails" | "whatsapp" | "farm-visits" | "settings" | "logs";
+
 
 const Admin = () => {
   const navigate = useNavigate();
@@ -46,7 +48,9 @@ const Admin = () => {
     { id: "customers" as const, label: "Customers", icon: Users },
     { id: "banners" as const, label: "Banners", icon: Megaphone },
     { id: "emails" as const, label: "Emails", icon: Mail },
+    { id: "whatsapp" as const, label: "WhatsApp", icon: MessageSquare },
     { id: "farm-visits" as const, label: "Farm Visits", icon: GraduationCap },
+
     { id: "logs" as const, label: "Logs", icon: Activity },
     { id: "settings" as const, label: "Settings", icon: Settings },
   ];

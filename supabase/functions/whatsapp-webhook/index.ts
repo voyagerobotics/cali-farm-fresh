@@ -993,6 +993,18 @@ serve(async (req) => {
       console.log(`Message from ${from}: ${messageText} (button: ${buttonId})`);
       await logMessage(from, "inbound", buttonId || messageText, waMessageId);
 
+      // Support / reschedule buttons from order-update messages take priority
+      try {
+        if (await handleOrderActions(from, messageText, buttonId)) {
+          return new Response(JSON.stringify({ status: "ok" }), {
+            status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+      } catch (e) {
+        console.error("Order action error:", e);
+      }
+
+
       const conversation = await getConversation(from);
       if (!conversation) {
         await sendWhatsAppMessage(from, "Sorry, something went wrong. Please try again! 🙏");

@@ -486,6 +486,20 @@ export async function handleShopMessage(ctx: ShopCtx): Promise<boolean> {
   // Numeric selection
   if (/^\d{1,2}$/.test(t)) {
     const n = parseInt(t, 10);
+    if (mc.view === "cart" && cart.length) {
+      const item = cart[n - 1];
+      if (item) {
+        await sayButtons(
+          `🛒 *${item.name}*\n₹${item.price} / ${item.unit} × ${item.qty} = ₹${Number(item.price) * Number(item.qty)}\n\nChange this item:`,
+          [
+            { id: `qty+:${n}`, title: "➕ Add one" },
+            { id: `qty-:${n}`, title: "➖ Remove one" },
+            { id: `rm:${n}`, title: "🗑️ Remove item" },
+          ],
+        );
+        return true;
+      }
+    }
     if (mc.view === "list" && Array.isArray(mc.ids)) {
       const id = mc.ids[n - 1];
       const p = products.find((x) => x.id === id);

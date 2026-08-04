@@ -38,82 +38,31 @@ const statusMessages: Record<string, { title: string; emoji: string; message: st
   cancelled: { title: "Order Cancelled", emoji: "❌", message: "Your order has been cancelled. If you have any questions, please contact us.", color: "#dc2626" }
 };
 
-// ─────────── WhatsApp order status updates ───────────
-const whatsappToken = Deno.env.get("WHATSAPP_ACCESS_TOKEN");
-const whatsappPhoneNumberId = Deno.env.get("WHATSAPP_PHONE_NUMBER_ID");
-
-// Approved WhatsApp utility templates per order status
-const whatsappTemplateMap: Record<string, string> = {
-  confirmed: "order_confirmed",
-  preparing: "order_packed",
-  out_for_delivery: "order_out_for_delivery",
-  delivered: "order_delivered",
-};
-
-const whatsappTextMap: Record<string, (o: { name: string; orderNumber: string }) => string> = {
-  confirmed: (o) => `✅ *Order Confirmed!*\n\nHi ${o.name}, your order *#${o.orderNumber}* is confirmed and we're preparing it with care. 🌿`,
-  preparing: (o) => `📦 *Order Packed*\n\nHi ${o.name}, your order *#${o.orderNumber}* has been freshly packed and is ready to be dispatched.`,
-  out_for_delivery: (o) => `🚚 *Out for Delivery*\n\nHi ${o.name}, your order *#${o.orderNumber}* is on its way. Our delivery partner will reach you shortly.`,
-  delivered: (o) => `🎉 *Order Delivered*\n\nHi ${o.name}, your order *#${o.orderNumber}* has been delivered. Enjoy your farm-fresh produce!\n\nShop again: https://zomical.com`,
-  cancelled: (o) => `❌ *Order Cancelled*\n\nHi ${o.name}, your order *#${o.orderNumber}* has been cancelled. If this was unexpected, reply here and we'll help.`,
-};
-
-function formatIndianPhone(phone: string): string | null {
-  let p = String(phone || "").replace(/[\s\-()+]/g, "");
-  if (!p) return null;
-  if (p.length === 10) p = "91" + p;
-  if (p.length === 12 && p.startsWith("91")) return p;
-  return p.length >= 10 ? p : null;
-}
-
-async function waSend(payload: Record<string, unknown>) {
-  const res = await fetch(`https://graph.facebook.com/v21.0/${whatsappPhoneNumberId}/messages`, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${whatsappToken}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ messaging_product: "whatsapp", ...payload }),
-  });
-  const data = await res.json();
-  return { ok: res.ok && !data?.error, data };
-}
-
-async function sendWhatsAppStatusUpdate(opts: { phone: string; name: string; orderNumber: string; status: string }) {
-  if (!whatsappToken || !whatsappPhoneNumberId) {
-    console.log("WhatsApp not configured, skipping status update");
-    return { sent: false, reason: "not_configured" };
-  }
-  const to = formatIndianPhone(opts.phone);
-  if (!to) return { sent: false, reason: "invalid_phone" };
-
-  const templateName = whatsappTemplateMap[opts.status];
-  if (templateName) {
-    const tpl = await waSend({
-      to,
-      type: "template",
-      template: {
-        name: templateName,
-        language: { code: "en" },
-        components: [
-          { type: "body", parameters: [opts.name, opts.orderNumber].map((text) => ({ type: "text", text })) },
-        ],
+// ─────────── WhatsApp order status updates (delegated to shared function) ───────────
+async function sendWhatsAppStatusUpdate(opts: { orderId?: string; phone?: string; name: string; orderNumber: string; status: string }) {
+  try {
+    const res = await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/send-whatsapp-order-update`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        apikey: Deno.env.get("SUPABASE_ANON_KEY")!,
+        Authorization: `Bearer ${Deno.env.get("SUPABASE_ANON_KEY")}`,
       },
+      body: JSON.stringify({
+        orderId: opts.orderId,
+        phone: opts.phone,
+        customerName: opts.name,
+        orderNumber: opts.orderNumber,
+        status: opts.status,
+      }),
     });
-    if (tpl.ok) {
-      console.log(`WhatsApp template '${templateName}' sent to ${to}`);
-      return { sent: true, via: "template" };
-    }
-    console.error(`WhatsApp template '${templateName}' failed:`, JSON.stringify(tpl.data));
+    return await res.json();
+  } catch (e) {
+    console.error("WhatsApp status update dispatch failed:", e);
+    return { sent: false, reason: "dispatch_failed" };
   }
-
-  // Fallback: free-form text (delivered within the 24h customer service window)
-  const body = whatsappTextMap[opts.status]?.({ name: opts.name, orderNumber: opts.orderNumber });
-  if (!body) return { sent: false, reason: "no_message_for_status" };
-  const txt = await waSend({ to, type: "text", text: { body, preview_url: false } });
-  if (!txt.ok) {
-    console.error("WhatsApp text fallback failed:", JSON.stringify(txt.data));
-    return { sent: false, reason: "send_failed" };
-  }
-  return { sent: true, via: "text" };
 }
+
 
 
 

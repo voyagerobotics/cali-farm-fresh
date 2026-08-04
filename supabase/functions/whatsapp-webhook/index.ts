@@ -266,13 +266,14 @@ const IST_TZ = "Asia/Kolkata";
 const istDay = (d: Date) =>
   d.toLocaleDateString("en-IN", { timeZone: IST_TZ, weekday: "short", day: "numeric", month: "short" });
 
-/** Precise 2-hour delivery windows offered for rescheduling */
+/** Precise delivery windows offered for rescheduling */
 const SLOT_WINDOWS = [
-  { id: "0810", label: "8 – 10 AM" },
-  { id: "1012", label: "10 AM – 12 PM" },
-  { id: "1204", label: "12 – 4 PM" },
-  { id: "0406", label: "4 – 6 PM" },
-  { id: "0608", label: "6 – 8 PM" },
+  { id: "0810", label: "8 – 10 AM", startHour: 8 },
+  { id: "1012", label: "10 AM – 12 PM", startHour: 10 },
+  { id: "1204", label: "12 – 2 PM", startHour: 12 },
+  { id: "0204", label: "2 – 4 PM", startHour: 14 },
+  { id: "0406", label: "4 – 6 PM", startHour: 16 },
+  { id: "0608", label: "6 – 8 PM", startHour: 18 },
 ];
 
 function rescheduleRows(orderNumber: string) {
@@ -281,11 +282,11 @@ function rescheduleRows(orderNumber: string) {
   const rows: Array<{ id: string; title: string; description: string }> = [];
   const istHour = Number(now.toLocaleString("en-IN", { timeZone: IST_TZ, hour: "2-digit", hour12: false }));
   for (const w of SLOT_WINDOWS) {
-    const startHour = Number(w.id.slice(0, 2)) + (w.id === "1204" || w.id === "0406" || w.id === "0608" ? (w.id === "1204" ? 0 : 12) : 0);
-    if (startHour > istHour + 1) {
+    if (w.startHour > istHour + 1) {
       rows.push({ id: `reslot:${orderNumber}:today:${w.id}`, title: `Today ${w.label}`, description: istDay(now) });
     }
   }
+
   for (const w of SLOT_WINDOWS) {
     rows.push({ id: `reslot:${orderNumber}:tmrw:${w.id}`, title: `Tmrw ${w.label}`, description: istDay(tomorrow) });
   }

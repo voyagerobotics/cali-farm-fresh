@@ -437,6 +437,24 @@ export async function handleShopMessage(ctx: ShopCtx): Promise<boolean> {
 
   if (t === "cart" || t === "my cart" || t === "view cart" || t === "edit cart") { await showCart(); return true; }
 
+  // Cart edit buttons
+  const btn = t.match(/^(qty\+|qty-|rm):(\d+)$/);
+  if (btn) {
+    const idx = parseInt(btn[2], 10) - 1;
+    const item = cart[idx];
+    if (!item) { await showCart("❓ That item is no longer in your cart."); return true; }
+    if (btn[1] === "rm" || (btn[1] === "qty-" && Number(item.qty) <= 1)) {
+      cart.splice(idx, 1);
+      await saveCart();
+      await showCart(`🗑️ *${item.name}* removed from your cart.`);
+      return true;
+    }
+    item.qty = btn[1] === "qty+" ? Math.min(Number(item.qty) + 1, 99) : Number(item.qty) - 1;
+    await saveCart();
+    await showCart(`✏️ *${item.name}* × ${item.qty}.`);
+    return true;
+  }
+
   // Cart edits (qty change / remove / clear)
   if (await editCart()) return true;
 

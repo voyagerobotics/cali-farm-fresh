@@ -64,8 +64,10 @@ const textMap: Record<string, (o: MsgCtx) => string> = {
     } has been processed successfully. ✅\n\n*What happens next:*\n1️⃣ The amount goes back to your original payment method (UPI / card / bank)\n2️⃣ Banks usually credit it in *5-7 working days*\n3️⃣ Check your bank statement — it appears as a Razorpay/California Farms credit\n\nIf you don't see it after 7 working days, tap *Contact Support* and we'll share the refund reference.`,
 };
 
-// Statuses that get interactive buttons (support / reschedule)
+// Statuses that get interactive buttons (summary / support / reschedule)
 const buttonStatuses = new Set([
+  "confirmed",
+  "preparing",
   "out_for_delivery",
   "delivered",
   "payment_failed",
@@ -73,6 +75,7 @@ const buttonStatuses = new Set([
   "refund_requested",
   "refund_processed",
 ]);
+
 
 
 function formatIndianPhone(phone: string): string | null {

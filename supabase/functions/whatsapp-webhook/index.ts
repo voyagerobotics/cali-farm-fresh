@@ -823,7 +823,22 @@ async function handlePaymentCallback(url: URL) {
           `✅ Payment received! Your order #${orderNumber} is confirmed.\n\n💰 Subtotal: ₹${order.subtotal}${deliveryChargeText}\n💵 Total: ₹${order.total}\n\nWe're preparing your fresh produce! 🥬🚚\n\nThank you for ordering from California Farms India! 🌱`
         );
         await logMessage(cleanPhone, "outbound", `Payment confirmed for order #${orderNumber}`);
-        await updateConversation(cleanPhone, { conversation_state: "idle", cart: [] });
+        await updateConversation(cleanPhone, { conversation_state: "idle", cart: [], menu_context: {} });
+
+        // Recommend related products after every purchase
+        try {
+          const products = await getAvailableProducts();
+          const bought = new Set((orderItems || []).map((i: any) => String(i.product_name).toLowerCase()));
+          const recos = (products as Array<Record<string, any>>)
+            .filter((p) => !bought.has(String(p.name).toLowerCase()) && (p.stock_quantity == null || Number(p.stock_quantity) > 0))
+            .slice(0, 3);
+          if (recos.length) {
+            const msg = `✨ *Customers also loved*\n${recos.map((p) => `• ${p.name} — ₹${effectivePrice(p)}/${p.unit}`).join("\n")}\n\nType *MENU* to shop again 🌿`;
+            await sendWhatsAppMessage(cleanPhone, msg);
+            await logMessage(cleanPhone, "outbound", msg);
+          }
+        } catch (e) { console.error("Reco error:", e); }
+
       }
     }
   }

@@ -38,6 +38,34 @@ const statusMessages: Record<string, { title: string; emoji: string; message: st
   cancelled: { title: "Order Cancelled", emoji: "❌", message: "Your order has been cancelled. If you have any questions, please contact us.", color: "#dc2626" }
 };
 
+// ─────────── WhatsApp order status updates (delegated to shared function) ───────────
+async function sendWhatsAppStatusUpdate(opts: { orderId?: string; phone?: string; name: string; orderNumber: string; status: string }) {
+  try {
+    const res = await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/send-whatsapp-order-update`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        apikey: Deno.env.get("SUPABASE_ANON_KEY")!,
+        Authorization: `Bearer ${Deno.env.get("SUPABASE_ANON_KEY")}`,
+      },
+      body: JSON.stringify({
+        orderId: opts.orderId,
+        phone: opts.phone,
+        customerName: opts.name,
+        orderNumber: opts.orderNumber,
+        status: opts.status,
+      }),
+    });
+    return await res.json();
+  } catch (e) {
+    console.error("WhatsApp status update dispatch failed:", e);
+    return { sent: false, reason: "dispatch_failed" };
+  }
+}
+
+
+
+
 async function logEmail(supabase: any, data: {
   recipient_email: string;
   recipient_name?: string;
@@ -110,11 +138,27 @@ const handler = async (req: Request): Promise<Response> => {
       return new Response(JSON.stringify({ error: "Missing required fields" }),
         { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } });
     }
-    
+
+    // ── WhatsApp status update (independent of email) ──
+    let whatsappResult: any = { sent: false, reason: "skipped" };
+    try {
+      whatsappResult = await sendWhatsAppStatusUpdate({
+        orderId,
+        name: customerName,
+        orderNumber,
+        status: newStatus,
+      });
+    } catch (waError: any) {
+      console.error("WhatsApp status update error:", waError?.message);
+      whatsappResult = { sent: false, reason: "error" };
+    }
+
+
     if (!customerEmail) {
-      return new Response(JSON.stringify({ success: true, message: "No customer email found, skipping notification" }),
+      return new Response(JSON.stringify({ success: true, whatsapp: whatsappResult, message: "No customer email found, WhatsApp only" }),
         { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } });
     }
+
 
     const statusInfo = statusMessages[newStatus];
     if (!statusInfo) {
@@ -291,7 +335,7 @@ const handler = async (req: Request): Promise<Response> => {
         { status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } });
     }
 
-    return new Response(JSON.stringify({ success: true, emailId: emailResponse?.data?.id }),
+    return new Response(JSON.stringify({ success: true, emailId: emailResponse?.data?.id, whatsapp: whatsappResult }),
       { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } });
   } catch (error: any) {
     console.error("Error sending status update:", error);

@@ -70,7 +70,37 @@ serve(async (req) => {
           payment_verified_at: new Date().toISOString(),
         })
         .eq("order_number", order_number);
+
+      // WhatsApp "order confirmed" update (skip WhatsApp-sourced orders — the bot replies itself)
+      try {
+        const { data: order } = await supabase
+          .from("orders")
+          .select("id, order_source, delivery_phone, delivery_name")
+          .eq("order_number", order_number)
+          .maybeSingle();
+
+        if (order && order.order_source !== "whatsapp" && order.delivery_phone) {
+          await fetch(`${supabaseUrl}/functions/v1/send-whatsapp-order-update`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              apikey: Deno.env.get("SUPABASE_ANON_KEY")!,
+              Authorization: `Bearer ${Deno.env.get("SUPABASE_ANON_KEY")}`,
+            },
+            body: JSON.stringify({
+              orderId: order.id,
+              orderNumber: order_number,
+              customerName: order.delivery_name,
+              phone: order.delivery_phone,
+              status: "confirmed",
+            }),
+          });
+        }
+      } catch (waError) {
+        console.error("WhatsApp confirmation failed:", waError);
+      }
     }
+
 
     return new Response(
       JSON.stringify({ 

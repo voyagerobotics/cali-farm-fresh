@@ -1181,6 +1181,17 @@ serve(async (req) => {
 
       console.log(`Message from ${from}: ${messageText} (button: ${buttonId})`);
       await logMessage(from, "inbound", buttonId || messageText, waMessageId);
+      if (buttonId) {
+        await logActivity({
+          order_number: orderNumberFromPayload(buttonId),
+          phone_number: from,
+          direction: "inbound",
+          event_type: "button_reply",
+          button_id: buttonId,
+          body: messageText || buttonId,
+          success: true,
+        });
+      }
 
       // Support / reschedule buttons from order-update messages take priority
       try {

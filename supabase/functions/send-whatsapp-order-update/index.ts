@@ -197,18 +197,27 @@ serve(async (req) => {
       body += `\n\n_Reason: ${String(reason).slice(0, 120)}_`;
     }
 
-    // 1) Rich interactive message (free-form, valid inside the 24h service window)
+    // 1) Rich interactive message with quick-reply buttons handled by our bot
+    //    (free-form, valid inside the 24h customer-service window)
     if (buttonStatuses.has(status)) {
+      const buttons: Array<{ id: string; title: string }> = [];
+      if (status === "out_for_delivery") {
+        buttons.push({ id: `resched:${orderNumber}`, title: "🗓️ Reschedule" });
+      }
+      buttons.push({ id: `support:${orderNumber}`, title: "💬 Contact Support" });
+
       const interactive = await waSend({
         to,
         type: "interactive",
         interactive: {
-          type: "cta_url",
+          type: "button",
           body: { text: body.slice(0, 1024) },
           footer: { text: "California Farms India • zomical.com" },
           action: {
-            name: "cta_url",
-            parameters: { display_text: "💬 Contact Support", url: SUPPORT_URL },
+            buttons: buttons.map((b) => ({
+              type: "reply",
+              reply: { id: b.id.slice(0, 256), title: b.title.slice(0, 20) },
+            })),
           },
         },
       });
@@ -218,6 +227,7 @@ serve(async (req) => {
       }
       console.error(`WhatsApp interactive '${status}' failed:`, JSON.stringify(interactive.data));
     }
+
 
     // 2) Approved utility template (works outside the 24h window)
     const templateName = templateMap[status];

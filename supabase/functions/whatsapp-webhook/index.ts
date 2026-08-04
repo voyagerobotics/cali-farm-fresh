@@ -47,11 +47,36 @@ async function sendWhatsAppMessage(to: string, text: string) {
   return data;
 }
 
+// Send an image with a caption (product card)
+async function sendWhatsAppImage(to: string, imageUrl: string, caption: string) {
+  const url = `https://graph.facebook.com/v21.0/${phoneNumberId}/messages`;
+  const res = await fetch(url, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${whatsappToken}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      messaging_product: "whatsapp",
+      to,
+      type: "image",
+      image: { link: imageUrl, caption: caption.slice(0, 1020) },
+    }),
+  });
+  const data = await res.json();
+  console.log("WhatsApp image send response:", JSON.stringify(data));
+  if (data.error) {
+    // Fallback to text so the customer still gets the info
+    await sendWhatsAppMessage(to, caption);
+  }
+  return data;
+}
+
 // ─── Database Helpers ───
 async function getAvailableProducts() {
   const { data, error } = await supabase
     .from("products")
-    .select("id, name, price, unit, stock_quantity, category, is_available, description, discount_enabled, discount_type, discount_value")
+    .select("id, name, price, unit, stock_quantity, category, is_available, description, discount_enabled, discount_type, discount_value, image_url, image_urls, product_variants(name, price, stock_quantity, is_available, display_order)")
     .eq("is_available", true)
     .eq("is_hidden", false)
     .order("category")
@@ -59,6 +84,62 @@ async function getAvailableProducts() {
   if (error) { console.error("Error fetching products:", error); return []; }
   return data || [];
 }
+
+// Effective (discounted) price for a product
+function effectivePrice(p: Record<string, any>): number {
+  const base = Number(p.price) || 0;
+  if (p.discount_enabled && p.discount_value) {
+    if (p.discount_type === "percentage") return Math.round(base * (1 - Number(p.discount_value) / 100));
+    return Math.max(0, base - Number(p.discount_value));
+  }
+  return base;
+}
+
+function productImage(p: Record<string, any>): string | null {
+  if (p.image_url) return p.image_url;
+  if (Array.isArray(p.image_urls) && p.image_urls.length > 0) return p.image_urls[0];
+  return null;
+}
+
+// Build a rich WhatsApp caption for a product (price, variants, stock)
+function buildProductCaption(p: Record<string, any>): string {
+  const eff = effectivePrice(p);
+  const lines: string[] = [];
+  lines.push(`*${p.name}*`);
+  if (eff !== Number(p.price)) {
+    lines.push(`💰 ₹${eff}/${p.unit}  ~₹${p.price}~  🔖 SALE`);
+  } else {
+    lines.push(`💰 ₹${eff}/${p.unit}`);
+  }
+
+  const variants = (Array.isArray(p.product_variants) ? p.product_variants : [])
+    .filter((v: any) => v.is_available !== false)
+    .sort((a: any, b: any) => (a.display_order ?? 0) - (b.display_order ?? 0));
+  if (variants.length > 0) {
+    lines.push("");
+    lines.push("📦 *Pack sizes:*");
+    for (const v of variants) {
+      const vStock = v.stock_quantity == null ? "" : v.stock_quantity > 0 ? ` (${v.stock_quantity} left)` : " (out of stock)";
+      lines.push(`  • ${v.name} — ₹${v.price}${vStock}`);
+    }
+  } else {
+    lines.push("");
+    lines.push(`📦 *Pack sizes:*`);
+    lines.push(`  • 500 g — ₹${Math.round(eff / 2)}`);
+    lines.push(`  • 1 ${p.unit} — ₹${eff}`);
+  }
+
+  const stock = p.stock_quantity;
+  if (stock == null) lines.push(`\n✅ In stock`);
+  else if (stock <= 0) lines.push(`\n❌ Out of stock`);
+  else if (stock <= 5) lines.push(`\n⚡ Only ${stock} ${p.unit} left — hurry!`);
+  else lines.push(`\n✅ In stock (${stock} ${p.unit})`);
+
+  if (p.description) lines.push(`\n_${String(p.description).slice(0, 160)}_`);
+  lines.push(`\n🛒 Reply *"Add ${p.name}"* to add to cart`);
+  return lines.join("\n");
+}
+
 
 async function getConversation(phone: string) {
   const { data, error } = await supabase

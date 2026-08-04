@@ -870,11 +870,16 @@ serve(async (req) => {
       }
 
       const from = message.from;
-      const messageText = message.text?.body || "";
+      const buttonId: string | null =
+        message.interactive?.button_reply?.id ||
+        message.interactive?.list_reply?.id ||
+        message.button?.payload ||
+        null;
+      const messageText = message.text?.body || message.interactive?.button_reply?.title || "";
       const waMessageId = message.id;
 
-      console.log(`Message from ${from}: ${messageText}`);
-      await logMessage(from, "inbound", messageText, waMessageId);
+      console.log(`Message from ${from}: ${messageText} (button: ${buttonId})`);
+      await logMessage(from, "inbound", buttonId || messageText, waMessageId);
 
       const conversation = await getConversation(from);
       if (!conversation) {
@@ -886,8 +891,35 @@ serve(async (req) => {
 
       const [products, chatHistory] = await Promise.all([getAvailableProducts(), getRecentMessages(from)]);
 
+      // Premium menu-driven shopping engine handles navigation, browsing,
+      // product cards, cart and checkout deterministically. The AI only steps
+      // in for free-form conversation it can't resolve.
+      try {
+        const handled = await handleShopMessage({
+          phone: from,
+          text: messageText,
+          buttonId,
+          conversation: conversation as Record<string, any>,
+          products: products as Array<Record<string, any>>,
+          sendText: sendWhatsAppMessage,
+          sendImage: sendWhatsAppImage,
+          sendButtons: sendWhatsAppButtons,
+          updateConversation,
+          log: (p, d, t) => logMessage(p, d, t),
+          createOrder: createOrderAndPaymentLink,
+        });
+        if (handled) {
+          return new Response(JSON.stringify({ status: "ok" }), {
+            status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+      } catch (e) {
+        console.error("Shop engine error:", e);
+      }
+
       const aiResponse = await getAIResponse(messageText, conversation, products, chatHistory);
       await processCartUpdate(from, aiResponse, conversation);
+
 
       const isCheckoutReady = aiResponse.includes("<!--CHECKOUT_READY-->");
       const cleanedResponse = cleanResponse(aiResponse);

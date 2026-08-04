@@ -188,13 +188,13 @@ function productCard(p: Product): string {
   return lines.join("\n");
 }
 
-function cartLines(cart: any[]): { text: string; total: number } {
+function cartLines(cart: any[], numbered = false): { text: string; total: number } {
   let total = 0;
   const lines: string[] = [];
-  cart.forEach((c) => {
+  cart.forEach((c, i) => {
     const sum = Number(c.price) * Number(c.qty);
     total += sum;
-    lines.push(`• ${c.name} ×${c.qty} — ₹${sum}`);
+    lines.push(`${numbered ? `*${i + 1}.*` : "•"} ${c.name} ×${c.qty} — ₹${sum}`);
   });
   return { text: lines.join("\n"), total };
 }

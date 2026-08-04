@@ -252,8 +252,13 @@ serve(async (req) => {
 
     // 3) Plain text fallback
     const supportLine = buttonStatuses.has(status)
-      ? `\n\n💬 Need help? Chat with support: ${SUPPORT_URL}`
+      ? `${
+        status === "out_for_delivery"
+          ? "\n\n🗓️ Need a different time? Reply *RESCHEDULE* and pick a new slot."
+          : ""
+      }\n\n💬 Need help? Chat with support: ${SUPPORT_URL}`
       : "";
+
     const txt = await waSend({
       to,
       type: "text",

@@ -54,15 +54,26 @@ const textMap: Record<string, (o: MsgCtx) => string> = {
     `⏳ *Payment Pending*\n\nHi ${o.name}, we still haven't received the payment for your order *#${o.orderNumber}*${
       o.total ? ` (₹${o.total})` : ""
     }, so it's not confirmed yet.\n\n*Complete it in 2 steps:*\n1️⃣ Open ${RETRY_URL}\n2️⃣ Tap *Retry Payment* on order #${o.orderNumber}\n\nIf you've already paid, share the UPI reference number here and we'll verify it right away. Unpaid orders are cancelled automatically after 24 hours.`,
+  refund_requested: (o) =>
+    `🔁 *Refund Requested*\n\nHi ${o.name}, we've received your refund request for order *#${o.orderNumber}*${
+      o.total ? ` (₹${o.total})` : ""
+    }.\n\n*What happens next:*\n1️⃣ Our team reviews the request within *24 hours*\n2️⃣ Once approved, the refund is initiated to your original payment method\n3️⃣ You'll get a WhatsApp confirmation the moment it's processed\n\nNothing is needed from you right now. If you'd like to add photos or a reason, just send them in this chat.`,
+  refund_processed: (o) =>
+    `💸 *Refund Processed*\n\nHi ${o.name}, the refund for order *#${o.orderNumber}*${
+      o.total ? ` of *₹${o.total}*` : ""
+    } has been processed successfully. ✅\n\n*What happens next:*\n1️⃣ The amount goes back to your original payment method (UPI / card / bank)\n2️⃣ Banks usually credit it in *5-7 working days*\n3️⃣ Check your bank statement — it appears as a Razorpay/California Farms credit\n\nIf you don't see it after 7 working days, tap *Contact Support* and we'll share the refund reference.`,
 };
 
-// Statuses that get an interactive "Contact support" button
+// Statuses that get interactive buttons (support / reschedule)
 const buttonStatuses = new Set([
   "out_for_delivery",
   "delivered",
   "payment_failed",
   "payment_pending",
+  "refund_requested",
+  "refund_processed",
 ]);
+
 
 function formatIndianPhone(phone: string): string | null {
   let p = String(phone || "").replace(/[\s\-()+]/g, "");

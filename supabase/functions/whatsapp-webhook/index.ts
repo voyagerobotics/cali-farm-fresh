@@ -215,6 +215,99 @@ async function logMessage(phone: string, direction: string, text: string, waMess
   });
 }
 
+// ─── Post-order actions: Contact support & Reschedule delivery ───
+const SUPPORT_TEXT =
+  "💬 *California Farms Support*\n\nOur team is right here. Please tell us what went wrong (you can send photos too) and we'll reply shortly.\n\n📞 Call/WhatsApp: +91 86000 11641\n📧 Email: californiafarmsindia@gmail.com\n🕘 Support hours: 8 AM – 8 PM IST\n\nType *MENU* anytime to continue shopping.";
+
+const RESCHEDULE_SLOTS = [
+  { id: "today_evening", label: "Today, Evening 4-7 PM" },
+  { id: "tomorrow_morning", label: "Tomorrow, Morning 8-11 AM" },
+  { id: "tomorrow_evening", label: "Tomorrow, Evening 4-7 PM" },
+];
+
+async function findRecentOrder(phone: string, orderNumber?: string | null) {
+  const digits = phone.replace(/\D/g, "").slice(-10);
+  let q = supabase
+    .from("orders")
+    .select("id, order_number, status, delivery_slot, notes, delivery_phone")
+    .order("created_at", { ascending: false })
+    .limit(1);
+  q = orderNumber ? q.eq("order_number", orderNumber) : q.like("delivery_phone", `%${digits}`);
+  const { data } = await q.maybeSingle();
+  return data;
+}
+
+/** Handles support & delivery-reschedule buttons sent in order update messages */
+async function handleOrderActions(
+  phone: string,
+  text: string,
+  buttonId: string | null,
+): Promise<boolean> {
+  const raw = (buttonId || text || "").trim();
+  const lower = raw.toLowerCase();
+
+  // Contact support
+  if (lower.startsWith("support:") || lower === "support" || lower === "contact support" || lower === "💬 contact support") {
+    await sendWhatsAppMessage(phone, SUPPORT_TEXT);
+    await logMessage(phone, "outbound", SUPPORT_TEXT);
+    return true;
+  }
+
+  // Reschedule → offer slots
+  if (lower.startsWith("resched:") || lower === "reschedule" || lower === "🗓️ reschedule") {
+    const orderNumber = raw.includes(":") ? raw.split(":")[1] : null;
+    const order = await findRecentOrder(phone, orderNumber);
+    if (!order) {
+      const msg = "🗓️ I couldn't find an active order for this number. Please share your order number (e.g. CFI-20260804-0001).";
+      await sendWhatsAppMessage(phone, msg);
+      await logMessage(phone, "outbound", msg);
+      return true;
+    }
+    const body = `🗓️ *Reschedule Delivery*\n\nOrder *#${order.order_number}*${
+      order.delivery_slot ? `\nCurrent slot: ${order.delivery_slot}` : ""
+    }\n\nPick a new delivery slot below and our rider will be updated.`;
+    await sendWhatsAppButtons(
+      phone,
+      body,
+      RESCHEDULE_SLOTS.map((s) => ({
+        id: `reslot:${order.order_number}:${s.id}`,
+        title: s.label.replace("Tomorrow, ", "Tmrw ").replace("Today, ", "Today ").slice(0, 20),
+      })),
+    );
+    await logMessage(phone, "outbound", body);
+    return true;
+  }
+
+  // Reschedule → slot chosen
+  if (lower.startsWith("reslot:")) {
+    const [, orderNumber, slotId] = raw.split(":");
+    const slot = RESCHEDULE_SLOTS.find((s) => s.id === slotId);
+    const order = await findRecentOrder(phone, orderNumber);
+    if (!order || !slot) {
+      const msg = "😔 Couldn't update that slot. Please reply *SUPPORT* and our team will reschedule it for you.";
+      await sendWhatsAppMessage(phone, msg);
+      await logMessage(phone, "outbound", msg);
+      return true;
+    }
+    const note = `[Reschedule requested via WhatsApp] New slot: ${slot.label}`;
+    await supabase
+      .from("orders")
+      .update({
+        delivery_slot: slot.label,
+        notes: order.notes ? `${order.notes}\n${note}` : note,
+      })
+      .eq("id", order.id);
+
+    const msg = `✅ *Delivery Rescheduled*\n\nOrder *#${order.order_number}* is now scheduled for *${slot.label}*.\n\nOur team has been notified and will confirm shortly. If the rider is already at your doorstep, please reply *SUPPORT* so we can coordinate.\n\nThank you for your patience! 🌿`;
+    await sendWhatsAppMessage(phone, msg);
+    await logMessage(phone, "outbound", msg);
+    return true;
+  }
+
+  return false;
+}
+
+
 async function getRecentMessages(phone: string, limit = 10) {
   const { data } = await supabase
     .from("whatsapp_messages")
@@ -899,6 +992,18 @@ serve(async (req) => {
 
       console.log(`Message from ${from}: ${messageText} (button: ${buttonId})`);
       await logMessage(from, "inbound", buttonId || messageText, waMessageId);
+
+      // Support / reschedule buttons from order-update messages take priority
+      try {
+        if (await handleOrderActions(from, messageText, buttonId)) {
+          return new Response(JSON.stringify({ status: "ok" }), {
+            status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+      } catch (e) {
+        console.error("Order action error:", e);
+      }
+
 
       const conversation = await getConversation(from);
       if (!conversation) {

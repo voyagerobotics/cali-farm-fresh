@@ -355,8 +355,39 @@ const handler = async (req: Request): Promise<Response> => {
       }
     }
 
+    // WhatsApp refund update (requested / processed) with next steps + support button
+    try {
+      const { data: order } = await supabaseAdmin
+        .from("orders")
+        .select("id, delivery_phone, delivery_name, order_number")
+        .eq(orderId ? "id" : "order_number", orderId || orderNumber)
+        .maybeSingle();
+
+      if (order?.delivery_phone) {
+        await fetch(`${supabaseUrl}/functions/v1/send-whatsapp-order-update`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            apikey: Deno.env.get("SUPABASE_ANON_KEY")!,
+            Authorization: `Bearer ${Deno.env.get("SUPABASE_ANON_KEY")}`,
+          },
+          body: JSON.stringify({
+            orderId: order.id,
+            orderNumber: order.order_number || orderNumber,
+            customerName: order.delivery_name || customerName,
+            phone: order.delivery_phone,
+            total: refundAmount,
+            status: isInitiated ? "refund_requested" : "refund_processed",
+          }),
+        });
+      }
+    } catch (waError) {
+      console.error("WhatsApp refund update failed:", waError);
+    }
+
     return new Response(JSON.stringify({ success: true }),
       { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } });
+
   } catch (error: any) {
     console.error("Error sending refund notification:", error);
     return new Response(JSON.stringify({ error: error.message }),

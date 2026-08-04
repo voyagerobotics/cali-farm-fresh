@@ -39,6 +39,7 @@ const renderWhatsAppText = (text: string) =>
 const AdminWhatsAppPreview = () => {
   const { toast } = useToast();
   const [status, setStatus] = useState("out_for_delivery");
+  const [language, setLanguage] = useState("en");
   const [orderNumber, setOrderNumber] = useState("");
   const [customerName, setCustomerName] = useState("Rahul Sharma");
   const [testPhone, setTestPhone] = useState("");
@@ -53,6 +54,7 @@ const AdminWhatsAppPreview = () => {
         body: {
           preview: true,
           status,
+          language,
           orderNumber: orderNumber.trim() || undefined,
           customerName: customerName.trim() || undefined,
         },
@@ -69,7 +71,8 @@ const AdminWhatsAppPreview = () => {
   useEffect(() => {
     loadPreview();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [status]);
+  }, [status, language]);
+
 
   const sendTest = async () => {
     const phone = testPhone.replace(/\D/g, "");

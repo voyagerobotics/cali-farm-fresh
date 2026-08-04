@@ -435,7 +435,10 @@ export async function handleShopMessage(ctx: ShopCtx): Promise<boolean> {
     return true;
   }
 
-  if (t === "cart" || t === "my cart") { await showCart(); return true; }
+  if (t === "cart" || t === "my cart" || t === "view cart" || t === "edit cart") { await showCart(); return true; }
+
+  // Cart edits (qty change / remove / clear)
+  if (await editCart()) return true;
 
   if (t === "checkout" || t === "buy now" || t === "place order") {
     if (!cart.length) { await say("🛒 Your cart is empty. Type *MENU* to start shopping."); return true; }

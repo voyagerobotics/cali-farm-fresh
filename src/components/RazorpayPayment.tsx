@@ -122,8 +122,23 @@ const RazorpayPayment = ({
 
       const razorpay = new window.Razorpay(options);
       razorpay.on("payment.failed", function (response: any) {
-        onPaymentFailure(response.error.description || "Payment failed");
+        const description = response?.error?.description || "Payment failed";
+        // Fire-and-forget WhatsApp alert with retry / support instructions
+        supabase.functions
+          .invoke("send-whatsapp-order-update", {
+            body: {
+              orderNumber,
+              customerName,
+              phone: customerPhone,
+              total: amount,
+              status: "payment_failed",
+              reason: description,
+            },
+          })
+          .catch(() => {});
+        onPaymentFailure(description);
       });
+
       razorpay.open();
     } catch (err: any) {
       setError(err.message);

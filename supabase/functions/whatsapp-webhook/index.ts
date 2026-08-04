@@ -511,20 +511,21 @@ async function getAIResponse(
   products: Array<Record<string, unknown>>, chatHistory: Array<Record<string, unknown>>
 ) {
   const productCatalog = products
-    .map((p) => {
-      let priceStr = `₹${p.price}/${p.unit}`;
-      if (p.discount_enabled && p.discount_value) {
-        if (p.discount_type === 'percentage') {
-          const discounted = (p.price as number) * (1 - (p.discount_value as number) / 100);
-          priceStr = `₹${Math.round(discounted)}/${p.unit} (${p.discount_value}% off, was ₹${p.price})`;
-        } else {
-          const discounted = (p.price as number) - (p.discount_value as number);
-          priceStr = `₹${discounted}/${p.unit} (₹${p.discount_value} off, was ₹${p.price})`;
-        }
-      }
-      return `- ${p.name}: ${priceStr} (stock: ${p.stock_quantity})`;
+    .map((p: any) => {
+      const eff = effectivePrice(p);
+      let priceStr = `₹${eff}/${p.unit}`;
+      if (eff !== Number(p.price)) priceStr += ` (was ₹${p.price})`;
+      const variants = (Array.isArray(p.product_variants) ? p.product_variants : [])
+        .filter((v: any) => v.is_available !== false);
+      const variantStr = variants.length > 0
+        ? ` | packs: ${variants.map((v: any) => `${v.name} ₹${v.price}`).join(", ")}`
+        : ` | packs: 500g ₹${Math.round(eff / 2)}, 1${p.unit} ₹${eff}`;
+      const stockStr = p.stock_quantity == null ? "in stock" : p.stock_quantity <= 0 ? "OUT OF STOCK" : `${p.stock_quantity} ${p.unit} left`;
+      const photo = productImage(p) ? " | 📷 photo available" : "";
+      return `- ${p.name}: ${priceStr}${variantStr} (${stockStr})${photo}`;
     })
     .join("\n");
+
 
   const cart = conversation.cart || [];
   const cartSummary = Array.isArray(cart) && cart.length > 0

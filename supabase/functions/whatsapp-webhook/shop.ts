@@ -329,7 +329,7 @@ export async function handleShopMessage(ctx: ShopCtx): Promise<boolean> {
       const { text, total } = cartLines(cart);
 
       await sayButtons(
-        `📋 *Order Summary*\n${text}\n\n💰 Items: ₹${total}\n👤 ${conv.delivery_name}\n📞 ${conv.delivery_phone}\n📍 ${conv.delivery_address}\n⏰ ${slot}\n\n💳 Payment: *UPI / Card / Netbanking* (secure online link)`,
+        `📋 *Order Summary*\n${text}\n\n💰 Items: ₹${total}\n👤 ${conv.delivery_name}\n📞 ${conv.delivery_phone}\n📍 ${baseAddr}\n⏰ ${slot}\n\n💳 Payment: *UPI / Card / Netbanking* (secure online link)`,
         [{ id: "confirm", title: "✅ Confirm Order" }, { id: "menu", title: "🔙 Cancel" }],
       );
       return true;

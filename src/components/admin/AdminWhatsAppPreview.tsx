@@ -86,6 +86,7 @@ const AdminWhatsAppPreview = () => {
         body: {
           status,
           phone,
+          language,
           orderNumber: orderNumber.trim() || "CFI-TEST-0001",
           customerName: customerName.trim() || "Customer",
           total: 499,

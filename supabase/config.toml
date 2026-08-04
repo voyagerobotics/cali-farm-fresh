@@ -72,3 +72,9 @@ verify_jwt = false
 [functions.send-farm-visit-booking]
 verify_jwt = false
 
+
+[functions.send-whatsapp-order-update]
+verify_jwt = false
+
+[functions.check-pending-payments]
+verify_jwt = false

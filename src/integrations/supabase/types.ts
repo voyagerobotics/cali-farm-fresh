@@ -1312,10 +1312,12 @@ export type Database = {
           id: string
           language: string | null
           last_order_id: string | null
+          menu_context: Json
           payment_method: string | null
           phone_number: string
           updated_at: string | null
           user_id: string | null
+          wishlist: Json
         }
         Insert: {
           cart?: Json | null
@@ -1328,10 +1330,12 @@ export type Database = {
           id?: string
           language?: string | null
           last_order_id?: string | null
+          menu_context?: Json
           payment_method?: string | null
           phone_number: string
           updated_at?: string | null
           user_id?: string | null
+          wishlist?: Json
         }
         Update: {
           cart?: Json | null
@@ -1344,10 +1348,12 @@ export type Database = {
           id?: string
           language?: string | null
           last_order_id?: string | null
+          menu_context?: Json
           payment_method?: string | null
           phone_number?: string
           updated_at?: string | null
           user_id?: string | null
+          wishlist?: Json
         }
         Relationships: []
       }

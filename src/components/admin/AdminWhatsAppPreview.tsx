@@ -5,27 +5,20 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-
-const STATUSES: { id: string; label: string }[] = [
-  { id: "confirmed", label: "Order confirmed" },
-  { id: "preparing", label: "Order packed" },
-  { id: "out_for_delivery", label: "Out for delivery" },
-  { id: "delivered", label: "Delivered" },
-  { id: "cancelled", label: "Cancelled" },
-  { id: "payment_failed", label: "Payment failed" },
-  { id: "payment_pending", label: "Payment pending" },
-  { id: "refund_requested", label: "Refund requested" },
-  { id: "refund_processed", label: "Refund processed" },
-];
+import { WA_STATUSES as STATUSES, WA_LANGUAGES } from "@/components/admin/AdminWhatsAppTemplates";
 
 interface PreviewData {
   supported: boolean;
   body?: string;
   buttons?: string[];
   template?: string | null;
+  templateLanguage?: string | null;
+  language?: string;
+  hasTranslation?: boolean;
   footer?: string | null;
   reason?: string;
 }
+
 
 /** Renders WhatsApp-style bold/italic markup as HTML-ish React nodes */
 const renderWhatsAppText = (text: string) =>
@@ -46,6 +39,7 @@ const renderWhatsAppText = (text: string) =>
 const AdminWhatsAppPreview = () => {
   const { toast } = useToast();
   const [status, setStatus] = useState("out_for_delivery");
+  const [language, setLanguage] = useState("en");
   const [orderNumber, setOrderNumber] = useState("");
   const [customerName, setCustomerName] = useState("Rahul Sharma");
   const [testPhone, setTestPhone] = useState("");
@@ -60,6 +54,7 @@ const AdminWhatsAppPreview = () => {
         body: {
           preview: true,
           status,
+          language,
           orderNumber: orderNumber.trim() || undefined,
           customerName: customerName.trim() || undefined,
         },
@@ -76,7 +71,8 @@ const AdminWhatsAppPreview = () => {
   useEffect(() => {
     loadPreview();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [status]);
+  }, [status, language]);
+
 
   const sendTest = async () => {
     const phone = testPhone.replace(/\D/g, "");
@@ -90,6 +86,7 @@ const AdminWhatsAppPreview = () => {
         body: {
           status,
           phone,
+          language,
           orderNumber: orderNumber.trim() || "CFI-TEST-0001",
           customerName: customerName.trim() || "Customer",
           total: 499,
@@ -119,13 +116,34 @@ const AdminWhatsAppPreview = () => {
           <MessageSquare className="w-6 h-6 text-primary" /> WhatsApp Message Preview
         </h2>
         <p className="text-sm text-muted-foreground">
-          Check the exact text and buttons a customer receives for each order status, then send a test to yourself.
+          Check the exact text and buttons a customer receives for each order status and language, then send a test to
+          yourself.
         </p>
       </div>
 
       <div className="grid lg:grid-cols-[320px_1fr] gap-6">
         {/* Controls */}
         <div className="space-y-4 bg-card border border-border rounded-xl p-4">
+          <div className="space-y-2">
+            <Label>Language</Label>
+            <div className="flex gap-1">
+              {WA_LANGUAGES.map((l) => (
+                <button
+                  key={l.id}
+                  onClick={() => setLanguage(l.id)}
+                  className={`flex-1 text-sm px-2 py-2 rounded-lg transition-colors ${
+                    language === l.id ? "bg-primary text-primary-foreground" : "hover:bg-muted text-foreground"
+                  }`}
+                >
+                  {l.id.toUpperCase()}
+                </button>
+              ))}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Live messages use the customer's chat language automatically, falling back to English.
+            </p>
+          </div>
+
           <div className="space-y-2">
             <Label>Status</Label>
             <div className="grid grid-cols-1 gap-1">
@@ -144,6 +162,8 @@ const AdminWhatsAppPreview = () => {
               ))}
             </div>
           </div>
+
+
 
           <div className="space-y-2">
             <Label htmlFor="wa-order">Order number (optional)</Label>
@@ -223,11 +243,23 @@ const AdminWhatsAppPreview = () => {
                 )}
               </div>
             </div>
-            {preview?.template && (
+            {preview?.supported && !preview?.hasTranslation && (
+              <p className="text-xs text-yellow-600 mt-3 text-center">
+                No {language.toUpperCase()} wording exists for this status — the English text above is used instead.
+              </p>
+            )}
+            {preview?.template ? (
               <p className="text-xs text-muted-foreground mt-3 text-center">
                 Outside the 24h window this falls back to approved template{" "}
-                <code className="font-mono">{preview.template}</code>.
+                <code className="font-mono">{preview.template}</code>
+                {preview.templateLanguage ? ` (${preview.templateLanguage.toUpperCase()})` : ""}.
               </p>
+            ) : (
+              preview?.supported && (
+                <p className="text-xs text-muted-foreground mt-3 text-center">
+                  No approved template for this status — outside the 24h window the plain-text fallback above is sent.
+                </p>
+              )
             )}
           </div>
         </div>

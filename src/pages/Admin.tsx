@@ -14,7 +14,7 @@ import AdminCustomers from "@/components/admin/AdminCustomers";
 import AdminBanners from "@/components/admin/AdminBanners";
 import AdminEmailLogs from "@/components/admin/AdminEmailLogs";
 import AdminFarmVisits from "@/components/admin/AdminFarmVisits";
-import AdminWhatsAppPreview from "@/components/admin/AdminWhatsAppPreview";
+import AdminWhatsApp from "@/components/admin/AdminWhatsApp";
 
 type TabType = "analytics" | "orders" | "products" | "categories" | "customers" | "banners" | "emails" | "whatsapp" | "farm-visits" | "settings" | "logs";
 
@@ -106,7 +106,7 @@ const Admin = () => {
         {activeTab === "customers" && <AdminCustomers />}
         {activeTab === "banners" && <AdminBanners />}
         {activeTab === "emails" && <AdminEmailLogs />}
-        {activeTab === "whatsapp" && <AdminWhatsAppPreview />}
+        {activeTab === "whatsapp" && <AdminWhatsApp />}
 
         {activeTab === "farm-visits" && <AdminFarmVisits />}
         {activeTab === "logs" && <AdminLogs />}

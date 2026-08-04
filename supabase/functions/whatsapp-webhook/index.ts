@@ -215,6 +215,23 @@ async function logMessage(phone: string, direction: string, text: string, waMess
   });
 }
 
+/** Order-level WhatsApp activity log (button replies + bot responses tied to an order) */
+async function logActivity(entry: Record<string, unknown>) {
+  try {
+    await supabase.from("whatsapp_activity_log").insert(entry);
+  } catch (e) {
+    console.error("activity log insert failed", e);
+  }
+}
+
+/** Extract an order number from a button payload like `summary:CFI-...` */
+function orderNumberFromPayload(payload: string | null): string | null {
+  if (!payload || !payload.includes(":")) return null;
+  const parts = payload.split(":");
+  const candidate = parts[1];
+  return candidate && candidate.startsWith("CFI-") ? candidate : null;
+}
+
 // Send an interactive list message (up to 10 rows) — used for precise slot picking
 async function sendWhatsAppList(
   to: string,
@@ -1164,6 +1181,17 @@ serve(async (req) => {
 
       console.log(`Message from ${from}: ${messageText} (button: ${buttonId})`);
       await logMessage(from, "inbound", buttonId || messageText, waMessageId);
+      if (buttonId) {
+        await logActivity({
+          order_number: orderNumberFromPayload(buttonId),
+          phone_number: from,
+          direction: "inbound",
+          event_type: "button_reply",
+          button_id: buttonId,
+          body: messageText || buttonId,
+          success: true,
+        });
+      }
 
       // Support / reschedule buttons from order-update messages take priority
       try {

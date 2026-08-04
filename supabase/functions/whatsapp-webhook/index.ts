@@ -657,8 +657,45 @@ async function processDeliveryDetails(phone: string, aiResponse: string, convers
 }
 
 function cleanResponse(text: string): string {
-  return text.replace(/<!--CART_UPDATE:.*?-->/gs, "").replace(/<!--CHECKOUT_READY-->/gs, "").trim();
+  return text
+    .replace(/<!--CART_UPDATE:.*?-->/gs, "")
+    .replace(/<!--SHOW_PRODUCTS:.*?-->/gs, "")
+    .replace(/<!--CHECKOUT_READY-->/gs, "")
+    .trim();
 }
+
+// Send photo cards for the products the AI asked to showcase
+async function sendProductShowcase(
+  phone: string, aiResponse: string, products: Array<Record<string, any>>
+): Promise<boolean> {
+  const match = aiResponse.match(/<!--SHOW_PRODUCTS:(.*?)-->/s);
+  if (!match) return false;
+  let names: string[] = [];
+  try {
+    const parsed = JSON.parse(match[1]);
+    if (Array.isArray(parsed)) names = parsed.map((n) => String(n));
+  } catch (e) { console.error("Bad SHOW_PRODUCTS payload:", e); return false; }
+
+  let sent = 0;
+  for (const name of names.slice(0, 5)) {
+    const p = products.find((x) => String(x.name).toLowerCase() === name.toLowerCase())
+      || products.find((x) => String(x.name).toLowerCase().includes(name.toLowerCase()));
+    if (!p) continue;
+    const caption = buildProductCaption(p);
+    const img = productImage(p);
+    if (img) await sendWhatsAppImage(phone, img, caption);
+    else await sendWhatsAppMessage(phone, caption);
+    await logMessage(phone, "outbound", caption);
+    sent++;
+  }
+  if (sent > 0) {
+    const footer = `🌱 *Order more on our website:* https://zomical.com/products\n🚚 ₹10/km delivery • FREE above ₹399`;
+    await sendWhatsAppMessage(phone, footer);
+    await logMessage(phone, "outbound", footer);
+  }
+  return sent > 0;
+}
+
 
 // ─── Payment Callback ───
 async function handlePaymentCallback(url: URL) {

@@ -688,7 +688,7 @@ export async function handleShopMessage(ctx: ShopCtx): Promise<boolean> {
       }
       if (t0 === "cancelorder" || t0 === "cancel" || t0 === "no" || t0 === "menu") {
         await sayButtons(
-          "🤔 *What would you like to cancel?*\n\nYou can remove just one item and keep the rest — you don't have to cancel everything.",
+          `🤔 *What would you like to cancel?*\n\nYou have *${cart.length} item(s)* in this order. You can remove just one item and keep the rest — you don't have to cancel everything.\n💳 Nothing has been charged yet, so no refund is involved.`,
           [
             { id: "editorder", title: "✏️ Remove 1 item" },
             { id: "cancelall", title: "❌ Cancel all" },
@@ -704,13 +704,15 @@ export async function handleShopMessage(ctx: ShopCtx): Promise<boolean> {
       if (t0 === "cancelall") {
         cart.length = 0;
         await saveCart();
+        await setMc({ ...mc, fromConfirm: false, view: "cart", ids: [] });
         await ctx.updateConversation(phone, { conversation_state: "idle" });
         await sayButtons(
-          "❌ *Order cancelled.*\n\nNo worries — nothing was charged and your cart is now empty. 🌿\nYou can purchase anytime, we're always here for you!",
+          "❌ *Full order cancelled* — all items removed.\n\n💳 No payment was taken and nothing will be charged. Your cart is now empty. 🌿\nYou can purchase anytime, we're always here for you!",
           [{ id: "menu", title: L("keep_shopping").slice(0, 20) }],
         );
         return true;
       }
+
       await sayButtons(
         `${L("order_summary")} 👇`,
         [

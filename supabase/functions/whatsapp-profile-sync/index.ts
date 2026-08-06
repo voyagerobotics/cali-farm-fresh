@@ -112,7 +112,7 @@ Deno.serve(async (req) => {
     const complianceBody: Record<string, unknown> = {
       messaging_product: "whatsapp",
       entity_name: s.business_name,
-      entity_type: "PRIVATE_LIMITED_COMPANY",
+      entity_type: "PRIVATE_COMPANY",
       is_registered: true,
       grievance_officer_details: {
         name: s.business_name,

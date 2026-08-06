@@ -113,7 +113,6 @@ Deno.serve(async (req) => {
       messaging_product: "whatsapp",
       entity_name: s.business_name,
       entity_type: "PRIVATE_COMPANY",
-      is_registered: true,
       grievance_officer_details: {
         name: s.business_name,
         email: supportEmail,

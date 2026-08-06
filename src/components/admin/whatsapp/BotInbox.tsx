@@ -172,12 +172,13 @@ const BotInbox = () => {
 
   return (
     <Card className="overflow-hidden">
-      <CardContent className="p-0 grid md:grid-cols-[320px_1fr] h-[640px]">
+      <CardContent className="p-0 grid md:grid-cols-[320px_1fr] h-[70vh] min-h-[520px]">
         {/* Conversation list */}
-        <div className="border-r border-border flex flex-col">
+        <div className={`border-r border-border flex-col min-h-0 ${active ? "hidden md:flex" : "flex"}`}>
           <div className="p-3 space-y-2 border-b border-border">
             <div className="flex items-center gap-2">
               <div className="relative flex-1">
+
                 <Search className="w-4 h-4 absolute left-3 top-2.5 text-muted-foreground" />
                 <Input className="pl-9 h-9" placeholder="Search chats…" value={q} onChange={(e) => setQ(e.target.value)} />
               </div>

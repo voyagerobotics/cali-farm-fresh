@@ -381,7 +381,12 @@ export async function handleShopMessage(ctx: ShopCtx): Promise<boolean> {
       if (!cart.length) { await showCart(); return true; }
       cart.length = 0;
       await saveCart();
-      await sayButtons(L("cart_cleared"), [{ id: "menu", title: L("keep_shopping").slice(0, 20) }]);
+      await setMc({ ...mc, fromConfirm: false, view: "cart", ids: [] });
+      await ctx.updateConversation(phone, { conversation_state: "idle" });
+      await sayButtons(
+        "❌ *Full order cancelled* — all items removed.\n\n💳 No payment was taken and nothing will be charged. 🌿\nYou can purchase anytime, we're always here for you!",
+        [{ id: "menu", title: L("keep_shopping").slice(0, 20) }],
+      );
       return true;
     }
     const resolve = (n: number) => (n >= 1 && n <= cart.length ? n - 1 : -1);
@@ -393,7 +398,7 @@ export async function handleShopMessage(ctx: ShopCtx): Promise<boolean> {
       if (idx < 0) { await showCart(); return true; }
       const [removed] = cart.splice(idx, 1);
       await saveCart();
-      await showCart(`🗑️ *${removed.name}* — ${L("remove_item")}`);
+      await afterCartChange(`🗑️ *Removed only this item:* ${removed.name}\nYour other ${cart.length} item(s) are safe. 💳 Nothing has been charged yet.`);
       return true;
     }
 
@@ -405,12 +410,12 @@ export async function handleShopMessage(ctx: ShopCtx): Promise<boolean> {
       if (qty <= 0) {
         const [removed] = cart.splice(idx, 1);
         await saveCart();
-        await showCart(`🗑️ *${removed.name}*`);
+        await afterCartChange(`🗑️ *Removed only this item:* ${removed.name}\nYour other ${cart.length} item(s) are safe. 💳 Nothing has been charged yet.`);
         return true;
       }
       cart[idx].qty = Math.min(qty, 99);
       await saveCart();
-      await showCart(`✏️ *${cart[idx].name}* × ${cart[idx].qty}`);
+      await afterCartChange(`✏️ *${cart[idx].name}* updated to × ${cart[idx].qty}. Everything else stays the same.`);
       return true;
     }
 
@@ -424,12 +429,12 @@ export async function handleShopMessage(ctx: ShopCtx): Promise<boolean> {
       if (next <= 0) {
         const [removed] = cart.splice(idx, 1);
         await saveCart();
-        await showCart(`🗑️ *${removed.name}*`);
+        await afterCartChange(`🗑️ *Removed only this item:* ${removed.name}\nYour other ${cart.length} item(s) are safe. 💳 Nothing has been charged yet.`);
         return true;
       }
       cart[idx].qty = Math.min(next, 99);
       await saveCart();
-      await showCart(`✏️ *${cart[idx].name}* × ${cart[idx].qty}`);
+      await afterCartChange(`✏️ *${cart[idx].name}* updated to × ${cart[idx].qty}. Everything else stays the same.`);
       return true;
     }
     return false;
@@ -543,6 +548,7 @@ export async function handleShopMessage(ctx: ShopCtx): Promise<boolean> {
   const showOrderConfirm = async (prefix?: string) => {
     const baseAddr = String(conversation.delivery_address || "").replace(/\s*\|\s*Preferred time:.*$/, "");
     conversation.delivery_address = baseAddr;
+    mc.fromConfirm = true;
     await setMc({ ...mc, fromConfirm: true });
     await ctx.updateConversation(phone, {
       delivery_address: baseAddr,

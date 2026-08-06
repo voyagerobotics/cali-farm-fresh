@@ -201,11 +201,8 @@ function similarTo(p: Product, products: Product[]): Product[] {
   return products.filter((x) => x.id !== p.id && categoryKeyOf(x) === key && inStock(x)).slice(0, 3);
 }
 
-const SLOTS = [
-  { id: "Morning 8-11 AM", label: "Morning 8–11 AM" },
-  { id: "Noon 12-3 PM", label: "Noon 12–3 PM" },
-  { id: "Evening 4-7 PM", label: "Evening 4–7 PM" },
-];
+// (Delivery time is no longer asked — orders follow the standard delivery schedule.)
+
 
 // ─── Main handler ───
 export async function handleShopMessage(ctx: ShopCtx): Promise<boolean> {
@@ -316,7 +313,7 @@ export async function handleShopMessage(ctx: ShopCtx): Promise<boolean> {
       return;
     }
     const { text, total } = cartLines(cart, true);
-    await setMc({ view: "cart", ids: cart.map((c) => c.product_id ?? c.name) });
+    await setMc({ ...mc, view: "cart", ids: cart.map((c) => c.product_id ?? c.name) });
     await sayButtons(
       `${prefix ? prefix + "\n\n" : ""}${L("your_cart")}\n${text}\n\n💰 *${L("total")}: ₹${total}*\n${L("free_above")}`,
       [
@@ -330,13 +327,19 @@ export async function handleShopMessage(ctx: ShopCtx): Promise<boolean> {
   const showCartEditor = async () => {
     if (!cart.length) { await showCart(); return; }
     await setMc({ ...mc, view: "cart" });
+    const { total } = cartLines(cart, true);
     const rows = cart.map((c, i) => ({
       id: `ci:${i + 1}`,
-      title: String(c.name).slice(0, 24),
-      description: `×${c.qty} — ₹${Number(c.price) * Number(c.qty)}`,
+      title: `${i + 1}. ${String(c.name)}`.slice(0, 24),
+      description: `×${c.qty} ${c.unit ?? ""} • ₹${Number(c.price) * Number(c.qty)} — tap to change`.slice(0, 72),
     }));
-    rows.push({ id: "clear", title: L("clear_cart"), description: "" });
-    await sayList(L("pick_item_to_edit"), L("edit_item").slice(0, 20), rows);
+    rows.push({ id: "clear", title: L("clear_cart").slice(0, 24), description: "Remove every item" });
+    if (mc.fromConfirm) rows.push({ id: "backconfirm", title: "🔙 Back to summary", description: "Review and confirm" });
+    await sayList(
+      `🛠️ *Edit your cart* (₹${total})\n\n${L("pick_item_to_edit")}\nYou can add one, remove one, or delete an item — the rest of your order stays as it is.`,
+      L("edit_item").slice(0, 20),
+      rows,
+    );
   };
 
   const saveCart = async () => {
@@ -361,7 +364,7 @@ export async function handleShopMessage(ctx: ShopCtx): Promise<boolean> {
     const item = cart[n - 1];
     if (!item) { await showCart(); return; }
     await sayButtons(
-      `🛒 *${item.name}*\n₹${item.price} / ${item.unit} × ${item.qty} = ₹${Number(item.price) * Number(item.qty)}`,
+      `🛒 *${item.name}*\n₹${item.price} / ${item.unit} × *${item.qty}* = ₹${Number(item.price) * Number(item.qty)}\n\nWhat would you like to do with this item?`,
       [
         { id: `qty+:${n}`, title: L("add_one").slice(0, 20) },
         { id: `qty-:${n}`, title: L("remove_one").slice(0, 20) },
@@ -370,6 +373,7 @@ export async function handleShopMessage(ctx: ShopCtx): Promise<boolean> {
     );
   };
 
+
   // ── Text-typed cart edits (kept as a fallback) ──
   const editCart = async (): Promise<boolean> => {
     const clean = t0.replace(/\s+/g, " ").trim();
@@ -377,7 +381,12 @@ export async function handleShopMessage(ctx: ShopCtx): Promise<boolean> {
       if (!cart.length) { await showCart(); return true; }
       cart.length = 0;
       await saveCart();
-      await sayButtons(L("cart_cleared"), [{ id: "menu", title: L("keep_shopping").slice(0, 20) }]);
+      await setMc({ ...mc, fromConfirm: false, view: "cart", ids: [] });
+      await ctx.updateConversation(phone, { conversation_state: "idle" });
+      await sayButtons(
+        "❌ *Full order cancelled* — all items removed.\n\n💳 No payment was taken and nothing will be charged. 🌿\nYou can purchase anytime, we're always here for you!",
+        [{ id: "menu", title: L("keep_shopping").slice(0, 20) }],
+      );
       return true;
     }
     const resolve = (n: number) => (n >= 1 && n <= cart.length ? n - 1 : -1);
@@ -389,7 +398,7 @@ export async function handleShopMessage(ctx: ShopCtx): Promise<boolean> {
       if (idx < 0) { await showCart(); return true; }
       const [removed] = cart.splice(idx, 1);
       await saveCart();
-      await showCart(`🗑️ *${removed.name}* — ${L("remove_item")}`);
+      await afterCartChange(`🗑️ *Removed only this item:* ${removed.name}\nYour other ${cart.length} item(s) are safe. 💳 Nothing has been charged yet.`);
       return true;
     }
 
@@ -401,12 +410,12 @@ export async function handleShopMessage(ctx: ShopCtx): Promise<boolean> {
       if (qty <= 0) {
         const [removed] = cart.splice(idx, 1);
         await saveCart();
-        await showCart(`🗑️ *${removed.name}*`);
+        await afterCartChange(`🗑️ *Removed only this item:* ${removed.name}\nYour other ${cart.length} item(s) are safe. 💳 Nothing has been charged yet.`);
         return true;
       }
       cart[idx].qty = Math.min(qty, 99);
       await saveCart();
-      await showCart(`✏️ *${cart[idx].name}* × ${cart[idx].qty}`);
+      await afterCartChange(`✏️ *${cart[idx].name}* updated to × ${cart[idx].qty}. Everything else stays the same.`);
       return true;
     }
 
@@ -420,12 +429,12 @@ export async function handleShopMessage(ctx: ShopCtx): Promise<boolean> {
       if (next <= 0) {
         const [removed] = cart.splice(idx, 1);
         await saveCart();
-        await showCart(`🗑️ *${removed.name}*`);
+        await afterCartChange(`🗑️ *Removed only this item:* ${removed.name}\nYour other ${cart.length} item(s) are safe. 💳 Nothing has been charged yet.`);
         return true;
       }
       cart[idx].qty = Math.min(next, 99);
       await saveCart();
-      await showCart(`✏️ *${cart[idx].name}* × ${cart[idx].qty}`);
+      await afterCartChange(`✏️ *${cart[idx].name}* updated to × ${cart[idx].qty}. Everything else stays the same.`);
       return true;
     }
     return false;
@@ -470,6 +479,15 @@ export async function handleShopMessage(ctx: ShopCtx): Promise<boolean> {
     await setMc({ ...mc, view: "order", orderId });
     const items = Array.isArray(order.order_items) ? order.order_items : [];
     const lines = items.map((it: any) => `• ${it.product_name} ×${it.quantity} — ₹${it.total_price}`);
+    const paid = String(order.payment_status) === "paid";
+    const cancellable = CANCELLABLE.includes(String(order.status));
+    const locked = !cancellable
+      ? `\n🔒 This order is *${String(order.status).replace(/_/g, " ")}* — it can no longer be edited or cancelled here. Tap *Contact support* if you need help.`
+      : String(order.status) === "preparing"
+        ? "\n⚠️ Your order is already being packed — items can't be changed now, only a full cancel is possible."
+        : paid
+          ? "\n💳 Paid order — if you cancel, the full amount is refunded in 5–7 working days."
+          : "";
     const body = [
       `🧾 *Order #${order.order_number}*`,
       `${STATUS_EMOJI[order.status] ?? "•"} Status: *${String(order.status).replace(/_/g, " ")}*`,
@@ -478,14 +496,18 @@ export async function handleShopMessage(ctx: ShopCtx): Promise<boolean> {
       lines.join("\n") || "_No items_",
       "",
       `💰 *Total: ₹${order.total}*`,
+      `💳 Payment: *${String(order.payment_status ?? "pending")}*`,
       order.delivery_address ? `📍 ${order.delivery_address}` : "",
+      locked,
     ].filter(Boolean).join("\n");
 
     const btns: Array<{ id: string; title: string }> = [{ id: `ord:${order.id}`, title: "🔁 Reorder" }];
-    if (CANCELLABLE.includes(String(order.status))) btns.push({ id: `ocx:${order.id}`, title: "❌ Cancel order" });
+    if (cancellable) btns.push({ id: `ocx:${order.id}`, title: "❌ Cancel order" });
+    else btns.push({ id: "support", title: "💬 Contact support" });
     btns.push({ id: "orders", title: "📦 My Orders" });
     await sayButtons(body, btns);
   };
+
 
   const reorder = async (orderId: string) => {
     const order = await ctx.getOrder(orderId);
@@ -523,24 +545,20 @@ export async function handleShopMessage(ctx: ShopCtx): Promise<boolean> {
     await sayButtons(L("ask_address"), [{ id: "menu", title: L("cancel").slice(0, 20) }]);
   };
 
-  const askTime = async () => {
-    await ctx.updateConversation(phone, { conversation_state: "co_time" });
-    await sayButtons(L("ask_time"), SLOTS.map((s) => ({ id: `time:${s.id}`, title: s.label.slice(0, 20) })));
-  };
-
-  const showOrderConfirm = async (slot: string) => {
+  const showOrderConfirm = async (prefix?: string) => {
     const baseAddr = String(conversation.delivery_address || "").replace(/\s*\|\s*Preferred time:.*$/, "");
-    const addrWithTime = `${baseAddr} | Preferred time: ${slot}`;
-    conversation.delivery_address = addrWithTime;
+    conversation.delivery_address = baseAddr;
+    mc.fromConfirm = true;
+    await setMc({ ...mc, fromConfirm: true });
     await ctx.updateConversation(phone, {
-      delivery_address: addrWithTime,
+      delivery_address: baseAddr,
       conversation_state: "co_confirm",
       profile_complete: true,
       customer_name: conversation.delivery_name,
     });
     const { text, total } = cartLines(cart, true);
     await sayButtons(
-      `${L("order_summary")}\n${text}\n\n💰 ₹${total}\n👤 ${conversation.delivery_name}\n📞 ${conversation.delivery_phone}\n📍 ${baseAddr}\n⏰ ${slot}\n\n💳 UPI / Card / Netbanking`,
+      `${prefix ? prefix + "\n\n" : ""}${L("order_summary")}\n${text}\n\n💰 ₹${total}\n👤 ${conversation.delivery_name}\n📞 ${conversation.delivery_phone}\n📍 ${baseAddr}\n\n💳 UPI / Card / Netbanking\n\n_Nothing is charged until you tap Confirm._`,
       [
         { id: "confirm", title: L("confirm_order").slice(0, 20) },
         { id: "editorder", title: "✏️ Edit items" },
@@ -548,6 +566,22 @@ export async function handleShopMessage(ctx: ShopCtx): Promise<boolean> {
       ],
     );
   };
+
+  // After any cart change, bounce back to the right screen
+  const afterCartChange = async (prefix?: string) => {
+    if (!cart.length) {
+      await setMc({ ...mc, fromConfirm: false, view: "cart" });
+      await ctx.updateConversation(phone, { conversation_state: "idle" });
+      await sayButtons(
+        `${prefix ? prefix + "\n\n" : ""}🛒 Your cart is now empty, so the order was not placed.\n💳 Nothing has been charged.`,
+        [{ id: "menu", title: L("keep_shopping").slice(0, 20) }],
+      );
+      return;
+    }
+    if (mc.fromConfirm) { await showOrderConfirm(prefix ? `${prefix}\n\n🧾 *Updated order summary* 👇` : undefined); return; }
+    await showCart(prefix);
+  };
+
 
 
   const startCheckout = async () => {
@@ -585,7 +619,7 @@ export async function handleShopMessage(ctx: ShopCtx): Promise<boolean> {
       delivery_latitude: latitude,
       delivery_longitude: longitude,
       delivery_label: "Home",
-      conversation_state: cart.length ? "co_time" : "idle",
+      conversation_state: cart.length ? "co_confirm" : "idle",
     });
     conversation.delivery_address = resolved.address;
     conversation.delivery_pincode = resolved.pincode;
@@ -596,7 +630,7 @@ export async function handleShopMessage(ctx: ShopCtx): Promise<boolean> {
         await ctx.updateConversation(phone, { conversation_state: "co_name" });
         await say(L("ask_name"));
       } else {
-        await askTime();
+        await showOrderConfirm();
       }
     } else {
       await showMenu();
@@ -612,7 +646,7 @@ export async function handleShopMessage(ctx: ShopCtx): Promise<boolean> {
       return true;
     }
     if (state === "co_saved") {
-      if (t0 === "usesaved") { await askTime(); return true; }
+      if (t0 === "usesaved") { await showOrderConfirm(); return true; }
       if (t0 === "newaddr") { await askAddress(); return true; }
     }
     if (state === "co_name") {
@@ -627,7 +661,7 @@ export async function handleShopMessage(ctx: ShopCtx): Promise<boolean> {
       conversation.delivery_phone = digits;
       if (conversation.delivery_address && conversation.delivery_pincode) {
         await ctx.updateConversation(phone, { delivery_phone: digits });
-        await askTime();
+        await showOrderConfirm();
         return true;
       }
       await ctx.updateConversation(phone, { delivery_phone: digits, conversation_state: "co_address" });
@@ -645,12 +679,7 @@ export async function handleShopMessage(ctx: ShopCtx): Promise<boolean> {
       if (pin.length !== 6) { await say(L("invalid_pincode")); return true; }
       conversation.delivery_pincode = pin;
       await ctx.updateConversation(phone, { delivery_pincode: pin });
-      await askTime();
-      return true;
-    }
-    if (state === "co_time") {
-      const slot = raw.startsWith("time:") ? raw.slice(5) : raw;
-      await showOrderConfirm(slot);
+      await showOrderConfirm();
       return true;
     }
     if (state === "co_confirm") {
@@ -678,7 +707,7 @@ export async function handleShopMessage(ctx: ShopCtx): Promise<boolean> {
       }
       if (t0 === "cancelorder" || t0 === "cancel" || t0 === "no" || t0 === "menu") {
         await sayButtons(
-          "🤔 *What would you like to cancel?*\n\nYou can remove just one item and keep the rest — you don't have to cancel everything.",
+          `🤔 *What would you like to cancel?*\n\nYou have *${cart.length} item(s)* in this order. You can remove just one item and keep the rest — you don't have to cancel everything.\n💳 Nothing has been charged yet, so no refund is involved.`,
           [
             { id: "editorder", title: "✏️ Remove 1 item" },
             { id: "cancelall", title: "❌ Cancel all" },
@@ -688,20 +717,21 @@ export async function handleShopMessage(ctx: ShopCtx): Promise<boolean> {
         return true;
       }
       if (t0 === "backconfirm") {
-        const slot = String(conversation.delivery_address || "").match(/Preferred time:\s*(.+)$/)?.[1] || "Anytime";
-        await showOrderConfirm(slot.trim());
+        await showOrderConfirm();
         return true;
       }
       if (t0 === "cancelall") {
         cart.length = 0;
         await saveCart();
+        await setMc({ ...mc, fromConfirm: false, view: "cart", ids: [] });
         await ctx.updateConversation(phone, { conversation_state: "idle" });
         await sayButtons(
-          "❌ *Order cancelled.*\n\nNo worries — nothing was charged and your cart is now empty. 🌿\nYou can purchase anytime, we're always here for you!",
+          "❌ *Full order cancelled* — all items removed.\n\n💳 No payment was taken and nothing will be charged. Your cart is now empty. 🌿\nYou can purchase anytime, we're always here for you!",
           [{ id: "menu", title: L("keep_shopping").slice(0, 20) }],
         );
         return true;
       }
+
       await sayButtons(
         `${L("order_summary")} 👇`,
         [
@@ -730,18 +760,46 @@ export async function handleShopMessage(ctx: ShopCtx): Promise<boolean> {
   if (raw.startsWith("ord:")) { await reorder(raw.slice(4)); return true; }
   if (raw.startsWith("ocx:")) {
     const id = raw.slice(4);
-    await sayButtons("⚠️ Are you sure you want to cancel this order?\n\nAny paid amount is refunded within 5–7 working days.", [
-      { id: `ocy:${id}`, title: "✅ Yes, cancel" },
+    const order = await ctx.getOrder(id);
+    if (!order) { await showOrders("😔 Couldn't find that order."); return true; }
+    if (!CANCELLABLE.includes(String(order.status))) {
+      await sayButtons(
+        `🔒 *Order #${order.order_number} can't be cancelled here.*\n\nIt is already *${String(order.status).replace(/_/g, " ")}*, so self-cancel is closed for this order. Our team can still help.`,
+        [{ id: "support", title: "💬 Contact support" }, { id: `o:${id}`, title: "🔙 Back to order" }],
+      );
+      return true;
+    }
+    const paid = String(order.payment_status) === "paid";
+    const processing = String(order.status) === "preparing";
+    const warn = processing
+      ? "\n\n⚠️ *This order is already being packed*, so items can't be changed — only a full cancel is possible."
+      : "";
+    const money = paid
+      ? "\n💳 You paid ₹" + order.total + " — a *full refund* will be processed in 5–7 working days."
+      : "\n💳 Nothing has been charged, so there is no refund to process.";
+    await sayButtons(`⚠️ *Cancel the entire order #${order.order_number}?*\n\nThis cancels *all items* in the order.${warn}${money}`, [
+      { id: `ocy:${id}`, title: "✅ Yes, cancel all" },
       { id: `o:${id}`, title: "🔙 Keep order" },
     ]);
     return true;
   }
   if (raw.startsWith("ocy:")) {
-    const res = await ctx.cancelOrder(raw.slice(4));
-    if (res.ok) await showOrders("❌ Your order has been cancelled. Refund (if paid) is processed in 5–7 working days.");
-    else await showOrders(`😔 ${res.reason || "This order can no longer be cancelled."} Reply *SUPPORT* for help.`);
+    const id = raw.slice(4);
+    const before = await ctx.getOrder(id);
+    const res = await ctx.cancelOrder(id);
+    if (res.ok) {
+      const paid = before && String(before.payment_status) === "paid";
+      await showOrders(
+        `❌ *Order #${before?.order_number ?? ""} fully cancelled* — all items removed.\n${
+          paid
+            ? `💰 Refund of ₹${before?.total} initiated — it reaches your account in 5–7 working days.`
+            : "💳 No amount was charged, so there is nothing to refund."
+        }\n\nYou can purchase anytime, we're always here for you! 🌿`,
+      );
+    } else await showOrders(`😔 ${res.reason || "This order can no longer be cancelled."} Reply *SUPPORT* for help.`);
     return true;
   }
+
 
   // Tappable category / product / page ids
   if (raw.startsWith("cat:")) {
@@ -779,29 +837,35 @@ export async function handleShopMessage(ctx: ShopCtx): Promise<boolean> {
     if (btn[1] === "rm" || (btn[1] === "qty-" && Number(item.qty) <= 1)) {
       cart.splice(idx, 1);
       await saveCart();
-      await showCart(`🗑️ *${item.name}*`);
+      await afterCartChange(`🗑️ *Removed only this item:* ${item.name}\nYour other ${cart.length} item(s) are safe. 💳 Nothing has been charged yet.`);
       return true;
     }
     item.qty = btn[1] === "qty+" ? Math.min(Number(item.qty) + 1, 99) : Number(item.qty) - 1;
     await saveCart();
-    await showCart(`✏️ *${item.name}* × ${item.qty}`);
+    await afterCartChange(`✏️ *${item.name}* updated to × ${item.qty}. Everything else stays the same.`);
     return true;
   }
 
   if (await editCart()) return true;
 
   if (t0 === "editorder") { await showCartEditor(); return true; }
-  if (t0 === "backconfirm") { await startCheckout(); return true; }
+  if (t0 === "backconfirm") {
+    if (mc.fromConfirm && cart.length) { await showOrderConfirm(); return true; }
+    await startCheckout();
+    return true;
+  }
   if (t0 === "cancelall") {
     cart.length = 0;
     await saveCart();
+    await setMc({ ...mc, fromConfirm: false, view: "cart", ids: [] });
     await ctx.updateConversation(phone, { conversation_state: "idle" });
     await sayButtons(
-      "❌ *Order cancelled.*\n\nNo worries — nothing was charged and your cart is now empty. 🌿\nYou can purchase anytime, we're always here for you!",
+      "❌ *Full order cancelled* — all items removed.\n\n💳 No payment was taken and nothing will be charged. Your cart is now empty. 🌿\nYou can purchase anytime, we're always here for you!",
       [{ id: "menu", title: L("keep_shopping").slice(0, 20) }],
     );
     return true;
   }
+
   if (["checkout", "buy now", "place order", "order"].includes(t0)) { await startCheckout(); return true; }
   if (t0 === "usesaved" || t0 === "newaddr") { await startCheckout(); return true; }
 

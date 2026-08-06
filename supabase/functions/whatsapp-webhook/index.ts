@@ -369,8 +369,31 @@ async function cancelCustomerOrder(orderId: string): Promise<{ ok: boolean; reas
     })
     .eq("id", orderId);
   if (error) return { ok: false, reason: "Could not cancel right now." };
+
+  // Notify the customer on WhatsApp that the order status changed
+  try {
+    await fetch(`${supabaseUrl}/functions/v1/send-whatsapp-order-update`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        apikey: Deno.env.get("SUPABASE_ANON_KEY")!,
+        Authorization: `Bearer ${Deno.env.get("SUPABASE_ANON_KEY")}`,
+      },
+      body: JSON.stringify({
+        orderId: order.id,
+        orderNumber: order.order_number,
+        customerName: order.delivery_name,
+        phone: order.delivery_phone,
+        status: order.payment_status === "paid" ? "refund_initiated" : "cancelled",
+        total: order.total,
+      }),
+    });
+  } catch (e) {
+    console.error("WhatsApp cancellation update failed:", e);
+  }
   return { ok: true };
 }
+
 
 function buildOrderSummary(order: Record<string, any>): string {
   const items = Array.isArray(order.order_items) ? order.order_items : [];

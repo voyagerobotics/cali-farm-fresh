@@ -1365,6 +1365,174 @@ export type Database = {
           },
         ]
       }
+      whatsapp_bot_content: {
+        Row: {
+          banner_image_url: string | null
+          created_at: string
+          festival_greetings: Json
+          id: string
+          quick_replies: Json
+          seasonal_greetings: Json
+          suggested_questions: Json
+          updated_at: string
+          welcome_greeting: string
+          welcome_text: string
+        }
+        Insert: {
+          banner_image_url?: string | null
+          created_at?: string
+          festival_greetings?: Json
+          id?: string
+          quick_replies?: Json
+          seasonal_greetings?: Json
+          suggested_questions?: Json
+          updated_at?: string
+          welcome_greeting?: string
+          welcome_text?: string
+        }
+        Update: {
+          banner_image_url?: string | null
+          created_at?: string
+          festival_greetings?: Json
+          id?: string
+          quick_replies?: Json
+          seasonal_greetings?: Json
+          suggested_questions?: Json
+          updated_at?: string
+          welcome_greeting?: string
+          welcome_text?: string
+        }
+        Relationships: []
+      }
+      whatsapp_bot_settings: {
+        Row: {
+          accent_color: string
+          ai_greeting_style: string | null
+          ai_personality: string | null
+          ai_tone: string | null
+          away_message: string | null
+          business_address: string | null
+          business_description: string | null
+          business_email: string | null
+          business_hours: string | null
+          business_logo_url: string | null
+          business_name: string
+          business_phones: string[]
+          business_website: string | null
+          button_style: string
+          created_at: string
+          cross_sell_rules: string | null
+          currency: string
+          date_format: string
+          default_language: string
+          emoji_style: string
+          fallback_message: string | null
+          font_family: string
+          greeting_message: string | null
+          id: string
+          notify_abandoned_cart: boolean
+          notify_cancelled_order: boolean
+          notify_low_stock: boolean
+          notify_new_customer: boolean
+          notify_new_order: boolean
+          notify_payment_failed: boolean
+          notify_payment_received: boolean
+          primary_color: string
+          recommendation_rules: string | null
+          social_links: Json
+          support_number: string | null
+          theme: string
+          timezone: string
+          updated_at: string
+          upsell_rules: string | null
+          working_hours_message: string | null
+        }
+        Insert: {
+          accent_color?: string
+          ai_greeting_style?: string | null
+          ai_personality?: string | null
+          ai_tone?: string | null
+          away_message?: string | null
+          business_address?: string | null
+          business_description?: string | null
+          business_email?: string | null
+          business_hours?: string | null
+          business_logo_url?: string | null
+          business_name?: string
+          business_phones?: string[]
+          business_website?: string | null
+          button_style?: string
+          created_at?: string
+          cross_sell_rules?: string | null
+          currency?: string
+          date_format?: string
+          default_language?: string
+          emoji_style?: string
+          fallback_message?: string | null
+          font_family?: string
+          greeting_message?: string | null
+          id?: string
+          notify_abandoned_cart?: boolean
+          notify_cancelled_order?: boolean
+          notify_low_stock?: boolean
+          notify_new_customer?: boolean
+          notify_new_order?: boolean
+          notify_payment_failed?: boolean
+          notify_payment_received?: boolean
+          primary_color?: string
+          recommendation_rules?: string | null
+          social_links?: Json
+          support_number?: string | null
+          theme?: string
+          timezone?: string
+          updated_at?: string
+          upsell_rules?: string | null
+          working_hours_message?: string | null
+        }
+        Update: {
+          accent_color?: string
+          ai_greeting_style?: string | null
+          ai_personality?: string | null
+          ai_tone?: string | null
+          away_message?: string | null
+          business_address?: string | null
+          business_description?: string | null
+          business_email?: string | null
+          business_hours?: string | null
+          business_logo_url?: string | null
+          business_name?: string
+          business_phones?: string[]
+          business_website?: string | null
+          button_style?: string
+          created_at?: string
+          cross_sell_rules?: string | null
+          currency?: string
+          date_format?: string
+          default_language?: string
+          emoji_style?: string
+          fallback_message?: string | null
+          font_family?: string
+          greeting_message?: string | null
+          id?: string
+          notify_abandoned_cart?: boolean
+          notify_cancelled_order?: boolean
+          notify_low_stock?: boolean
+          notify_new_customer?: boolean
+          notify_new_order?: boolean
+          notify_payment_failed?: boolean
+          notify_payment_received?: boolean
+          primary_color?: string
+          recommendation_rules?: string | null
+          social_links?: Json
+          support_number?: string | null
+          theme?: string
+          timezone?: string
+          updated_at?: string
+          upsell_rules?: string | null
+          working_hours_message?: string | null
+        }
+        Relationships: []
+      }
       whatsapp_conversations: {
         Row: {
           cart: Json | null
@@ -1421,6 +1589,83 @@ export type Database = {
           wishlist?: Json
         }
         Relationships: []
+      }
+      whatsapp_faqs: {
+        Row: {
+          answer: string
+          created_at: string
+          display_order: number
+          id: string
+          is_active: boolean
+          question: string
+          updated_at: string
+        }
+        Insert: {
+          answer: string
+          created_at?: string
+          display_order?: number
+          id?: string
+          is_active?: boolean
+          question: string
+          updated_at?: string
+        }
+        Update: {
+          answer?: string
+          created_at?: string
+          display_order?: number
+          id?: string
+          is_active?: boolean
+          question?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      whatsapp_menu_items: {
+        Row: {
+          action_type: string
+          action_value: string | null
+          created_at: string
+          display_order: number
+          icon: string
+          id: string
+          is_visible: boolean
+          label: string
+          parent_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          action_type?: string
+          action_value?: string | null
+          created_at?: string
+          display_order?: number
+          icon?: string
+          id?: string
+          is_visible?: boolean
+          label: string
+          parent_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          action_type?: string
+          action_value?: string | null
+          created_at?: string
+          display_order?: number
+          icon?: string
+          id?: string
+          is_visible?: boolean
+          label?: string
+          parent_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_menu_items_parent_id_fkey"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_menu_items"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       whatsapp_messages: {
         Row: {

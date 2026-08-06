@@ -606,7 +606,7 @@ export async function handleShopMessage(ctx: ShopCtx): Promise<boolean> {
 
   // ── Checkout collection flow ──
   if (state.startsWith("co_")) {
-    if (t0 === "menu" || t0 === "cancel") {
+    if ((t0 === "menu" || t0 === "cancel") && state !== "co_confirm") {
       await ctx.updateConversation(phone, { conversation_state: "idle" });
       await showMenu();
       return true;

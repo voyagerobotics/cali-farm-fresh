@@ -538,12 +538,17 @@ export async function handleShopMessage(ctx: ShopCtx): Promise<boolean> {
       profile_complete: true,
       customer_name: conversation.delivery_name,
     });
-    const { text, total } = cartLines(cart);
+    const { text, total } = cartLines(cart, true);
     await sayButtons(
       `${L("order_summary")}\n${text}\n\n💰 ₹${total}\n👤 ${conversation.delivery_name}\n📞 ${conversation.delivery_phone}\n📍 ${baseAddr}\n⏰ ${slot}\n\n💳 UPI / Card / Netbanking`,
-      [{ id: "confirm", title: L("confirm_order").slice(0, 20) }, { id: "menu", title: L("cancel").slice(0, 20) }],
+      [
+        { id: "confirm", title: L("confirm_order").slice(0, 20) },
+        { id: "editorder", title: "✏️ Edit items" },
+        { id: "cancelorder", title: "❌ Cancel order" },
+      ],
     );
   };
+
 
   const startCheckout = async () => {
     if (!cart.length) {

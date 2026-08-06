@@ -790,8 +790,21 @@ export async function handleShopMessage(ctx: ShopCtx): Promise<boolean> {
 
   if (await editCart()) return true;
 
+  if (t0 === "editorder") { await showCartEditor(); return true; }
+  if (t0 === "backconfirm") { await startCheckout(); return true; }
+  if (t0 === "cancelall") {
+    cart.length = 0;
+    await saveCart();
+    await ctx.updateConversation(phone, { conversation_state: "idle" });
+    await sayButtons(
+      "❌ *Order cancelled.*\n\nNo worries — nothing was charged and your cart is now empty. 🌿\nYou can purchase anytime, we're always here for you!",
+      [{ id: "menu", title: L("keep_shopping").slice(0, 20) }],
+    );
+    return true;
+  }
   if (["checkout", "buy now", "place order", "order"].includes(t0)) { await startCheckout(); return true; }
   if (t0 === "usesaved" || t0 === "newaddr") { await startCheckout(); return true; }
+
 
   if (t0 === "wishlist") {
     const wl: any[] = Array.isArray(conversation.wishlist) ? conversation.wishlist : [];

@@ -354,8 +354,15 @@ export async function handleShopMessage(ctx: ShopCtx): Promise<boolean> {
       return;
     }
     const idx = cart.findIndex((c) => norm(c.name) === norm(product.name));
-    if (idx >= 0) cart[idx].qty += 1;
-    else cart.push({ name: product.name, qty: 1, price: effectivePrice(product), unit: product.unit, product_id: product.id });
+    const stock = product.stock_quantity == null ? null : Number(product.stock_quantity);
+    if (idx >= 0) {
+      if (stock != null && Number(cart[idx].qty) + 1 > stock) {
+        await offerReplacement(cart[idx], stock);
+        return;
+      }
+      cart[idx].qty += 1;
+    } else cart.push({ name: product.name, qty: 1, price: effectivePrice(product), unit: product.unit, product_id: product.id });
+
     await saveCart();
     await showCart(L("added"));
   };

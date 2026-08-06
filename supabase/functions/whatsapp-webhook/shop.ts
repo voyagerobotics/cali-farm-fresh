@@ -739,18 +739,46 @@ export async function handleShopMessage(ctx: ShopCtx): Promise<boolean> {
   if (raw.startsWith("ord:")) { await reorder(raw.slice(4)); return true; }
   if (raw.startsWith("ocx:")) {
     const id = raw.slice(4);
-    await sayButtons("⚠️ Are you sure you want to cancel this order?\n\nAny paid amount is refunded within 5–7 working days.", [
-      { id: `ocy:${id}`, title: "✅ Yes, cancel" },
+    const order = await ctx.getOrder(id);
+    if (!order) { await showOrders("😔 Couldn't find that order."); return true; }
+    if (!CANCELLABLE.includes(String(order.status))) {
+      await sayButtons(
+        `🔒 *Order #${order.order_number} can't be cancelled here.*\n\nIt is already *${String(order.status).replace(/_/g, " ")}*, so self-cancel is closed for this order. Our team can still help.`,
+        [{ id: "support", title: "💬 Contact support" }, { id: `o:${id}`, title: "🔙 Back to order" }],
+      );
+      return true;
+    }
+    const paid = String(order.payment_status) === "paid";
+    const processing = String(order.status) === "preparing";
+    const warn = processing
+      ? "\n\n⚠️ *This order is already being packed*, so items can't be changed — only a full cancel is possible."
+      : "";
+    const money = paid
+      ? "\n💳 You paid ₹" + order.total + " — a *full refund* will be processed in 5–7 working days."
+      : "\n💳 Nothing has been charged, so there is no refund to process.";
+    await sayButtons(`⚠️ *Cancel the entire order #${order.order_number}?*\n\nThis cancels *all items* in the order.${warn}${money}`, [
+      { id: `ocy:${id}`, title: "✅ Yes, cancel all" },
       { id: `o:${id}`, title: "🔙 Keep order" },
     ]);
     return true;
   }
   if (raw.startsWith("ocy:")) {
-    const res = await ctx.cancelOrder(raw.slice(4));
-    if (res.ok) await showOrders("❌ Your order has been cancelled. Refund (if paid) is processed in 5–7 working days.");
-    else await showOrders(`😔 ${res.reason || "This order can no longer be cancelled."} Reply *SUPPORT* for help.`);
+    const id = raw.slice(4);
+    const before = await ctx.getOrder(id);
+    const res = await ctx.cancelOrder(id);
+    if (res.ok) {
+      const paid = before && String(before.payment_status) === "paid";
+      await showOrders(
+        `❌ *Order #${before?.order_number ?? ""} fully cancelled* — all items removed.\n${
+          paid
+            ? `💰 Refund of ₹${before?.total} initiated — it reaches your account in 5–7 working days.`
+            : "💳 No amount was charged, so there is nothing to refund."
+        }\n\nYou can purchase anytime, we're always here for you! 🌿`,
+      );
+    } else await showOrders(`😔 ${res.reason || "This order can no longer be cancelled."} Reply *SUPPORT* for help.`);
     return true;
   }
+
 
   // Tappable category / product / page ids
   if (raw.startsWith("cat:")) {

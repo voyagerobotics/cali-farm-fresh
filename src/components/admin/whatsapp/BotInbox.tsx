@@ -220,14 +220,18 @@ const BotInbox = () => {
         </div>
 
         {/* Thread */}
-        <div className="flex flex-col">
+        <div className={`flex-col min-h-0 ${active ? "flex" : "hidden md:flex"}`}>
           {active ? (
             <>
               <div className="p-3 border-b border-border flex flex-wrap items-center gap-2">
+                <Button size="sm" variant="ghost" className="px-2" onClick={() => { setActive(null); setMsgs([]); }}>
+                  <ArrowLeft className="w-4 h-4 mr-1" /> Back
+                </Button>
                 <div className="flex-1 min-w-[140px]">
                   <p className="font-medium text-sm">{active.customer_name || active.delivery_name || `+${active.phone_number}`}</p>
                   <p className="text-xs text-muted-foreground">+{active.phone_number} • {(active.language || "en").toUpperCase()}</p>
                 </div>
+
                 <Select value={active.assigned_to || "unassigned"} onValueChange={(v) => patch(active.phone_number, { assigned_to: v === "unassigned" ? null : v })}>
                   <SelectTrigger className="h-8 w-[150px] text-xs"><UserCheck className="w-3.5 h-3.5 mr-1" /><SelectValue placeholder="Assign" /></SelectTrigger>
                   <SelectContent>

@@ -534,7 +534,13 @@ export async function handleShopMessage(ctx: ShopCtx): Promise<boolean> {
         await afterCartChange(`🗑️ *Removed only this item:* ${removed.name}\nYour other ${cart.length} item(s) are safe. 💳 Nothing has been charged yet.`);
         return true;
       }
+      const stockCap = stockOf(cart[idx]);
+      if (sign === "+" && stockCap != null && next > stockCap) {
+        await offerReplacement(cart[idx], stockCap);
+        return true;
+      }
       cart[idx].qty = Math.min(next, 99);
+
       await saveCart();
       await afterCartChange(`✏️ *${cart[idx].name}* updated to × ${cart[idx].qty}. Everything else stays the same.`);
       return true;

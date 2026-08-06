@@ -35,6 +35,8 @@ const BotInbox = () => {
   const [reply, setReply] = useState("");
   const [sending, setSending] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [loadingMsgs, setLoadingMsgs] = useState(false);
+
   const [filter, setFilter] = useState<Filter>("open");
   const [q, setQ] = useState("");
   const [admins, setAdmins] = useState<{ user_id: string; name: string }[]>([]);

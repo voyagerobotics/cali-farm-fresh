@@ -36,6 +36,9 @@ export interface ShopCtx {
   updateConversation: (phone: string, updates: Record<string, unknown>) => Promise<void>;
   log: (phone: string, direction: string, text: string) => Promise<void>;
   createOrder: (phone: string, conversation: Record<string, any>) => Promise<any>;
+  listOrders: (phone: string) => Promise<Array<Record<string, any>>>;
+  getOrder: (orderId: string) => Promise<Record<string, any> | null>;
+  cancelOrder: (orderId: string) => Promise<{ ok: boolean; reason?: string }>;
   resolveLocation: (lat: number, lng: number) => Promise<{
     address: string;
     pincode: string | null;
@@ -125,6 +128,7 @@ function buildMenuEntries(products: Product[]): MenuEntry[] {
     entries.push({ key: "offers", label: "Today's Offers", emoji: "🔥" });
   }
   entries.push({ key: "cart", label: "My Cart", emoji: "🛒" });
+  entries.push({ key: "orders", label: "My Orders", emoji: "📦" });
   entries.push({ key: "search", label: "Search Product", emoji: "🔍" });
   return entries;
 }
@@ -427,6 +431,82 @@ export async function handleShopMessage(ctx: ShopCtx): Promise<boolean> {
     return false;
   };
 
+  // ── Order history: list past orders, reorder, cancel ──
+  const STATUS_EMOJI: Record<string, string> = {
+    pending: "🕐", confirmed: "✅", preparing: "👨‍🌾", out_for_delivery: "🚚",
+    delivered: "📦", cancelled: "❌",
+  };
+  const CANCELLABLE = ["pending", "confirmed", "preparing"];
+
+  const fmtDate = (d: string) =>
+    new Date(d).toLocaleDateString("en-IN", { day: "2-digit", month: "short", timeZone: "Asia/Kolkata" });
+
+  const showOrders = async (prefix?: string) => {
+    const orders = await ctx.listOrders(phone);
+    if (!orders.length) {
+      await sayButtons(`${prefix ? prefix + "\n\n" : ""}📦 You have no past orders yet.`, [
+        { id: "menu", title: L("keep_shopping").slice(0, 20) },
+      ]);
+      return;
+    }
+    await setMc({ view: "orders", orderIds: orders.map((o) => o.id) });
+    const rows = orders.slice(0, 10).map((o, i) => ({
+      id: `o:${o.id}`,
+      title: `#${String(o.order_number).slice(-8)}`.slice(0, 24),
+      description: `${STATUS_EMOJI[o.status] ?? "•"} ${String(o.status).replace(/_/g, " ")} • ₹${o.total} • ${fmtDate(o.created_at)}`.slice(0, 72),
+    }));
+    await sayList(
+      `${prefix ? prefix + "\n\n" : ""}📦 *Your Orders*\n\nTap an order to view it, reorder it or cancel it 👇`,
+      "Select order",
+      rows,
+      undefined,
+      "Recent orders",
+    );
+  };
+
+  const showOrder = async (orderId: string, prefix?: string) => {
+    const order = await ctx.getOrder(orderId);
+    if (!order) { await showOrders("😔 Couldn't find that order."); return; }
+    await setMc({ ...mc, view: "order", orderId });
+    const items = Array.isArray(order.order_items) ? order.order_items : [];
+    const lines = items.map((it: any) => `• ${it.product_name} ×${it.quantity} — ₹${it.total_price}`);
+    const body = [
+      `🧾 *Order #${order.order_number}*`,
+      `${STATUS_EMOJI[order.status] ?? "•"} Status: *${String(order.status).replace(/_/g, " ")}*`,
+      `📅 ${fmtDate(order.created_at)}`,
+      "",
+      lines.join("\n") || "_No items_",
+      "",
+      `💰 *Total: ₹${order.total}*`,
+      order.delivery_address ? `📍 ${order.delivery_address}` : "",
+    ].filter(Boolean).join("\n");
+
+    const btns: Array<{ id: string; title: string }> = [{ id: `ord:${order.id}`, title: "🔁 Reorder" }];
+    if (CANCELLABLE.includes(String(order.status))) btns.push({ id: `ocx:${order.id}`, title: "❌ Cancel order" });
+    btns.push({ id: "orders", title: "📦 My Orders" });
+    await sayButtons(body, btns);
+  };
+
+  const reorder = async (orderId: string) => {
+    const order = await ctx.getOrder(orderId);
+    if (!order) { await showOrders("😔 Couldn't find that order."); return; }
+    const items = Array.isArray(order.order_items) ? order.order_items : [];
+    const skipped: string[] = [];
+    for (const it of items) {
+      const p = products.find((x) => x.id === it.product_id) ||
+        products.find((x) => norm(x.name) === norm(it.product_name));
+      if (!p || !inStock(p)) { skipped.push(it.product_name); continue; }
+      const idx = cart.findIndex((c) => norm(c.name) === norm(p.name));
+      const qty = Math.max(1, Math.round(Number(it.quantity) || 1));
+      if (idx >= 0) cart[idx].qty = Math.min(cart[idx].qty + qty, 99);
+      else cart.push({ name: p.name, qty, price: effectivePrice(p), unit: p.unit, product_id: p.id });
+    }
+    await saveCart();
+    const note = skipped.length ? `🔁 Added items from #${order.order_number}.\n⚠️ Unavailable: ${skipped.join(", ")}` : `🔁 Items from #${order.order_number} added to your cart.`;
+    if (!cart.length) { await sayButtons(`${note}\n\n${L("cart_empty")}`, [{ id: "menu", title: L("keep_shopping").slice(0, 20) }]); return; }
+    await showCart(note);
+  };
+
   // ── Saved-profile helpers ──
   const hasSavedProfile = () =>
     Boolean(conversation.delivery_name && conversation.delivery_phone && conversation.delivery_address && conversation.delivery_pincode);
@@ -602,10 +682,29 @@ export async function handleShopMessage(ctx: ShopCtx): Promise<boolean> {
   if (t0 === "cartedit") { await showCartEditor(); return true; }
   if (t0 === "clear") { await editCart(); return true; }
 
+  if (["orders", "my orders", "order history", "past orders", "my order"].includes(t0)) { await showOrders(); return true; }
+  if (raw.startsWith("o:")) { await showOrder(raw.slice(2)); return true; }
+  if (raw.startsWith("ord:")) { await reorder(raw.slice(4)); return true; }
+  if (raw.startsWith("ocx:")) {
+    const id = raw.slice(4);
+    await sayButtons("⚠️ Are you sure you want to cancel this order?\n\nAny paid amount is refunded within 5–7 working days.", [
+      { id: `ocy:${id}`, title: "✅ Yes, cancel" },
+      { id: `o:${id}`, title: "🔙 Keep order" },
+    ]);
+    return true;
+  }
+  if (raw.startsWith("ocy:")) {
+    const res = await ctx.cancelOrder(raw.slice(4));
+    if (res.ok) await showOrders("❌ Your order has been cancelled. Refund (if paid) is processed in 5–7 working days.");
+    else await showOrders(`😔 ${res.reason || "This order can no longer be cancelled."} Reply *SUPPORT* for help.`);
+    return true;
+  }
+
   // Tappable category / product / page ids
   if (raw.startsWith("cat:")) {
     const key = raw.slice(4);
     if (key === "cart") { await showCart(); return true; }
+    if (key === "orders") { await showOrders(); return true; }
     if (key === "search") {
       await setMc({ view: "search" });
       await say(L("search_prompt"));
@@ -697,6 +796,10 @@ export async function handleShopMessage(ctx: ShopCtx): Promise<boolean> {
   if (/^\d{1,2}$/.test(t0)) {
     const n = parseInt(t0, 10);
     if (mc.view === "cart" && cart.length) { await itemButtons(n); return true; }
+    if (mc.view === "orders" && Array.isArray(mc.orderIds)) {
+      const oid = mc.orderIds[n - 1];
+      if (oid) { await showOrder(oid); return true; }
+    }
     if (mc.view === "list" && Array.isArray(mc.ids)) {
       const id = mc.ids[n - 1];
       const p = products.find((x) => x.id === id);
@@ -706,6 +809,7 @@ export async function handleShopMessage(ctx: ShopCtx): Promise<boolean> {
     const entry = entries[n - 1];
     if (entry) {
       if (entry.key === "cart") { await showCart(); return true; }
+      if (entry.key === "orders") { await showOrders(); return true; }
       if (entry.key === "search") { await setMc({ view: "search" }); await say(L("search_prompt")); return true; }
       await showList(entry.key, 0);
       return true;

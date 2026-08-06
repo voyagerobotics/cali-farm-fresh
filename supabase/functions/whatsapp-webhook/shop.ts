@@ -933,31 +933,45 @@ export async function handleShopMessage(ctx: ShopCtx): Promise<boolean> {
       await afterCartChange(`🗑️ *Removed only this item:* ${item.name}\nYour other ${cart.length} item(s) are safe. 💳 Nothing has been charged yet.`);
       return true;
     }
+    if (btn[1] === "qty+") {
+      const stock = stockOf(item);
+      if (stock != null && Number(item.qty) + 1 > stock) {
+        await offerReplacement(item, stock);
+        return true;
+      }
+    }
     item.qty = btn[1] === "qty+" ? Math.min(Number(item.qty) + 1, 99) : Number(item.qty) - 1;
     await saveCart();
     await afterCartChange(`✏️ *${item.name}* updated to × ${item.qty}. Everything else stays the same.`);
     return true;
   }
 
+  if (raw.startsWith("cx:")) {
+    const idx = parseInt(raw.slice(3), 10) - 1;
+    const item = cart[idx];
+    if (!item) { await showCart(); return true; }
+    cart.splice(idx, 1);
+    await saveCart();
+    await afterCartChange(
+      `🗑️ *Cancelled only this item:* ${item.name} ×${item.qty}\n${
+        cart.length ? `✅ Your other ${cart.length} item(s) are safe.` : "🛒 Your cart is now empty."
+      }\n💳 Nothing has been charged, so there is no refund to process.`,
+    );
+    return true;
+  }
+
   if (await editCart()) return true;
 
   if (t0 === "editorder") { await showCartEditor(); return true; }
+  if (t0 === "cancelorder") { await showCancelChooser(); return true; }
   if (t0 === "backconfirm") {
     if (mc.fromConfirm && cart.length) { await showOrderConfirm(); return true; }
     await startCheckout();
     return true;
   }
-  if (t0 === "cancelall") {
-    cart.length = 0;
-    await saveCart();
-    await setMc({ ...mc, fromConfirm: false, view: "cart", ids: [] });
-    await ctx.updateConversation(phone, { conversation_state: "idle" });
-    await sayButtons(
-      "❌ *Full order cancelled* — all items removed.\n\n💳 No payment was taken and nothing will be charged. Your cart is now empty. 🌿\nYou can purchase anytime, we're always here for you!",
-      [{ id: "menu", title: L("keep_shopping").slice(0, 20) }],
-    );
-    return true;
-  }
+  if (t0 === "cancelall") { await confirmCancelAll(); return true; }
+  if (t0 === "cancelallyes") { await doCancelAll(); return true; }
+
 
   if (["checkout", "buy now", "place order", "order"].includes(t0)) { await startCheckout(); return true; }
   if (t0 === "usesaved" || t0 === "newaddr") { await startCheckout(); return true; }

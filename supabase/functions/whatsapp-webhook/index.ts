@@ -214,7 +214,30 @@ async function logMessage(phone: string, direction: string, text: string, waMess
     message_text: text,
     wa_message_id: waMessageId || null,
   });
+  // Keep the admin inbox in sync so every conversation is visible and ordered
+  try {
+    const preview = String(text || "").replace(/\s+/g, " ").slice(0, 160);
+    const { data: conv } = await supabase
+      .from("whatsapp_conversations")
+      .select("unread_count")
+      .eq("phone_number", phone)
+      .maybeSingle();
+    const patch: Record<string, unknown> = {
+      last_message_at: new Date().toISOString(),
+      last_message_text: preview,
+      updated_at: new Date().toISOString(),
+    };
+    if (direction === "inbound") patch.unread_count = Number(conv?.unread_count || 0) + 1;
+    if (conv) {
+      await supabase.from("whatsapp_conversations").update(patch).eq("phone_number", phone);
+    } else {
+      await supabase.from("whatsapp_conversations").insert({ phone_number: phone, ...patch });
+    }
+  } catch (e) {
+    console.error("conversation sync failed", e);
+  }
 }
+
 
 /** Order-level WhatsApp activity log (button replies + bot responses tied to an order) */
 async function logActivity(entry: Record<string, unknown>) {

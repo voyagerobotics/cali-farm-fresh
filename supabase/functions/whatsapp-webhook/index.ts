@@ -313,7 +313,7 @@ const IST_TZ = "Asia/Kolkata";
 async function createSupportTicket(
   phone: string,
   order: Record<string, any> | null,
-): Promise<string> {
+): Promise<{ ref: string; body: string }> {
   const ref = `SUP-${new Date().toISOString().slice(0, 10).replace(/-/g, "")}-${
     Math.random().toString(36).slice(2, 6).toUpperCase()
   }`;

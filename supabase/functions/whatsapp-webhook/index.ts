@@ -355,19 +355,21 @@ async function createSupportTicket(
     console.error("support ticket creation failed", e);
   }
 
-  return [
+  const body = [
     `🎫 *Support request created — ${ref}*`,
     "",
     order
       ? `We've attached your order *#${order.order_number}* (${String(order.status).replace(/_/g, " ")}, ₹${order.total}) so our team already has everything they need.`
       : "Our team has your number and chat history — just tell us what you need help with.",
     "",
+    "✍️ *Please describe your issue in a message below* (what happened, item name, etc.). You can also send a photo.",
+    "",
     "⏱️ A team member will reply here, usually within 30 minutes during support hours.",
     "",
-    "📞 +91 86000 11641\n📧 californiafarmsindia@gmail.com\n🕘 8 AM – 8 PM IST",
-    "",
-    "You can keep typing here — anything you send is added to this request.",
+    SUPPORT_CONTACT,
   ].join("\n");
+
+  return { ref, body };
 }
 
 const istDay = (d: Date) =>

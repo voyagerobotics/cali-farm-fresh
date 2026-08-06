@@ -201,11 +201,8 @@ function similarTo(p: Product, products: Product[]): Product[] {
   return products.filter((x) => x.id !== p.id && categoryKeyOf(x) === key && inStock(x)).slice(0, 3);
 }
 
-const SLOTS = [
-  { id: "Morning 8-11 AM", label: "Morning 8–11 AM" },
-  { id: "Noon 12-3 PM", label: "Noon 12–3 PM" },
-  { id: "Evening 4-7 PM", label: "Evening 4–7 PM" },
-];
+// (Delivery time is no longer asked — orders follow the standard delivery schedule.)
+
 
 // ─── Main handler ───
 export async function handleShopMessage(ctx: ShopCtx): Promise<boolean> {

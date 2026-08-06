@@ -334,6 +334,44 @@ async function findRecentOrder(phone: string, orderNumber?: string | null) {
   return data as Record<string, any> | null;
 }
 
+async function listCustomerOrders(phone: string) {
+  const digits = phone.replace(/\D/g, "").slice(-10);
+  const { data } = await supabase
+    .from("orders")
+    .select("id, order_number, status, total, created_at")
+    .like("delivery_phone", `%${digits}`)
+    .order("created_at", { ascending: false })
+    .limit(10);
+  return (data ?? []) as Array<Record<string, any>>;
+}
+
+async function getCustomerOrder(orderId: string) {
+  const { data } = await supabase
+    .from("orders")
+    .select("id, order_number, status, total, subtotal, delivery_charge, created_at, delivery_address, payment_status, order_items(product_id, product_name, quantity, unit, unit_price, total_price)")
+    .eq("id", orderId)
+    .maybeSingle();
+  return (data ?? null) as Record<string, any> | null;
+}
+
+async function cancelCustomerOrder(orderId: string): Promise<{ ok: boolean; reason?: string }> {
+  const order = await getCustomerOrder(orderId);
+  if (!order) return { ok: false, reason: "Order not found." };
+  if (!["pending", "confirmed", "preparing"].includes(String(order.status))) {
+    return { ok: false, reason: `This order is already ${String(order.status).replace(/_/g, " ")}.` };
+  }
+  const { error } = await supabase
+    .from("orders")
+    .update({
+      status: "cancelled",
+      payment_status: order.payment_status === "paid" ? "refunded" : order.payment_status,
+      notes: "[Cancelled by customer via WhatsApp]",
+    })
+    .eq("id", orderId);
+  if (error) return { ok: false, reason: "Could not cancel right now." };
+  return { ok: true };
+}
+
 function buildOrderSummary(order: Record<string, any>): string {
   const items = Array.isArray(order.order_items) ? order.order_items : [];
   const lines: string[] = [];
@@ -1294,6 +1332,9 @@ serve(async (req) => {
           updateConversation,
           log: (p, d, t) => logMessage(p, d, t),
           createOrder: createOrderAndPaymentLink,
+          listOrders: listCustomerOrders,
+          getOrder: getCustomerOrder,
+          cancelOrder: cancelCustomerOrder,
           resolveLocation: resolveSharedLocation,
         });
         if (handled) {

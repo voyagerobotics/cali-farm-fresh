@@ -795,31 +795,35 @@ export async function handleShopMessage(ctx: ShopCtx): Promise<boolean> {
         return true;
       }
       if (t0 === "cancelorder" || t0 === "cancel" || t0 === "no" || t0 === "menu") {
-        await sayButtons(
-          `🤔 *What would you like to cancel?*\n\nYou have *${cart.length} item(s)* in this order. You can remove just one item and keep the rest — you don't have to cancel everything.\n💳 Nothing has been charged yet, so no refund is involved.`,
-          [
-            { id: "editorder", title: "✏️ Remove 1 item" },
-            { id: "cancelall", title: "❌ Cancel all" },
-            { id: "backconfirm", title: "🔙 Keep order" },
-          ],
-        );
+        await showCancelChooser();
         return true;
       }
       if (t0 === "backconfirm") {
         await showOrderConfirm();
         return true;
       }
-      if (t0 === "cancelall") {
-        cart.length = 0;
+      if (raw.startsWith("cx:")) {
+        const idx = parseInt(raw.slice(3), 10) - 1;
+        const item = cart[idx];
+        if (!item) { await showCancelChooser(); return true; }
+        cart.splice(idx, 1);
         await saveCart();
-        await setMc({ ...mc, fromConfirm: false, view: "cart", ids: [] });
-        await ctx.updateConversation(phone, { conversation_state: "idle" });
-        await sayButtons(
-          "❌ *Full order cancelled* — all items removed.\n\n💳 No payment was taken and nothing will be charged. Your cart is now empty. 🌿\nYou can purchase anytime, we're always here for you!",
-          [{ id: "menu", title: L("keep_shopping").slice(0, 20) }],
+        await afterCartChange(
+          `🗑️ *Cancelled only this item:* ${item.name} ×${item.qty}\n${
+            cart.length ? `✅ Your other ${cart.length} item(s) are still in the order.` : "🛒 Your cart is now empty."
+          }\n💳 Nothing has been charged, so there is no refund to process.`,
         );
         return true;
       }
+      if (t0 === "cancelall") {
+        await confirmCancelAll();
+        return true;
+      }
+      if (t0 === "cancelallyes") {
+        await doCancelAll();
+        return true;
+      }
+
 
       await sayButtons(
         `${L("order_summary")} 👇`,

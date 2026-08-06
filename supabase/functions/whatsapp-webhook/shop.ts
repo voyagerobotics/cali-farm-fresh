@@ -336,7 +336,10 @@ export async function handleShopMessage(ctx: ShopCtx): Promise<boolean> {
       description: `×${c.qty} ${c.unit ?? ""} • ₹${Number(c.price) * Number(c.qty)} — tap to change`.slice(0, 72),
     }));
     rows.push({ id: "clear", title: L("clear_cart").slice(0, 24), description: "Remove every item" });
+    if (Array.isArray(mc.undo)) rows.push({ id: "undoedit", title: "↩️ Undo change", description: "Revert your last edit" });
+    if (Array.isArray(mc.editBase)) rows.push({ id: "confirmedits", title: "✅ Confirm changes", description: "Lock in your edits" });
     if (mc.fromConfirm) rows.push({ id: "backconfirm", title: "🔙 Back to summary", description: "Review and confirm" });
+
     await sayList(
       `🛠️ *Edit your cart* (₹${total})\n\n${L("pick_item_to_edit")}\nYou can add one, remove one, or delete an item — the rest of your order stays as it is.`,
       L("edit_item").slice(0, 20),

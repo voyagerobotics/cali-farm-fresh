@@ -107,24 +107,23 @@ Deno.serve(async (req) => {
 
     // 3) India "Business details" compliance info (business / customer care / grievance officer)
     const supportEmail = s.business_email || "californiafarmsindia@gmail.com";
-    const supportPhone = (s.support_number || "").replace(/\D/g, "");
-    const complianceBody = {
+    let supportPhone = (s.support_number || "").replace(/\D/g, "");
+    if (supportPhone.startsWith("91") && supportPhone.length > 10) supportPhone = supportPhone.slice(2);
+    const complianceBody: Record<string, unknown> = {
       messaging_product: "whatsapp",
-      data: {
-        entity_name: s.business_name,
-        entity_type: "PRIVATE_LIMITED_COMPANY",
-        is_registered: true,
-        customer_care_details: {
-          email: supportEmail,
-          mobile_number: { country_code: "91", number: supportPhone },
-        },
-        grievance_officer_details: {
-          name: s.business_name,
-          email: supportEmail,
-          mobile_number: { country_code: "91", number: supportPhone },
-          landline_number: { country_code: "91", number: supportPhone },
-        },
-        business_address: s.business_address ? { address_line1: s.business_address } : undefined,
+      entity_name: s.business_name,
+      entity_type: "PRIVATE_LIMITED_COMPANY",
+      is_registered: true,
+      grievance_officer_details: {
+        name: s.business_name,
+        email: supportEmail,
+        mobile_number: { country_code: "91", number: supportPhone },
+        landline_number: { country_code: "91", number: supportPhone },
+      },
+      customer_care_details: {
+        email: supportEmail,
+        mobile_number: { country_code: "91", number: supportPhone },
+        landline_number: { country_code: "91", number: supportPhone },
       },
     };
 

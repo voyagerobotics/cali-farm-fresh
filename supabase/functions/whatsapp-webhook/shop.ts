@@ -494,6 +494,7 @@ export async function handleShopMessage(ctx: ShopCtx): Promise<boolean> {
       const arg = m[1].trim();
       const idx = /^\d+$/.test(arg) ? resolve(parseInt(arg, 10)) : cart.findIndex((c) => norm(c.name).includes(arg));
       if (idx < 0) { await showCart(); return true; }
+      snap();
       const [removed] = cart.splice(idx, 1);
       await saveCart();
       await afterCartChange(`🗑️ *Removed only this item:* ${removed.name}\nYour other ${cart.length} item(s) are safe. 💳 Nothing has been charged yet.`);
@@ -506,6 +507,7 @@ export async function handleShopMessage(ctx: ShopCtx): Promise<boolean> {
       const qty = parseInt(m[2], 10);
       if (idx < 0) { await showCart(); return true; }
       if (qty <= 0) {
+        snap();
         const [removed] = cart.splice(idx, 1);
         await saveCart();
         await afterCartChange(`🗑️ *Removed only this item:* ${removed.name}\nYour other ${cart.length} item(s) are safe. 💳 Nothing has been charged yet.`);
@@ -516,6 +518,7 @@ export async function handleShopMessage(ctx: ShopCtx): Promise<boolean> {
         await offerReplacement(cart[idx], stockMax);
         return true;
       }
+      snap();
       cart[idx].qty = Math.min(qty, 99);
 
       await saveCart();
@@ -531,6 +534,7 @@ export async function handleShopMessage(ctx: ShopCtx): Promise<boolean> {
       if (idx < 0) { await showCart(); return true; }
       const next = Number(cart[idx].qty) + (sign === "+" ? 1 : -1);
       if (next <= 0) {
+        snap();
         const [removed] = cart.splice(idx, 1);
         await saveCart();
         await afterCartChange(`🗑️ *Removed only this item:* ${removed.name}\nYour other ${cart.length} item(s) are safe. 💳 Nothing has been charged yet.`);
@@ -541,6 +545,7 @@ export async function handleShopMessage(ctx: ShopCtx): Promise<boolean> {
         await offerReplacement(cart[idx], stockCap);
         return true;
       }
+      snap();
       cart[idx].qty = Math.min(next, 99);
 
       await saveCart();

@@ -538,12 +538,17 @@ export async function handleShopMessage(ctx: ShopCtx): Promise<boolean> {
       profile_complete: true,
       customer_name: conversation.delivery_name,
     });
-    const { text, total } = cartLines(cart);
+    const { text, total } = cartLines(cart, true);
     await sayButtons(
       `${L("order_summary")}\n${text}\n\n💰 ₹${total}\n👤 ${conversation.delivery_name}\n📞 ${conversation.delivery_phone}\n📍 ${baseAddr}\n⏰ ${slot}\n\n💳 UPI / Card / Netbanking`,
-      [{ id: "confirm", title: L("confirm_order").slice(0, 20) }, { id: "menu", title: L("cancel").slice(0, 20) }],
+      [
+        { id: "confirm", title: L("confirm_order").slice(0, 20) },
+        { id: "editorder", title: "✏️ Edit items" },
+        { id: "cancelorder", title: "❌ Cancel order" },
+      ],
     );
   };
+
 
   const startCheckout = async () => {
     if (!cart.length) {
@@ -601,7 +606,7 @@ export async function handleShopMessage(ctx: ShopCtx): Promise<boolean> {
 
   // ── Checkout collection flow ──
   if (state.startsWith("co_")) {
-    if (t0 === "menu" || t0 === "cancel") {
+    if ((t0 === "menu" || t0 === "cancel") && state !== "co_confirm") {
       await ctx.updateConversation(phone, { conversation_state: "idle" });
       await showMenu();
       return true;
@@ -666,10 +671,48 @@ export async function handleShopMessage(ctx: ShopCtx): Promise<boolean> {
         }
         return true;
       }
-      await ctx.updateConversation(phone, { conversation_state: "idle" });
-      await showMenu();
+      if (t0 === "editorder" || t0 === "edit" || t0 === "cartedit") {
+        await ctx.updateConversation(phone, { conversation_state: "idle" });
+        await showCartEditor();
+        return true;
+      }
+      if (t0 === "cancelorder" || t0 === "cancel" || t0 === "no" || t0 === "menu") {
+        await sayButtons(
+          "🤔 *What would you like to cancel?*\n\nYou can remove just one item and keep the rest — you don't have to cancel everything.",
+          [
+            { id: "editorder", title: "✏️ Remove 1 item" },
+            { id: "cancelall", title: "❌ Cancel all" },
+            { id: "backconfirm", title: "🔙 Keep order" },
+          ],
+        );
+        return true;
+      }
+      if (t0 === "backconfirm") {
+        const slot = String(conversation.delivery_address || "").match(/Preferred time:\s*(.+)$/)?.[1] || "Anytime";
+        await showOrderConfirm(slot.trim());
+        return true;
+      }
+      if (t0 === "cancelall") {
+        cart.length = 0;
+        await saveCart();
+        await ctx.updateConversation(phone, { conversation_state: "idle" });
+        await sayButtons(
+          "❌ *Order cancelled.*\n\nNo worries — nothing was charged and your cart is now empty. 🌿\nYou can purchase anytime, we're always here for you!",
+          [{ id: "menu", title: L("keep_shopping").slice(0, 20) }],
+        );
+        return true;
+      }
+      await sayButtons(
+        `${L("order_summary")} 👇`,
+        [
+          { id: "confirm", title: L("confirm_order").slice(0, 20) },
+          { id: "editorder", title: "✏️ Edit items" },
+          { id: "cancelorder", title: "❌ Cancel order" },
+        ],
+      );
       return true;
     }
+
   }
 
   // ── Global commands ──
@@ -747,8 +790,21 @@ export async function handleShopMessage(ctx: ShopCtx): Promise<boolean> {
 
   if (await editCart()) return true;
 
+  if (t0 === "editorder") { await showCartEditor(); return true; }
+  if (t0 === "backconfirm") { await startCheckout(); return true; }
+  if (t0 === "cancelall") {
+    cart.length = 0;
+    await saveCart();
+    await ctx.updateConversation(phone, { conversation_state: "idle" });
+    await sayButtons(
+      "❌ *Order cancelled.*\n\nNo worries — nothing was charged and your cart is now empty. 🌿\nYou can purchase anytime, we're always here for you!",
+      [{ id: "menu", title: L("keep_shopping").slice(0, 20) }],
+    );
+    return true;
+  }
   if (["checkout", "buy now", "place order", "order"].includes(t0)) { await startCheckout(); return true; }
   if (t0 === "usesaved" || t0 === "newaddr") { await startCheckout(); return true; }
+
 
   if (t0 === "wishlist") {
     const wl: any[] = Array.isArray(conversation.wishlist) ? conversation.wishlist : [];

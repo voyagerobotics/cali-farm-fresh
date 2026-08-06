@@ -2,6 +2,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.89.0";
 import { Resend } from "https://esm.sh/resend@2.0.0";
 import { handleShopMessage } from "./shop.ts";
+import { resolveLang, type Lang } from "./i18n.ts";
 
 
 const VERIFY_TOKEN = "zomical_whatsapp_verify_2024";
@@ -239,6 +240,7 @@ async function sendWhatsAppList(
   buttonLabel: string,
   rows: Array<{ id: string; title: string; description?: string }>,
   header?: string,
+  sectionTitle?: string,
 ) {
   const url = `https://graph.facebook.com/v21.0/${phoneNumberId}/messages`;
   const res = await fetch(url, {
@@ -256,7 +258,7 @@ async function sendWhatsAppList(
         action: {
           button: buttonLabel.slice(0, 20),
           sections: [{
-            title: "Available slots",
+            title: (sectionTitle || "Available slots").slice(0, 24),
             rows: rows.slice(0, 10).map((r) => ({
               id: r.id.slice(0, 200),
               title: r.title.slice(0, 24),
@@ -530,6 +532,36 @@ async function calculateDrivingDistance(storeLat: number, storeLng: number, dest
     const route = data.routes[0];
     return { distanceKm: route.distance / 1000, durationMinutes: route.duration / 60 };
   } catch (error) { console.error("Distance calculation error:", error); return null; }
+}
+
+/** Reverse-geocode a shared WhatsApp location pin and check serviceability. */
+async function resolveSharedLocation(lat: number, lng: number) {
+  let address = `Lat ${lat.toFixed(5)}, Lng ${lng.toFixed(5)}`;
+  let pincode: string | null = null;
+  let city: string | null = null;
+  try {
+    const url = `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&addressdetails=1`;
+    const res = await fetch(url, { headers: { "User-Agent": "CaliforniaFarms/1.0" } });
+    if (res.ok) {
+      const data = await res.json();
+      if (data?.display_name) address = data.display_name;
+      const a = data?.address || {};
+      pincode = a.postcode || null;
+      city = a.city || a.town || a.village || a.suburb || a.county || null;
+    }
+  } catch (e) {
+    console.error("Reverse geocode error:", e);
+  }
+
+  const route = await calculateDrivingDistance(STORE_COORDINATES.lat, STORE_COORDINATES.lng, lat, lng);
+  const distanceKm = route ? Math.round(route.distanceKm * 10) / 10 : null;
+  if (distanceKm != null && distanceKm > MAX_DELIVERY_DISTANCE_KM) {
+    return {
+      address, pincode, city, distanceKm, serviceable: false,
+      error: `We currently deliver within ${MAX_DELIVERY_DISTANCE_KM} km of our farm. Your location is ${distanceKm} km away.`,
+    };
+  }
+  return { address, pincode, city, distanceKm, serviceable: true };
 }
 
 async function calculateDeliveryCharge(pincode: string) {
@@ -829,7 +861,8 @@ async function createOrderAndPaymentLink(phone: string, conversation: Record<str
 // ─── AI Response ───
 async function getAIResponse(
   userMessage: string, conversation: Record<string, unknown>,
-  products: Array<Record<string, unknown>>, chatHistory: Array<Record<string, unknown>>
+  products: Array<Record<string, unknown>>, chatHistory: Array<Record<string, unknown>>,
+  lang: Lang = "en"
 ) {
   const productCatalog = products
     .map((p: any) => {
@@ -862,8 +895,8 @@ async function getAIResponse(
   const systemPrompt = `You are a premium WhatsApp shopping assistant for California Farms India, a farm-fresh grocery delivery service in Nagpur (zomical.com).
 
 RULES:
-- Be bilingual: respond in Hindi if the customer writes in Hindi, otherwise English. Mix naturally.
-- NEVER send long product lists. The app has a numbered category menu that does browsing for you.
+- LANGUAGE (strict): reply ONLY in ${lang === "hi" ? "Hindi (Devanagari)" : lang === "mr" ? "Marathi (Devanagari)" : "English"}. Never switch language on your own — the customer decides the language, and only they can change it.
+- NEVER send long product lists. The app has a tappable category menu that does browsing for you.
 - Keep every reply to ONE short screen (max 300 chars). No walls of text.
 - Use emojis sparingly but warmly 🥬🥕🍅
 - Always show prices in ₹
@@ -1176,11 +1209,22 @@ serve(async (req) => {
         message.interactive?.list_reply?.id ||
         message.button?.payload ||
         null;
-      const messageText = message.text?.body || message.interactive?.button_reply?.title || "";
+      const messageText = message.text?.body
+        || message.interactive?.button_reply?.title
+        || message.interactive?.list_reply?.title
+        || "";
+      const sharedLocation = message.location
+        ? {
+            latitude: Number(message.location.latitude),
+            longitude: Number(message.location.longitude),
+            address: message.location.address ?? null,
+            name: message.location.name ?? null,
+          }
+        : null;
       const waMessageId = message.id;
 
-      console.log(`Message from ${from}: ${messageText} (button: ${buttonId})`);
-      await logMessage(from, "inbound", buttonId || messageText, waMessageId);
+      console.log(`Message from ${from}: ${messageText} (button: ${buttonId}, location: ${!!sharedLocation})`);
+      await logMessage(from, "inbound", buttonId || messageText || (sharedLocation ? "[location shared]" : ""), waMessageId);
       if (buttonId) {
         await logActivity({
           order_number: orderNumberFromPayload(buttonId),
@@ -1215,6 +1259,22 @@ serve(async (req) => {
 
       const [products, chatHistory] = await Promise.all([getAvailableProducts(), getRecentMessages(from)]);
 
+      // Mirror the customer's language: switch only when they clearly write in
+      // another language, never on the bot's own initiative.
+      const lang: Lang = buttonId
+        ? ((conversation as any).language as Lang) || "en"
+        : resolveLang((conversation as any).language, messageText);
+      (conversation as any).language = lang;
+
+      // Inbox metadata so the admin Conversation Manager stays live
+      await updateConversation(from, {
+        language: lang,
+        last_message_at: new Date().toISOString(),
+        last_message_text: (buttonId ? messageText || buttonId : messageText || "[location shared]").slice(0, 200),
+        unread_count: (Number((conversation as any).unread_count) || 0) + 1,
+        is_archived: false,
+      });
+
       // Premium menu-driven shopping engine handles navigation, browsing,
       // product cards, cart and checkout deterministically. The AI only steps
       // in for free-form conversation it can't resolve.
@@ -1223,14 +1283,18 @@ serve(async (req) => {
           phone: from,
           text: messageText,
           buttonId,
+          location: sharedLocation,
+          lang,
           conversation: conversation as Record<string, any>,
           products: products as Array<Record<string, any>>,
           sendText: sendWhatsAppMessage,
           sendImage: sendWhatsAppImage,
           sendButtons: sendWhatsAppButtons,
+          sendList: sendWhatsAppList,
           updateConversation,
           log: (p, d, t) => logMessage(p, d, t),
           createOrder: createOrderAndPaymentLink,
+          resolveLocation: resolveSharedLocation,
         });
         if (handled) {
           return new Response(JSON.stringify({ status: "ok" }), {
@@ -1241,7 +1305,7 @@ serve(async (req) => {
         console.error("Shop engine error:", e);
       }
 
-      const aiResponse = await getAIResponse(messageText, conversation, products, chatHistory);
+      const aiResponse = await getAIResponse(messageText, conversation, products, chatHistory, lang);
       await processCartUpdate(from, aiResponse, conversation);
 
 

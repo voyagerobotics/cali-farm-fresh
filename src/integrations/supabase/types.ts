@@ -51,28 +51,37 @@ export type Database = {
         Row: {
           created_at: string
           delivery_charge: number
+          eta_minutes: number | null
+          free_delivery_threshold: number | null
           id: string
           is_active: boolean
           max_distance_km: number
           min_distance_km: number
+          min_order_value: number
           zone_name: string
         }
         Insert: {
           created_at?: string
           delivery_charge: number
+          eta_minutes?: number | null
+          free_delivery_threshold?: number | null
           id?: string
           is_active?: boolean
           max_distance_km: number
           min_distance_km?: number
+          min_order_value?: number
           zone_name: string
         }
         Update: {
           created_at?: string
           delivery_charge?: number
+          eta_minutes?: number | null
+          free_delivery_threshold?: number | null
           id?: string
           is_active?: boolean
           max_distance_km?: number
           min_distance_km?: number
+          min_order_value?: number
           zone_name?: string
         }
         Relationships: []
@@ -1533,60 +1542,236 @@ export type Database = {
         }
         Relationships: []
       }
+      whatsapp_broadcast_recipients: {
+        Row: {
+          broadcast_id: string
+          created_at: string
+          error: string | null
+          id: string
+          phone_number: string
+          sent_at: string | null
+          status: string
+        }
+        Insert: {
+          broadcast_id: string
+          created_at?: string
+          error?: string | null
+          id?: string
+          phone_number: string
+          sent_at?: string | null
+          status?: string
+        }
+        Update: {
+          broadcast_id?: string
+          created_at?: string
+          error?: string | null
+          id?: string
+          phone_number?: string
+          sent_at?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_broadcast_recipients_broadcast_id_fkey"
+            columns: ["broadcast_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_broadcasts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      whatsapp_broadcasts: {
+        Row: {
+          audience: Json
+          buttons: Json
+          coupon_code: string | null
+          created_at: string
+          created_by: string | null
+          failed_count: number
+          id: string
+          media_type: string | null
+          media_url: string | null
+          message_text: string
+          name: string
+          product_ids: string[]
+          scheduled_at: string | null
+          sent_at: string | null
+          sent_count: number
+          status: string
+          template_name: string | null
+          total_recipients: number
+          updated_at: string
+        }
+        Insert: {
+          audience?: Json
+          buttons?: Json
+          coupon_code?: string | null
+          created_at?: string
+          created_by?: string | null
+          failed_count?: number
+          id?: string
+          media_type?: string | null
+          media_url?: string | null
+          message_text: string
+          name: string
+          product_ids?: string[]
+          scheduled_at?: string | null
+          sent_at?: string | null
+          sent_count?: number
+          status?: string
+          template_name?: string | null
+          total_recipients?: number
+          updated_at?: string
+        }
+        Update: {
+          audience?: Json
+          buttons?: Json
+          coupon_code?: string | null
+          created_at?: string
+          created_by?: string | null
+          failed_count?: number
+          id?: string
+          media_type?: string | null
+          media_url?: string | null
+          message_text?: string
+          name?: string
+          product_ids?: string[]
+          scheduled_at?: string | null
+          sent_at?: string | null
+          sent_count?: number
+          status?: string
+          template_name?: string | null
+          total_recipients?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       whatsapp_conversations: {
         Row: {
+          assigned_to: string | null
           cart: Json | null
           conversation_state: string | null
           created_at: string | null
+          customer_name: string | null
           delivery_address: string | null
+          delivery_city: string | null
+          delivery_label: string | null
+          delivery_latitude: number | null
+          delivery_longitude: number | null
           delivery_name: string | null
           delivery_phone: string | null
           delivery_pincode: string | null
           id: string
+          inbox_status: string
+          is_archived: boolean
+          is_favorite: boolean
+          is_starred: boolean
           language: string | null
+          last_message_at: string | null
+          last_message_text: string | null
           last_order_id: string | null
           menu_context: Json
           payment_method: string | null
           phone_number: string
+          profile_complete: boolean
+          tags: string[]
+          unread_count: number
           updated_at: string | null
           user_id: string | null
           wishlist: Json
         }
         Insert: {
+          assigned_to?: string | null
           cart?: Json | null
           conversation_state?: string | null
           created_at?: string | null
+          customer_name?: string | null
           delivery_address?: string | null
+          delivery_city?: string | null
+          delivery_label?: string | null
+          delivery_latitude?: number | null
+          delivery_longitude?: number | null
           delivery_name?: string | null
           delivery_phone?: string | null
           delivery_pincode?: string | null
           id?: string
+          inbox_status?: string
+          is_archived?: boolean
+          is_favorite?: boolean
+          is_starred?: boolean
           language?: string | null
+          last_message_at?: string | null
+          last_message_text?: string | null
           last_order_id?: string | null
           menu_context?: Json
           payment_method?: string | null
           phone_number: string
+          profile_complete?: boolean
+          tags?: string[]
+          unread_count?: number
           updated_at?: string | null
           user_id?: string | null
           wishlist?: Json
         }
         Update: {
+          assigned_to?: string | null
           cart?: Json | null
           conversation_state?: string | null
           created_at?: string | null
+          customer_name?: string | null
           delivery_address?: string | null
+          delivery_city?: string | null
+          delivery_label?: string | null
+          delivery_latitude?: number | null
+          delivery_longitude?: number | null
           delivery_name?: string | null
           delivery_phone?: string | null
           delivery_pincode?: string | null
           id?: string
+          inbox_status?: string
+          is_archived?: boolean
+          is_favorite?: boolean
+          is_starred?: boolean
           language?: string | null
+          last_message_at?: string | null
+          last_message_text?: string | null
           last_order_id?: string | null
           menu_context?: Json
           payment_method?: string | null
           phone_number?: string
+          profile_complete?: boolean
+          tags?: string[]
+          unread_count?: number
           updated_at?: string | null
           user_id?: string | null
           wishlist?: Json
+        }
+        Relationships: []
+      }
+      whatsapp_customer_notes: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          note: string
+          phone_number: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          note: string
+          phone_number: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          note?: string
+          phone_number?: string
+          updated_at?: string
         }
         Relationships: []
       }

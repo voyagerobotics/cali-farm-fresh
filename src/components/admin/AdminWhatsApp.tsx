@@ -1,7 +1,7 @@
 import { useState } from "react";
 import {
   MessageSquare, FileText, Activity, BellOff, LayoutDashboard,
-  Store, Sparkles, ListTree, Bot,
+  Store, Sparkles, ListTree, Bot, RefreshCw, Users, Inbox, Megaphone, Truck,
 } from "lucide-react";
 import AdminWhatsAppPreview from "@/components/admin/AdminWhatsAppPreview";
 import AdminWhatsAppTemplates from "@/components/admin/AdminWhatsAppTemplates";
@@ -12,13 +12,24 @@ import BotBusinessProfile from "@/components/admin/whatsapp/BotBusinessProfile";
 import BotWelcome from "@/components/admin/whatsapp/BotWelcome";
 import BotMenuBuilder from "@/components/admin/whatsapp/BotMenuBuilder";
 import BotAIConfig from "@/components/admin/whatsapp/BotAIConfig";
+import BotProductSync from "@/components/admin/whatsapp/BotProductSync";
+import BotCustomers from "@/components/admin/whatsapp/BotCustomers";
+import BotInbox from "@/components/admin/whatsapp/BotInbox";
+import BotBroadcast from "@/components/admin/whatsapp/BotBroadcast";
+import BotDeliveryZones from "@/components/admin/whatsapp/BotDeliveryZones";
 
 type SubTab =
-  | "dashboard" | "profile" | "welcome" | "menu" | "ai"
+  | "dashboard" | "profile" | "welcome" | "menu" | "ai" | "sync"
+  | "customers" | "inbox" | "broadcast" | "delivery"
   | "preview" | "templates" | "activity" | "optouts";
 
 const subTabs: { id: SubTab; label: string; icon: any }[] = [
   { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { id: "inbox", label: "Conversations", icon: Inbox },
+  { id: "customers", label: "Customers", icon: Users },
+  { id: "broadcast", label: "Broadcasts", icon: Megaphone },
+  { id: "delivery", label: "Delivery zones", icon: Truck },
+  { id: "sync", label: "Product sync", icon: RefreshCw },
   { id: "profile", label: "Business profile", icon: Store },
   { id: "welcome", label: "Welcome & replies", icon: Sparkles },
   { id: "menu", label: "Menu builder", icon: ListTree },
@@ -52,6 +63,11 @@ const AdminWhatsApp = () => {
       </div>
 
       {tab === "dashboard" && <BotDashboard />}
+      {tab === "inbox" && <BotInbox />}
+      {tab === "customers" && <BotCustomers />}
+      {tab === "broadcast" && <BotBroadcast />}
+      {tab === "delivery" && <BotDeliveryZones />}
+      {tab === "sync" && <BotProductSync />}
       {tab === "profile" && <BotBusinessProfile />}
       {tab === "welcome" && <BotWelcome />}
       {tab === "menu" && <BotMenuBuilder />}

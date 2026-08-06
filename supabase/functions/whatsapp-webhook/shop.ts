@@ -216,7 +216,8 @@ export async function handleShopMessage(ctx: ShopCtx): Promise<boolean> {
 
   const say = async (text: string) => { await ctx.sendText(phone, text); await ctx.log(phone, "outbound", text); };
   const sayButtons = async (text: string, btns: Array<{ id: string; title: string }>) => {
-    await ctx.sendButtons(phone, text, btns); await ctx.log(phone, "outbound", text);
+    await ctx.sendButtons(phone, text, btns);
+    await ctx.log(phone, "outbound", `${text}\n\n[Buttons: ${btns.map((b) => b.title).join(" | ")}]`);
   };
   const sayList = async (
     body: string,
@@ -226,8 +227,9 @@ export async function handleShopMessage(ctx: ShopCtx): Promise<boolean> {
     sectionTitle?: string,
   ) => {
     await ctx.sendList(phone, body, buttonLabel, rows, header, sectionTitle);
-    await ctx.log(phone, "outbound", body);
+    await ctx.log(phone, "outbound", `${body}\n\n[Menu "${buttonLabel}": ${rows.map((r) => r.title).join(" | ")}]`);
   };
+
   const setMc = (next: Record<string, any>) => ctx.updateConversation(phone, { menu_context: next });
 
   // ── Main menu: a tappable list of live categories ──
@@ -334,7 +336,10 @@ export async function handleShopMessage(ctx: ShopCtx): Promise<boolean> {
       description: `×${c.qty} ${c.unit ?? ""} • ₹${Number(c.price) * Number(c.qty)} — tap to change`.slice(0, 72),
     }));
     rows.push({ id: "clear", title: L("clear_cart").slice(0, 24), description: "Remove every item" });
+    if (Array.isArray(mc.undo)) rows.push({ id: "undoedit", title: "↩️ Undo change", description: "Revert your last edit" });
+    if (Array.isArray(mc.editBase)) rows.push({ id: "confirmedits", title: "✅ Confirm changes", description: "Lock in your edits" });
     if (mc.fromConfirm) rows.push({ id: "backconfirm", title: "🔙 Back to summary", description: "Review and confirm" });
+
     await sayList(
       `🛠️ *Edit your cart* (₹${total})\n\n${L("pick_item_to_edit")}\nYou can add one, remove one, or delete an item — the rest of your order stays as it is.`,
       L("edit_item").slice(0, 20),
@@ -492,6 +497,7 @@ export async function handleShopMessage(ctx: ShopCtx): Promise<boolean> {
       const arg = m[1].trim();
       const idx = /^\d+$/.test(arg) ? resolve(parseInt(arg, 10)) : cart.findIndex((c) => norm(c.name).includes(arg));
       if (idx < 0) { await showCart(); return true; }
+      snap();
       const [removed] = cart.splice(idx, 1);
       await saveCart();
       await afterCartChange(`🗑️ *Removed only this item:* ${removed.name}\nYour other ${cart.length} item(s) are safe. 💳 Nothing has been charged yet.`);
@@ -504,6 +510,7 @@ export async function handleShopMessage(ctx: ShopCtx): Promise<boolean> {
       const qty = parseInt(m[2], 10);
       if (idx < 0) { await showCart(); return true; }
       if (qty <= 0) {
+        snap();
         const [removed] = cart.splice(idx, 1);
         await saveCart();
         await afterCartChange(`🗑️ *Removed only this item:* ${removed.name}\nYour other ${cart.length} item(s) are safe. 💳 Nothing has been charged yet.`);
@@ -514,6 +521,7 @@ export async function handleShopMessage(ctx: ShopCtx): Promise<boolean> {
         await offerReplacement(cart[idx], stockMax);
         return true;
       }
+      snap();
       cart[idx].qty = Math.min(qty, 99);
 
       await saveCart();
@@ -529,6 +537,7 @@ export async function handleShopMessage(ctx: ShopCtx): Promise<boolean> {
       if (idx < 0) { await showCart(); return true; }
       const next = Number(cart[idx].qty) + (sign === "+" ? 1 : -1);
       if (next <= 0) {
+        snap();
         const [removed] = cart.splice(idx, 1);
         await saveCart();
         await afterCartChange(`🗑️ *Removed only this item:* ${removed.name}\nYour other ${cart.length} item(s) are safe. 💳 Nothing has been charged yet.`);
@@ -539,6 +548,7 @@ export async function handleShopMessage(ctx: ShopCtx): Promise<boolean> {
         await offerReplacement(cart[idx], stockCap);
         return true;
       }
+      snap();
       cart[idx].qty = Math.min(next, 99);
 
       await saveCart();
@@ -675,10 +685,64 @@ export async function handleShopMessage(ctx: ShopCtx): Promise<boolean> {
     );
   };
 
-  // After any cart change, bounce back to the right screen
-  const afterCartChange = async (prefix?: string) => {
+  // ── Edit snapshots: before/after summary + undo ──
+  const cloneCart = (src: any[]) => src.map((c) => ({ ...c }));
+  const sumOf = (list: any[]) => list.reduce((s, c) => s + Number(c.price) * Number(c.qty), 0);
+
+  /** Call right BEFORE mutating the cart so the change can be shown and undone */
+  const snap = () => {
+    if (!Array.isArray(mc.editBase)) mc.editBase = cloneCart(cart);
+    mc.undo = cloneCart(cart);
+  };
+
+  const changeSummary = (): string => {
+    const before: any[] = Array.isArray(mc.editBase) ? mc.editBase : [];
+    const keyOf = (c: any) => String(c.product_id ?? norm(c.name));
+    const beforeMap = new Map(before.map((c) => [keyOf(c), c]));
+    const afterMap = new Map(cart.map((c) => [keyOf(c), c]));
+    const changes: string[] = [];
+    for (const [k, b] of beforeMap) {
+      const a = afterMap.get(k);
+      if (!a) changes.push(`🗑️ *${b.name}* — removed (was ×${b.qty})`);
+      else if (Number(a.qty) !== Number(b.qty)) {
+        changes.push(`${Number(a.qty) > Number(b.qty) ? "➕" : "➖"} *${a.name}* — ×${b.qty} ➜ *×${a.qty}*`);
+      }
+    }
+    for (const [k, a] of afterMap) if (!beforeMap.has(k)) changes.push(`🆕 *${a.name}* — added ×${a.qty}`);
+
+    const beforeText = before.length
+      ? before.map((c) => `• ${c.name} ×${c.qty} — ₹${Number(c.price) * Number(c.qty)}`).join("\n")
+      : "_empty cart_";
+    const afterText = cart.length
+      ? cart.map((c) => `• ${c.name} ×${c.qty} — ₹${Number(c.price) * Number(c.qty)}`).join("\n")
+      : "_empty cart_";
+    return [
+      "🔄 *What changed*",
+      changes.length ? changes.join("\n") : "_No changes yet._",
+      "",
+      `*Before* (₹${sumOf(before)})\n${beforeText}`,
+      "",
+      `*After* (₹${sumOf(cart)})\n${afterText}`,
+    ].join("\n");
+  };
+
+  const showChangeCard = async (prefix?: string) => {
+    await setMc({ ...mc });
+    const btns: Array<{ id: string; title: string }> = [];
+    if (Array.isArray(mc.undo)) btns.push({ id: "undoedit", title: "↩️ Undo change" });
+    btns.push({ id: "confirmedits", title: "✅ Confirm changes" });
+    btns.push({ id: "editorder", title: "🛠️ Keep editing" });
+    await sayButtons(
+      `${prefix ? prefix + "\n\n" : ""}${changeSummary()}\n\n_Nothing is final yet — you can undo before tapping Confirm changes._`,
+      btns,
+    );
+  };
+
+  const finishEdits = async (prefix?: string) => {
+    mc.editBase = null;
+    mc.undo = null;
+    await setMc({ ...mc, editBase: null, undo: null });
     if (!cart.length) {
-      await setMc({ ...mc, fromConfirm: false, view: "cart" });
       await ctx.updateConversation(phone, { conversation_state: "idle" });
       await sayButtons(
         `${prefix ? prefix + "\n\n" : ""}🛒 Your cart is now empty, so the order was not placed.\n💳 Nothing has been charged.`,
@@ -689,6 +753,22 @@ export async function handleShopMessage(ctx: ShopCtx): Promise<boolean> {
     if (mc.fromConfirm) { await showOrderConfirm(prefix ? `${prefix}\n\n🧾 *Updated order summary* 👇` : undefined); return; }
     await showCart(prefix);
   };
+
+  const undoEdit = async () => {
+    if (!Array.isArray(mc.undo)) { await showCart("↩️ Nothing to undo."); return; }
+    cart.length = 0;
+    for (const c of mc.undo) cart.push({ ...c });
+    mc.undo = null;
+    await saveCart();
+    await showChangeCard("↩️ *Last change undone* — your cart is back to how it was.");
+  };
+
+  // After any cart change: show the before/after card with an undo step
+  const afterCartChange = async (prefix?: string) => {
+    if (Array.isArray(mc.editBase)) { await showChangeCard(prefix); return; }
+    await finishEdits(prefix);
+  };
+
 
 
 
@@ -959,6 +1039,13 @@ export async function handleShopMessage(ctx: ShopCtx): Promise<boolean> {
     return true;
   }
 
+  // Undo / confirm the pending cart edits
+  if (t0 === "undoedit") { await undoEdit(); return true; }
+  if (t0 === "confirmedits") {
+    await finishEdits("✅ *Changes confirmed.*");
+    return true;
+  }
+
   // Cart edit buttons
   const btn = t0.match(/^(qty\+|qty-|rm):(\d+)$/);
   if (btn) {
@@ -966,6 +1053,7 @@ export async function handleShopMessage(ctx: ShopCtx): Promise<boolean> {
     const item = cart[idx];
     if (!item) { await showCart(); return true; }
     if (btn[1] === "rm" || (btn[1] === "qty-" && Number(item.qty) <= 1)) {
+      snap();
       cart.splice(idx, 1);
       await saveCart();
       await afterCartChange(`🗑️ *Removed only this item:* ${item.name}\nYour other ${cart.length} item(s) are safe. 💳 Nothing has been charged yet.`);
@@ -978,6 +1066,7 @@ export async function handleShopMessage(ctx: ShopCtx): Promise<boolean> {
         return true;
       }
     }
+    snap();
     item.qty = btn[1] === "qty+" ? Math.min(Number(item.qty) + 1, 99) : Number(item.qty) - 1;
     await saveCart();
     await afterCartChange(`✏️ *${item.name}* updated to × ${item.qty}. Everything else stays the same.`);
@@ -988,6 +1077,7 @@ export async function handleShopMessage(ctx: ShopCtx): Promise<boolean> {
     const idx = parseInt(raw.slice(3), 10) - 1;
     const item = cart[idx];
     if (!item) { await showCart(); return true; }
+    snap();
     cart.splice(idx, 1);
     await saveCart();
     await afterCartChange(
@@ -1009,6 +1099,7 @@ export async function handleShopMessage(ctx: ShopCtx): Promise<boolean> {
   }
   if (t0 === "cancelall") { await confirmCancelAll(); return true; }
   if (t0 === "cancelallyes") { await doCancelAll(); return true; }
+
 
 
   if (["checkout", "buy now", "place order", "order"].includes(t0)) { await startCheckout(); return true; }

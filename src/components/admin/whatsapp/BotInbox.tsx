@@ -35,19 +35,48 @@ const BotInbox = () => {
   const [reply, setReply] = useState("");
   const [sending, setSending] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [loadingMsgs, setLoadingMsgs] = useState(false);
+
   const [filter, setFilter] = useState<Filter>("open");
   const [q, setQ] = useState("");
   const [admins, setAdmins] = useState<{ user_id: string; name: string }[]>([]);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   const loadConvs = async () => {
-    const { data } = await supabase
-      .from("whatsapp_conversations")
-      .select("*")
-      .order("last_message_at", { ascending: false, nullsFirst: false });
-    setConvs((data as any[]) || []);
+    const [{ data }, { data: msgRows }] = await Promise.all([
+      supabase
+        .from("whatsapp_conversations")
+        .select("*")
+        .order("last_message_at", { ascending: false, nullsFirst: false }),
+      supabase
+        .from("whatsapp_messages")
+        .select("phone_number, message_text, created_at")
+        .order("created_at", { ascending: false })
+        .limit(2000),
+    ]);
+
+    const list = ((data as any[]) || []).map((c) => ({ ...c }));
+    const byPhone = new Map<string, any>(list.map((c) => [c.phone_number, c]));
+
+    // Backfill conversations that only exist in the message history,
+    // and fill in missing last-message info so nothing is hidden.
+    for (const m of (msgRows as any[]) || []) {
+      const existing = byPhone.get(m.phone_number);
+      if (!existing) {
+        const created = { phone_number: m.phone_number, last_message_at: m.created_at, last_message_text: m.message_text, unread_count: 0, inbox_status: "open" };
+        byPhone.set(m.phone_number, created);
+        list.push(created);
+      } else if (!existing.last_message_at) {
+        existing.last_message_at = m.created_at;
+        existing.last_message_text = existing.last_message_text || m.message_text;
+      }
+    }
+
+    list.sort((a, b) => new Date(b.last_message_at || 0).getTime() - new Date(a.last_message_at || 0).getTime());
+    setConvs(list as Conv[]);
     setLoading(false);
   };
+
 
   const loadAdmins = async () => {
     const { data: roles } = await supabase.from("user_roles").select("user_id").eq("role", "admin");
@@ -80,14 +109,28 @@ const BotInbox = () => {
 
   const openConv = async (c: Conv) => {
     setActive(c);
-    const { data } = await supabase.from("whatsapp_messages").select("*")
-      .eq("phone_number", c.phone_number).order("created_at", { ascending: true }).limit(300);
-    setMsgs(data || []);
+    setMsgs([]);
+    setLoadingMsgs(true);
+    // Page through the whole history so nothing is cut off
+    const all: any[] = [];
+    const PAGE = 500;
+    for (let from = 0; from < 10000; from += PAGE) {
+      const { data, error } = await supabase.from("whatsapp_messages").select("*")
+        .eq("phone_number", c.phone_number)
+        .order("created_at", { ascending: true })
+        .range(from, from + PAGE - 1);
+      if (error) break;
+      all.push(...(data || []));
+      if (!data || data.length < PAGE) break;
+    }
+    setMsgs(all);
+    setLoadingMsgs(false);
     if (c.unread_count) {
       await supabase.from("whatsapp_conversations").update({ unread_count: 0 } as any).eq("phone_number", c.phone_number);
       loadConvs();
     }
   };
+
 
   const patch = async (phone: string, updates: Record<string, any>) => {
     await supabase.from("whatsapp_conversations").update(updates as any).eq("phone_number", phone);
@@ -203,16 +246,28 @@ const BotInbox = () => {
               </div>
 
               <div className="flex-1 overflow-y-auto p-4 space-y-2 bg-muted/20">
+                {loadingMsgs && (
+                  <div className="py-6 flex justify-center"><Loader2 className="w-5 h-5 animate-spin text-muted-foreground" /></div>
+                )}
+                {!loadingMsgs && !msgs.length && (
+                  <p className="text-center text-sm text-muted-foreground py-6">No messages in this conversation yet.</p>
+                )}
+                {!loadingMsgs && !!msgs.length && (
+                  <p className="text-center text-[11px] text-muted-foreground pb-2">
+                    Showing all {msgs.length} messages · from {new Date(msgs[0].created_at).toLocaleString("en-IN")}
+                  </p>
+                )}
                 {msgs.map((m) => (
                   <div key={m.id} className={`max-w-[75%] rounded-2xl px-3 py-2 text-sm ${m.direction === "inbound" ? "bg-card border border-border" : "bg-primary text-primary-foreground ml-auto"}`}>
                     <p className="whitespace-pre-wrap break-words">{m.message_text}</p>
                     <p className={`text-[10px] mt-1 ${m.direction === "inbound" ? "text-muted-foreground" : "text-primary-foreground/70"}`}>
-                      {new Date(m.created_at).toLocaleTimeString("en-IN")}
+                      {new Date(m.created_at).toLocaleString("en-IN")}
                     </p>
                   </div>
                 ))}
                 <div ref={bottomRef} />
               </div>
+
 
               <div className="p-3 border-t border-border flex gap-2">
                 <Textarea rows={2} value={reply} onChange={(e) => setReply(e.target.value)} placeholder="Type your reply…"

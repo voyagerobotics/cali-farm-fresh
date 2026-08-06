@@ -214,7 +214,30 @@ async function logMessage(phone: string, direction: string, text: string, waMess
     message_text: text,
     wa_message_id: waMessageId || null,
   });
+  // Keep the admin inbox in sync so every conversation is visible and ordered
+  try {
+    const preview = String(text || "").replace(/\s+/g, " ").slice(0, 160);
+    const { data: conv } = await supabase
+      .from("whatsapp_conversations")
+      .select("unread_count")
+      .eq("phone_number", phone)
+      .maybeSingle();
+    const patch: Record<string, unknown> = {
+      last_message_at: new Date().toISOString(),
+      last_message_text: preview,
+      updated_at: new Date().toISOString(),
+    };
+    if (direction === "inbound") patch.unread_count = Number(conv?.unread_count || 0) + 1;
+    if (conv) {
+      await supabase.from("whatsapp_conversations").update(patch).eq("phone_number", phone);
+    } else {
+      await supabase.from("whatsapp_conversations").insert({ phone_number: phone, ...patch });
+    }
+  } catch (e) {
+    console.error("conversation sync failed", e);
+  }
 }
+
 
 /** Order-level WhatsApp activity log (button replies + bot responses tied to an order) */
 async function logActivity(entry: Record<string, unknown>) {
@@ -282,6 +305,68 @@ const SUPPORT_TEXT =
   "💬 *California Farms Support*\n\nOur team is right here. Please tell us what went wrong (you can send photos too) and we'll reply shortly.\n\n📞 Call/WhatsApp: +91 86000 11641\n📧 Email: californiafarmsindia@gmail.com\n🕘 Support hours: 8 AM – 8 PM IST\n\nType *MENU* anytime to continue shopping.";
 
 const IST_TZ = "Asia/Kolkata";
+
+/** Creates a support request (visible to admins) with the customer's order details attached. */
+async function createSupportTicket(
+  phone: string,
+  order: Record<string, any> | null,
+): Promise<string> {
+  const ref = `SUP-${new Date().toISOString().slice(0, 10).replace(/-/g, "")}-${
+    Math.random().toString(36).slice(2, 6).toUpperCase()
+  }`;
+  const items = Array.isArray(order?.order_items) ? order!.order_items : [];
+  const itemLines = items.map((it: any) => `• ${it.product_name} ×${it.quantity} — ₹${it.total_price}`).join("\n");
+  const note = [
+    `🆘 SUPPORT REQUEST ${ref}`,
+    `Raised from WhatsApp by +${phone}`,
+    order
+      ? [
+        `Order: #${order.order_number}`,
+        `Status: ${String(order.status).replace(/_/g, " ")} (locked for self-service edits)`,
+        `Payment: ${order.payment_status} • Total: ₹${order.total}`,
+        `Customer: ${order.delivery_name || "—"} • ${order.delivery_phone || phone}`,
+        `Address: ${order.delivery_address || "—"}`,
+        itemLines ? `Items:\n${itemLines}` : "",
+      ].filter(Boolean).join("\n")
+      : "No recent order found for this number.",
+  ].join("\n");
+
+  try {
+    await supabase.from("whatsapp_customer_notes").insert({ phone_number: phone, note });
+    await supabase
+      .from("whatsapp_conversations")
+      .update({ inbox_status: "open", is_starred: true, updated_at: new Date().toISOString() })
+      .eq("phone_number", phone);
+    if (order?.id) {
+      await logActivity({
+        order_id: order.id,
+        order_number: order.order_number,
+        phone_number: phone,
+        direction: "inbound",
+        event_type: "support_request",
+        body: note,
+        success: true,
+      });
+    }
+  } catch (e) {
+    console.error("support ticket creation failed", e);
+  }
+
+  return [
+    `🎫 *Support request created — ${ref}*`,
+    "",
+    order
+      ? `We've attached your order *#${order.order_number}* (${String(order.status).replace(/_/g, " ")}, ₹${order.total}) so our team already has everything they need.`
+      : "Our team has your number and chat history — just tell us what you need help with.",
+    "",
+    "⏱️ A team member will reply here, usually within 30 minutes during support hours.",
+    "",
+    "📞 +91 86000 11641\n📧 californiafarmsindia@gmail.com\n🕘 8 AM – 8 PM IST",
+    "",
+    "You can keep typing here — anything you send is added to this request.",
+  ].join("\n");
+}
+
 const istDay = (d: Date) =>
   d.toLocaleDateString("en-IN", { timeZone: IST_TZ, weekday: "short", day: "numeric", month: "short" });
 
@@ -481,12 +566,19 @@ async function handleOrderActions(
     }
   }
 
-  // Contact support
+  // Contact support → auto-create a support request with the order details
   if (lower.startsWith("support:") || lower === "support" || lower === "contact support" || lower === "💬 contact support") {
-    await sendWhatsAppMessage(phone, SUPPORT_TEXT);
-    await logMessage(phone, "outbound", SUPPORT_TEXT);
+    const orderNumber = raw.includes(":") ? raw.split(":")[1] : null;
+    const order = await findRecentOrder(phone, orderNumber);
+    const body = await createSupportTicket(phone, order);
+    await sendWhatsAppButtons(phone, body, [
+      order ? { id: `summary:${order.order_number}`, title: "🧾 Order summary" } : { id: "orders", title: "📦 My Orders" },
+      { id: "menu", title: "🛍️ Keep shopping" },
+    ]);
+    await logMessage(phone, "outbound", body);
     return true;
   }
+
 
   // Order summary
   if (

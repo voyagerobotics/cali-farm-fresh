@@ -593,7 +593,7 @@ export async function handleShopMessage(ctx: ShopCtx): Promise<boolean> {
       delivery_latitude: latitude,
       delivery_longitude: longitude,
       delivery_label: "Home",
-      conversation_state: cart.length ? "co_time" : "idle",
+      conversation_state: cart.length ? "co_confirm" : "idle",
     });
     conversation.delivery_address = resolved.address;
     conversation.delivery_pincode = resolved.pincode;
@@ -604,7 +604,7 @@ export async function handleShopMessage(ctx: ShopCtx): Promise<boolean> {
         await ctx.updateConversation(phone, { conversation_state: "co_name" });
         await say(L("ask_name"));
       } else {
-        await askTime();
+        await showOrderConfirm();
       }
     } else {
       await showMenu();
@@ -620,7 +620,7 @@ export async function handleShopMessage(ctx: ShopCtx): Promise<boolean> {
       return true;
     }
     if (state === "co_saved") {
-      if (t0 === "usesaved") { await askTime(); return true; }
+      if (t0 === "usesaved") { await showOrderConfirm(); return true; }
       if (t0 === "newaddr") { await askAddress(); return true; }
     }
     if (state === "co_name") {
@@ -635,7 +635,7 @@ export async function handleShopMessage(ctx: ShopCtx): Promise<boolean> {
       conversation.delivery_phone = digits;
       if (conversation.delivery_address && conversation.delivery_pincode) {
         await ctx.updateConversation(phone, { delivery_phone: digits });
-        await askTime();
+        await showOrderConfirm();
         return true;
       }
       await ctx.updateConversation(phone, { delivery_phone: digits, conversation_state: "co_address" });
@@ -653,12 +653,7 @@ export async function handleShopMessage(ctx: ShopCtx): Promise<boolean> {
       if (pin.length !== 6) { await say(L("invalid_pincode")); return true; }
       conversation.delivery_pincode = pin;
       await ctx.updateConversation(phone, { delivery_pincode: pin });
-      await askTime();
-      return true;
-    }
-    if (state === "co_time") {
-      const slot = raw.startsWith("time:") ? raw.slice(5) : raw;
-      await showOrderConfirm(slot);
+      await showOrderConfirm();
       return true;
     }
     if (state === "co_confirm") {
@@ -696,8 +691,7 @@ export async function handleShopMessage(ctx: ShopCtx): Promise<boolean> {
         return true;
       }
       if (t0 === "backconfirm") {
-        const slot = String(conversation.delivery_address || "").match(/Preferred time:\s*(.+)$/)?.[1] || "Anytime";
-        await showOrderConfirm(slot.trim());
+        await showOrderConfirm();
         return true;
       }
       if (t0 === "cancelall") {

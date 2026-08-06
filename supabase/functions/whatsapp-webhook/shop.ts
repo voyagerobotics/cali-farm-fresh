@@ -890,9 +890,16 @@ export async function handleShopMessage(ctx: ShopCtx): Promise<boolean> {
       ? "\n💳 You paid ₹" + order.total + " — a *full refund* will be processed in 5–7 working days."
       : "\n💳 Nothing has been charged, so there is no refund to process.";
     await sayButtons(`⚠️ *Cancel the entire order #${order.order_number}?*\n\nThis cancels *all items* in the order.${warn}${money}`, [
-      { id: `ocy:${id}`, title: "✅ Yes, cancel all" },
-      { id: `o:${id}`, title: "🔙 Keep order" },
-    ]);
+    const itemNames = (Array.isArray(order.order_items) ? order.order_items : [])
+      .map((it: any) => `• ${it.product_name} ×${it.quantity}`).join("\n");
+    await sayButtons(
+      `⚠️ *Cancel the entire order #${order.order_number}?*\n\nThis cancels *all ${(order.order_items || []).length} item(s)*:\n${itemNames || "_items_"}${warn}${money}`,
+      [
+        { id: `ocy:${id}`, title: "✅ Yes, cancel all" },
+        { id: `o:${id}`, title: "🔙 Keep order" },
+        { id: "support", title: "💬 Contact support" },
+      ],
+    );
     return true;
   }
   if (raw.startsWith("ocy:")) {
@@ -901,16 +908,28 @@ export async function handleShopMessage(ctx: ShopCtx): Promise<boolean> {
     const res = await ctx.cancelOrder(id);
     if (res.ok) {
       const paid = before && String(before.payment_status) === "paid";
-      await showOrders(
-        `❌ *Order #${before?.order_number ?? ""} fully cancelled* — all items removed.\n${
-          paid
-            ? `💰 Refund of ₹${before?.total} initiated — it reaches your account in 5–7 working days.`
-            : "💳 No amount was charged, so there is nothing to refund."
-        }\n\nYou can purchase anytime, we're always here for you! 🌿`,
+      const names = (Array.isArray(before?.order_items) ? before!.order_items : [])
+        .map((it: any) => `• ${it.product_name} ×${it.quantity}`).join("\n");
+      const money = paid
+        ? `💰 *Refund timeline*\n• Amount: ₹${before?.total}\n• Initiated: today\n• Bank credit: 5–7 working days to your original payment method\n• You'll get a WhatsApp + email update the moment it's processed`
+        : "💳 *No charge* — nothing was taken for this order, so there is no refund to process.";
+      await sayButtons(
+        `❌ *Order #${before?.order_number ?? ""} cancelled* — all items cancelled:\n${names || "_all items_"}\n\n${money}\n\n📲 *Next steps*\n• Track refund status under 📦 *My Orders* here on WhatsApp\n• Or check it on ${SITE}/orders\n• Need it faster? Tap *Contact support*\n\n🌿 You can purchase anytime, we're always here for you!`,
+        [
+          { id: "orders", title: "📦 My Orders" },
+          { id: "support", title: "💬 Contact support" },
+          { id: "menu", title: L("keep_shopping").slice(0, 20) },
+        ],
       );
-    } else await showOrders(`😔 ${res.reason || "This order can no longer be cancelled."} Reply *SUPPORT* for help.`);
+    } else {
+      await sayButtons(
+        `😔 ${res.reason || "This order can no longer be cancelled."}\n\n🔒 Self-cancel is closed at this stage, but our team can still help you right away.`,
+        [{ id: "support", title: "💬 Contact support" }, { id: "orders", title: "📦 My Orders" }],
+      );
+    }
     return true;
   }
+
 
 
   // Tappable category / product / page ids

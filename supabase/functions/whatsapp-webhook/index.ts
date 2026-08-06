@@ -384,7 +384,7 @@ async function cancelCustomerOrder(orderId: string): Promise<{ ok: boolean; reas
         orderNumber: order.order_number,
         customerName: order.delivery_name,
         phone: order.delivery_phone,
-        status: order.payment_status === "paid" ? "refund_initiated" : "cancelled",
+        status: "cancelled",
         total: order.total,
       }),
     });

@@ -301,8 +301,11 @@ async function sendWhatsAppList(
 }
 
 // ─── Post-order actions: Contact support, Order summary & Reschedule delivery ───
+const SUPPORT_CONTACT =
+  "📞 Call/WhatsApp: +91 81497 12801\n📧 shradhatakalkhede15@gmail.com\n📧 californiafarmsindia@gmail.com\n🕘 Support hours: 8 AM – 8 PM IST";
+
 const SUPPORT_TEXT =
-  "💬 *California Farms Support*\n\nOur team is right here. Please tell us what went wrong (you can send photos too) and we'll reply shortly.\n\n📞 Call/WhatsApp: +91 86000 11641\n📧 Email: californiafarmsindia@gmail.com\n🕘 Support hours: 8 AM – 8 PM IST\n\nType *MENU* anytime to continue shopping.";
+  `💬 *California Farms Support*\n\nOur team is right here. Please tell us what went wrong (you can send photos too) and we'll reply shortly.\n\n${SUPPORT_CONTACT}\n\nType *MENU* anytime to continue shopping.`;
 
 const IST_TZ = "Asia/Kolkata";
 

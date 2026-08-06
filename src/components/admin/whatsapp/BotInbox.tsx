@@ -107,7 +107,10 @@ const BotInbox = () => {
     return () => { supabase.removeChannel(channel); };
   }, []);
 
-  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [msgs]);
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [msgs]);
 
   const openConv = async (c: Conv) => {
     setActive(c);

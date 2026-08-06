@@ -889,7 +889,7 @@ export async function handleShopMessage(ctx: ShopCtx): Promise<boolean> {
     const money = paid
       ? "\n💳 You paid ₹" + order.total + " — a *full refund* will be processed in 5–7 working days."
       : "\n💳 Nothing has been charged, so there is no refund to process.";
-    await sayButtons(`⚠️ *Cancel the entire order #${order.order_number}?*\n\nThis cancels *all items* in the order.${warn}${money}`, [
+    
     const itemNames = (Array.isArray(order.order_items) ? order.order_items : [])
       .map((it: any) => `• ${it.product_name} ×${it.quantity}`).join("\n");
     await sayButtons(

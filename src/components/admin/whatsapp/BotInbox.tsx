@@ -193,7 +193,7 @@ const BotInbox = () => {
               ))}
             </div>
           </div>
-          <div className="flex-1 overflow-y-auto">
+          <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain">
             {loading && <div className="p-8 flex justify-center"><Loader2 className="w-5 h-5 animate-spin text-muted-foreground" /></div>}
             {filtered.map((c) => (
               <button key={c.phone_number} onClick={() => openConv(c)}

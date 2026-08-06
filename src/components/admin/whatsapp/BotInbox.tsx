@@ -42,6 +42,7 @@ const BotInbox = () => {
   const [q, setQ] = useState("");
   const [admins, setAdmins] = useState<{ user_id: string; name: string }[]>([]);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
 
   const loadConvs = async () => {
     const [{ data }, { data: msgRows }] = await Promise.all([

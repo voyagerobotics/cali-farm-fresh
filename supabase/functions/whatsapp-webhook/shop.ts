@@ -474,6 +474,15 @@ export async function handleShopMessage(ctx: ShopCtx): Promise<boolean> {
     await setMc({ ...mc, view: "order", orderId });
     const items = Array.isArray(order.order_items) ? order.order_items : [];
     const lines = items.map((it: any) => `• ${it.product_name} ×${it.quantity} — ₹${it.total_price}`);
+    const paid = String(order.payment_status) === "paid";
+    const cancellable = CANCELLABLE.includes(String(order.status));
+    const locked = !cancellable
+      ? `\n🔒 This order is *${String(order.status).replace(/_/g, " ")}* — it can no longer be edited or cancelled here. Tap *Contact support* if you need help.`
+      : String(order.status) === "preparing"
+        ? "\n⚠️ Your order is already being packed — items can't be changed now, only a full cancel is possible."
+        : paid
+          ? "\n💳 Paid order — if you cancel, the full amount is refunded in 5–7 working days."
+          : "";
     const body = [
       `🧾 *Order #${order.order_number}*`,
       `${STATUS_EMOJI[order.status] ?? "•"} Status: *${String(order.status).replace(/_/g, " ")}*`,
@@ -482,14 +491,18 @@ export async function handleShopMessage(ctx: ShopCtx): Promise<boolean> {
       lines.join("\n") || "_No items_",
       "",
       `💰 *Total: ₹${order.total}*`,
+      `💳 Payment: *${String(order.payment_status ?? "pending")}*`,
       order.delivery_address ? `📍 ${order.delivery_address}` : "",
+      locked,
     ].filter(Boolean).join("\n");
 
     const btns: Array<{ id: string; title: string }> = [{ id: `ord:${order.id}`, title: "🔁 Reorder" }];
-    if (CANCELLABLE.includes(String(order.status))) btns.push({ id: `ocx:${order.id}`, title: "❌ Cancel order" });
+    if (cancellable) btns.push({ id: `ocx:${order.id}`, title: "❌ Cancel order" });
+    else btns.push({ id: "support", title: "💬 Contact support" });
     btns.push({ id: "orders", title: "📦 My Orders" });
     await sayButtons(body, btns);
   };
+
 
   const reorder = async (orderId: string) => {
     const order = await ctx.getOrder(orderId);

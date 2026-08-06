@@ -520,24 +520,19 @@ export async function handleShopMessage(ctx: ShopCtx): Promise<boolean> {
     await sayButtons(L("ask_address"), [{ id: "menu", title: L("cancel").slice(0, 20) }]);
   };
 
-  const askTime = async () => {
-    await ctx.updateConversation(phone, { conversation_state: "co_time" });
-    await sayButtons(L("ask_time"), SLOTS.map((s) => ({ id: `time:${s.id}`, title: s.label.slice(0, 20) })));
-  };
-
-  const showOrderConfirm = async (slot: string) => {
+  const showOrderConfirm = async (prefix?: string) => {
     const baseAddr = String(conversation.delivery_address || "").replace(/\s*\|\s*Preferred time:.*$/, "");
-    const addrWithTime = `${baseAddr} | Preferred time: ${slot}`;
-    conversation.delivery_address = addrWithTime;
+    conversation.delivery_address = baseAddr;
+    await setMc({ ...mc, fromConfirm: true });
     await ctx.updateConversation(phone, {
-      delivery_address: addrWithTime,
+      delivery_address: baseAddr,
       conversation_state: "co_confirm",
       profile_complete: true,
       customer_name: conversation.delivery_name,
     });
     const { text, total } = cartLines(cart, true);
     await sayButtons(
-      `${L("order_summary")}\n${text}\n\n💰 ₹${total}\n👤 ${conversation.delivery_name}\n📞 ${conversation.delivery_phone}\n📍 ${baseAddr}\n⏰ ${slot}\n\n💳 UPI / Card / Netbanking`,
+      `${prefix ? prefix + "\n\n" : ""}${L("order_summary")}\n${text}\n\n💰 ₹${total}\n👤 ${conversation.delivery_name}\n📞 ${conversation.delivery_phone}\n📍 ${baseAddr}\n\n💳 UPI / Card / Netbanking\n\n_Nothing is charged until you tap Confirm._`,
       [
         { id: "confirm", title: L("confirm_order").slice(0, 20) },
         { id: "editorder", title: "✏️ Edit items" },
@@ -545,6 +540,22 @@ export async function handleShopMessage(ctx: ShopCtx): Promise<boolean> {
       ],
     );
   };
+
+  // After any cart change, bounce back to the right screen
+  const afterCartChange = async (prefix?: string) => {
+    if (!cart.length) {
+      await setMc({ ...mc, fromConfirm: false, view: "cart" });
+      await ctx.updateConversation(phone, { conversation_state: "idle" });
+      await sayButtons(
+        `${prefix ? prefix + "\n\n" : ""}🛒 Your cart is now empty, so the order was not placed.\n💳 Nothing has been charged.`,
+        [{ id: "menu", title: L("keep_shopping").slice(0, 20) }],
+      );
+      return;
+    }
+    if (mc.fromConfirm) { await showOrderConfirm(prefix ? `${prefix}\n\n🧾 *Updated order summary* 👇` : undefined); return; }
+    await showCart(prefix);
+  };
+
 
 
   const startCheckout = async () => {

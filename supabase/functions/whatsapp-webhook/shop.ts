@@ -677,10 +677,64 @@ export async function handleShopMessage(ctx: ShopCtx): Promise<boolean> {
     );
   };
 
-  // After any cart change, bounce back to the right screen
-  const afterCartChange = async (prefix?: string) => {
+  // ── Edit snapshots: before/after summary + undo ──
+  const cloneCart = (src: any[]) => src.map((c) => ({ ...c }));
+  const sumOf = (list: any[]) => list.reduce((s, c) => s + Number(c.price) * Number(c.qty), 0);
+
+  /** Call right BEFORE mutating the cart so the change can be shown and undone */
+  const snap = () => {
+    if (!Array.isArray(mc.editBase)) mc.editBase = cloneCart(cart);
+    mc.undo = cloneCart(cart);
+  };
+
+  const changeSummary = (): string => {
+    const before: any[] = Array.isArray(mc.editBase) ? mc.editBase : [];
+    const keyOf = (c: any) => String(c.product_id ?? norm(c.name));
+    const beforeMap = new Map(before.map((c) => [keyOf(c), c]));
+    const afterMap = new Map(cart.map((c) => [keyOf(c), c]));
+    const changes: string[] = [];
+    for (const [k, b] of beforeMap) {
+      const a = afterMap.get(k);
+      if (!a) changes.push(`🗑️ *${b.name}* — removed (was ×${b.qty})`);
+      else if (Number(a.qty) !== Number(b.qty)) {
+        changes.push(`${Number(a.qty) > Number(b.qty) ? "➕" : "➖"} *${a.name}* — ×${b.qty} ➜ *×${a.qty}*`);
+      }
+    }
+    for (const [k, a] of afterMap) if (!beforeMap.has(k)) changes.push(`🆕 *${a.name}* — added ×${a.qty}`);
+
+    const beforeText = before.length
+      ? before.map((c) => `• ${c.name} ×${c.qty} — ₹${Number(c.price) * Number(c.qty)}`).join("\n")
+      : "_empty cart_";
+    const afterText = cart.length
+      ? cart.map((c) => `• ${c.name} ×${c.qty} — ₹${Number(c.price) * Number(c.qty)}`).join("\n")
+      : "_empty cart_";
+    return [
+      "🔄 *What changed*",
+      changes.length ? changes.join("\n") : "_No changes yet._",
+      "",
+      `*Before* (₹${sumOf(before)})\n${beforeText}`,
+      "",
+      `*After* (₹${sumOf(cart)})\n${afterText}`,
+    ].join("\n");
+  };
+
+  const showChangeCard = async (prefix?: string) => {
+    await setMc({ ...mc });
+    const btns: Array<{ id: string; title: string }> = [];
+    if (Array.isArray(mc.undo)) btns.push({ id: "undoedit", title: "↩️ Undo change" });
+    btns.push({ id: "confirmedits", title: "✅ Confirm changes" });
+    btns.push({ id: "editorder", title: "🛠️ Keep editing" });
+    await sayButtons(
+      `${prefix ? prefix + "\n\n" : ""}${changeSummary()}\n\n_Nothing is final yet — you can undo before tapping Confirm changes._`,
+      btns,
+    );
+  };
+
+  const finishEdits = async (prefix?: string) => {
+    mc.editBase = null;
+    mc.undo = null;
+    await setMc({ ...mc, editBase: null, undo: null });
     if (!cart.length) {
-      await setMc({ ...mc, fromConfirm: false, view: "cart" });
       await ctx.updateConversation(phone, { conversation_state: "idle" });
       await sayButtons(
         `${prefix ? prefix + "\n\n" : ""}🛒 Your cart is now empty, so the order was not placed.\n💳 Nothing has been charged.`,
@@ -691,6 +745,22 @@ export async function handleShopMessage(ctx: ShopCtx): Promise<boolean> {
     if (mc.fromConfirm) { await showOrderConfirm(prefix ? `${prefix}\n\n🧾 *Updated order summary* 👇` : undefined); return; }
     await showCart(prefix);
   };
+
+  const undoEdit = async () => {
+    if (!Array.isArray(mc.undo)) { await showCart("↩️ Nothing to undo."); return; }
+    cart.length = 0;
+    for (const c of mc.undo) cart.push({ ...c });
+    mc.undo = null;
+    await saveCart();
+    await showChangeCard("↩️ *Last change undone* — your cart is back to how it was.");
+  };
+
+  // After any cart change: show the before/after card with an undo step
+  const afterCartChange = async (prefix?: string) => {
+    if (Array.isArray(mc.editBase)) { await showChangeCard(prefix); return; }
+    await finishEdits(prefix);
+  };
+
 
 
 

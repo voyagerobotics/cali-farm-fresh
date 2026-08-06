@@ -145,10 +145,16 @@ const BotBusinessProfile = () => {
           </div>
         </div>
 
-        <Button onClick={() => save(form)} disabled={isSaving}>
-          {isSaving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
-          Save profile
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button onClick={() => save(form)} disabled={isSaving}>
+            {isSaving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
+            Save profile
+          </Button>
+          <Button variant="outline" onClick={handleSync} disabled={isSyncing}>
+            {isSyncing ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <RefreshCw className="w-4 h-4 mr-2" />}
+            Sync to WhatsApp
+          </Button>
+        </div>
       </div>
 
       {/* Live bot preview */}

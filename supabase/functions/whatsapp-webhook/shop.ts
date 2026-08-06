@@ -216,7 +216,8 @@ export async function handleShopMessage(ctx: ShopCtx): Promise<boolean> {
 
   const say = async (text: string) => { await ctx.sendText(phone, text); await ctx.log(phone, "outbound", text); };
   const sayButtons = async (text: string, btns: Array<{ id: string; title: string }>) => {
-    await ctx.sendButtons(phone, text, btns); await ctx.log(phone, "outbound", text);
+    await ctx.sendButtons(phone, text, btns);
+    await ctx.log(phone, "outbound", `${text}\n\n[Buttons: ${btns.map((b) => b.title).join(" | ")}]`);
   };
   const sayList = async (
     body: string,
@@ -226,8 +227,9 @@ export async function handleShopMessage(ctx: ShopCtx): Promise<boolean> {
     sectionTitle?: string,
   ) => {
     await ctx.sendList(phone, body, buttonLabel, rows, header, sectionTitle);
-    await ctx.log(phone, "outbound", body);
+    await ctx.log(phone, "outbound", `${body}\n\n[Menu "${buttonLabel}": ${rows.map((r) => r.title).join(" | ")}]`);
   };
+
   const setMc = (next: Record<string, any>) => ctx.updateConversation(phone, { menu_context: next });
 
   // ── Main menu: a tappable list of live categories ──

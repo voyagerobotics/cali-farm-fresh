@@ -117,13 +117,13 @@ Deno.serve(async (req) => {
       grievance_officer_details: {
         name: s.business_name,
         email: supportEmail,
-        mobile_number: { country_code: "91", number: supportPhone },
-        landline_number: { country_code: "91", number: supportPhone },
+        mobile_number: `+91${supportPhone}`,
+        landline_number: `+91${supportPhone}`,
       },
       customer_care_details: {
         email: supportEmail,
-        mobile_number: { country_code: "91", number: supportPhone },
-        landline_number: { country_code: "91", number: supportPhone },
+        mobile_number: `+91${supportPhone}`,
+        landline_number: `+91${supportPhone}`,
       },
     };
 

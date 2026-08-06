@@ -1031,6 +1031,13 @@ export async function handleShopMessage(ctx: ShopCtx): Promise<boolean> {
     return true;
   }
 
+  // Undo / confirm the pending cart edits
+  if (t0 === "undoedit") { await undoEdit(); return true; }
+  if (t0 === "confirmedits") {
+    await finishEdits("✅ *Changes confirmed.*");
+    return true;
+  }
+
   // Cart edit buttons
   const btn = t0.match(/^(qty\+|qty-|rm):(\d+)$/);
   if (btn) {
@@ -1038,6 +1045,7 @@ export async function handleShopMessage(ctx: ShopCtx): Promise<boolean> {
     const item = cart[idx];
     if (!item) { await showCart(); return true; }
     if (btn[1] === "rm" || (btn[1] === "qty-" && Number(item.qty) <= 1)) {
+      snap();
       cart.splice(idx, 1);
       await saveCart();
       await afterCartChange(`🗑️ *Removed only this item:* ${item.name}\nYour other ${cart.length} item(s) are safe. 💳 Nothing has been charged yet.`);
@@ -1050,6 +1058,7 @@ export async function handleShopMessage(ctx: ShopCtx): Promise<boolean> {
         return true;
       }
     }
+    snap();
     item.qty = btn[1] === "qty+" ? Math.min(Number(item.qty) + 1, 99) : Number(item.qty) - 1;
     await saveCart();
     await afterCartChange(`✏️ *${item.name}* updated to × ${item.qty}. Everything else stays the same.`);
@@ -1060,6 +1069,7 @@ export async function handleShopMessage(ctx: ShopCtx): Promise<boolean> {
     const idx = parseInt(raw.slice(3), 10) - 1;
     const item = cart[idx];
     if (!item) { await showCart(); return true; }
+    snap();
     cart.splice(idx, 1);
     await saveCart();
     await afterCartChange(
@@ -1081,6 +1091,7 @@ export async function handleShopMessage(ctx: ShopCtx): Promise<boolean> {
   }
   if (t0 === "cancelall") { await confirmCancelAll(); return true; }
   if (t0 === "cancelallyes") { await doCancelAll(); return true; }
+
 
 
   if (["checkout", "buy now", "place order", "order"].includes(t0)) { await startCheckout(); return true; }

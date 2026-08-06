@@ -388,9 +388,28 @@ async function cancelCustomerOrder(orderId: string): Promise<{ ok: boolean; reas
         total: order.total,
       }),
     });
+    if (String(order.payment_status) === "paid") {
+      await fetch(`${supabaseUrl}/functions/v1/send-whatsapp-order-update`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          apikey: Deno.env.get("SUPABASE_ANON_KEY")!,
+          Authorization: `Bearer ${Deno.env.get("SUPABASE_ANON_KEY")}`,
+        },
+        body: JSON.stringify({
+          orderId: order.id,
+          orderNumber: order.order_number,
+          customerName: order.delivery_name,
+          phone: order.delivery_phone,
+          status: "refund_requested",
+          total: order.total,
+        }),
+      });
+    }
   } catch (e) {
     console.error("WhatsApp cancellation update failed:", e);
   }
+
   return { ok: true };
 }
 

@@ -251,7 +251,7 @@ const BotInbox = () => {
                 </Button>
               </div>
 
-              <div className="flex-1 overflow-y-auto p-4 space-y-2 bg-muted/20">
+              <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-4 space-y-2 bg-muted/20">
                 {loadingMsgs && (
                   <div className="py-6 flex justify-center"><Loader2 className="w-5 h-5 animate-spin text-muted-foreground" /></div>
                 )}

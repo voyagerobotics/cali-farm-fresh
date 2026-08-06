@@ -8,8 +8,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import {
-  Search, Star, Archive, CheckCheck, Send, Loader2, Inbox, UserCheck, RefreshCw,
+  Search, Star, Archive, CheckCheck, Send, Loader2, Inbox, UserCheck, RefreshCw, ArrowLeft,
 } from "lucide-react";
+
 
 interface Conv {
   phone_number: string;
@@ -41,6 +42,7 @@ const BotInbox = () => {
   const [q, setQ] = useState("");
   const [admins, setAdmins] = useState<{ user_id: string; name: string }[]>([]);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
 
   const loadConvs = async () => {
     const [{ data }, { data: msgRows }] = await Promise.all([
@@ -105,7 +107,10 @@ const BotInbox = () => {
     return () => { supabase.removeChannel(channel); };
   }, []);
 
-  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [msgs]);
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [msgs]);
 
   const openConv = async (c: Conv) => {
     setActive(c);
@@ -172,12 +177,13 @@ const BotInbox = () => {
 
   return (
     <Card className="overflow-hidden">
-      <CardContent className="p-0 grid md:grid-cols-[320px_1fr] h-[640px]">
+      <CardContent className="p-0 grid md:grid-cols-[320px_1fr] h-[70vh] min-h-[520px]">
         {/* Conversation list */}
-        <div className="border-r border-border flex flex-col">
+        <div className={`border-r border-border flex-col min-h-0 ${active ? "hidden md:flex" : "flex"}`}>
           <div className="p-3 space-y-2 border-b border-border">
             <div className="flex items-center gap-2">
               <div className="relative flex-1">
+
                 <Search className="w-4 h-4 absolute left-3 top-2.5 text-muted-foreground" />
                 <Input className="pl-9 h-9" placeholder="Search chats…" value={q} onChange={(e) => setQ(e.target.value)} />
               </div>
@@ -192,7 +198,7 @@ const BotInbox = () => {
               ))}
             </div>
           </div>
-          <div className="flex-1 overflow-y-auto">
+          <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain">
             {loading && <div className="p-8 flex justify-center"><Loader2 className="w-5 h-5 animate-spin text-muted-foreground" /></div>}
             {filtered.map((c) => (
               <button key={c.phone_number} onClick={() => openConv(c)}
@@ -219,14 +225,18 @@ const BotInbox = () => {
         </div>
 
         {/* Thread */}
-        <div className="flex flex-col">
+        <div className={`flex-col min-h-0 ${active ? "flex" : "hidden md:flex"}`}>
           {active ? (
             <>
               <div className="p-3 border-b border-border flex flex-wrap items-center gap-2">
+                <Button size="sm" variant="ghost" className="px-2" onClick={() => { setActive(null); setMsgs([]); }}>
+                  <ArrowLeft className="w-4 h-4 mr-1" /> Back
+                </Button>
                 <div className="flex-1 min-w-[140px]">
                   <p className="font-medium text-sm">{active.customer_name || active.delivery_name || `+${active.phone_number}`}</p>
                   <p className="text-xs text-muted-foreground">+{active.phone_number} • {(active.language || "en").toUpperCase()}</p>
                 </div>
+
                 <Select value={active.assigned_to || "unassigned"} onValueChange={(v) => patch(active.phone_number, { assigned_to: v === "unassigned" ? null : v })}>
                   <SelectTrigger className="h-8 w-[150px] text-xs"><UserCheck className="w-3.5 h-3.5 mr-1" /><SelectValue placeholder="Assign" /></SelectTrigger>
                   <SelectContent>
@@ -245,7 +255,7 @@ const BotInbox = () => {
                 </Button>
               </div>
 
-              <div className="flex-1 overflow-y-auto p-4 space-y-2 bg-muted/20">
+              <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-4 space-y-2 bg-muted/20">
                 {loadingMsgs && (
                   <div className="py-6 flex justify-center"><Loader2 className="w-5 h-5 animate-spin text-muted-foreground" /></div>
                 )}

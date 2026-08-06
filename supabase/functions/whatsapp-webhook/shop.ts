@@ -788,29 +788,35 @@ export async function handleShopMessage(ctx: ShopCtx): Promise<boolean> {
     if (btn[1] === "rm" || (btn[1] === "qty-" && Number(item.qty) <= 1)) {
       cart.splice(idx, 1);
       await saveCart();
-      await showCart(`🗑️ *${item.name}*`);
+      await afterCartChange(`🗑️ *Removed only this item:* ${item.name}\nYour other ${cart.length} item(s) are safe. 💳 Nothing has been charged yet.`);
       return true;
     }
     item.qty = btn[1] === "qty+" ? Math.min(Number(item.qty) + 1, 99) : Number(item.qty) - 1;
     await saveCart();
-    await showCart(`✏️ *${item.name}* × ${item.qty}`);
+    await afterCartChange(`✏️ *${item.name}* updated to × ${item.qty}. Everything else stays the same.`);
     return true;
   }
 
   if (await editCart()) return true;
 
   if (t0 === "editorder") { await showCartEditor(); return true; }
-  if (t0 === "backconfirm") { await startCheckout(); return true; }
+  if (t0 === "backconfirm") {
+    if (mc.fromConfirm && cart.length) { await showOrderConfirm(); return true; }
+    await startCheckout();
+    return true;
+  }
   if (t0 === "cancelall") {
     cart.length = 0;
     await saveCart();
+    await setMc({ ...mc, fromConfirm: false, view: "cart", ids: [] });
     await ctx.updateConversation(phone, { conversation_state: "idle" });
     await sayButtons(
-      "❌ *Order cancelled.*\n\nNo worries — nothing was charged and your cart is now empty. 🌿\nYou can purchase anytime, we're always here for you!",
+      "❌ *Full order cancelled* — all items removed.\n\n💳 No payment was taken and nothing will be charged. Your cart is now empty. 🌿\nYou can purchase anytime, we're always here for you!",
       [{ id: "menu", title: L("keep_shopping").slice(0, 20) }],
     );
     return true;
   }
+
   if (["checkout", "buy now", "place order", "order"].includes(t0)) { await startCheckout(); return true; }
   if (t0 === "usesaved" || t0 === "newaddr") { await startCheckout(); return true; }
 

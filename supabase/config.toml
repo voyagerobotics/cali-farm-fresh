@@ -78,3 +78,6 @@ verify_jwt = false
 
 [functions.check-pending-payments]
 verify_jwt = false
+
+[functions.whatsapp-profile-sync]
+verify_jwt = false

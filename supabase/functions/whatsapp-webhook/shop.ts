@@ -313,7 +313,7 @@ export async function handleShopMessage(ctx: ShopCtx): Promise<boolean> {
       return;
     }
     const { text, total } = cartLines(cart, true);
-    await setMc({ view: "cart", ids: cart.map((c) => c.product_id ?? c.name) });
+    await setMc({ ...mc, view: "cart", ids: cart.map((c) => c.product_id ?? c.name) });
     await sayButtons(
       `${prefix ? prefix + "\n\n" : ""}${L("your_cart")}\n${text}\n\n💰 *${L("total")}: ₹${total}*\n${L("free_above")}`,
       [
@@ -327,13 +327,19 @@ export async function handleShopMessage(ctx: ShopCtx): Promise<boolean> {
   const showCartEditor = async () => {
     if (!cart.length) { await showCart(); return; }
     await setMc({ ...mc, view: "cart" });
+    const { total } = cartLines(cart, true);
     const rows = cart.map((c, i) => ({
       id: `ci:${i + 1}`,
-      title: String(c.name).slice(0, 24),
-      description: `×${c.qty} — ₹${Number(c.price) * Number(c.qty)}`,
+      title: `${i + 1}. ${String(c.name)}`.slice(0, 24),
+      description: `×${c.qty} ${c.unit ?? ""} • ₹${Number(c.price) * Number(c.qty)} — tap to change`.slice(0, 72),
     }));
-    rows.push({ id: "clear", title: L("clear_cart"), description: "" });
-    await sayList(L("pick_item_to_edit"), L("edit_item").slice(0, 20), rows);
+    rows.push({ id: "clear", title: L("clear_cart").slice(0, 24), description: "Remove every item" });
+    if (mc.fromConfirm) rows.push({ id: "backconfirm", title: "🔙 Back to summary", description: "Review and confirm" });
+    await sayList(
+      `🛠️ *Edit your cart* (₹${total})\n\n${L("pick_item_to_edit")}\nYou can add one, remove one, or delete an item — the rest of your order stays as it is.`,
+      L("edit_item").slice(0, 20),
+      rows,
+    );
   };
 
   const saveCart = async () => {
@@ -358,7 +364,7 @@ export async function handleShopMessage(ctx: ShopCtx): Promise<boolean> {
     const item = cart[n - 1];
     if (!item) { await showCart(); return; }
     await sayButtons(
-      `🛒 *${item.name}*\n₹${item.price} / ${item.unit} × ${item.qty} = ₹${Number(item.price) * Number(item.qty)}`,
+      `🛒 *${item.name}*\n₹${item.price} / ${item.unit} × *${item.qty}* = ₹${Number(item.price) * Number(item.qty)}\n\nWhat would you like to do with this item?`,
       [
         { id: `qty+:${n}`, title: L("add_one").slice(0, 20) },
         { id: `qty-:${n}`, title: L("remove_one").slice(0, 20) },
@@ -366,6 +372,7 @@ export async function handleShopMessage(ctx: ShopCtx): Promise<boolean> {
       ],
     );
   };
+
 
   // ── Text-typed cart edits (kept as a fallback) ──
   const editCart = async (): Promise<boolean> => {

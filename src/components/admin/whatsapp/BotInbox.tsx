@@ -107,14 +107,28 @@ const BotInbox = () => {
 
   const openConv = async (c: Conv) => {
     setActive(c);
-    const { data } = await supabase.from("whatsapp_messages").select("*")
-      .eq("phone_number", c.phone_number).order("created_at", { ascending: true }).limit(300);
-    setMsgs(data || []);
+    setMsgs([]);
+    setLoadingMsgs(true);
+    // Page through the whole history so nothing is cut off
+    const all: any[] = [];
+    const PAGE = 500;
+    for (let from = 0; from < 10000; from += PAGE) {
+      const { data, error } = await supabase.from("whatsapp_messages").select("*")
+        .eq("phone_number", c.phone_number)
+        .order("created_at", { ascending: true })
+        .range(from, from + PAGE - 1);
+      if (error) break;
+      all.push(...(data || []));
+      if (!data || data.length < PAGE) break;
+    }
+    setMsgs(all);
+    setLoadingMsgs(false);
     if (c.unread_count) {
       await supabase.from("whatsapp_conversations").update({ unread_count: 0 } as any).eq("phone_number", c.phone_number);
       loadConvs();
     }
   };
+
 
   const patch = async (phone: string, updates: Record<string, any>) => {
     await supabase.from("whatsapp_conversations").update(updates as any).eq("phone_number", phone);

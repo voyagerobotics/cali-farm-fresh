@@ -504,12 +504,19 @@ async function handleOrderActions(
     }
   }
 
-  // Contact support
+  // Contact support → auto-create a support request with the order details
   if (lower.startsWith("support:") || lower === "support" || lower === "contact support" || lower === "💬 contact support") {
-    await sendWhatsAppMessage(phone, SUPPORT_TEXT);
-    await logMessage(phone, "outbound", SUPPORT_TEXT);
+    const orderNumber = raw.includes(":") ? raw.split(":")[1] : null;
+    const order = await findRecentOrder(phone, orderNumber);
+    const body = await createSupportTicket(phone, order);
+    await sendWhatsAppButtons(phone, body, [
+      order ? { id: `summary:${order.order_number}`, title: "🧾 Order summary" } : { id: "orders", title: "📦 My Orders" },
+      { id: "menu", title: "🛍️ Keep shopping" },
+    ]);
+    await logMessage(phone, "outbound", body);
     return true;
   }
+
 
   // Order summary
   if (

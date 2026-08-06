@@ -1,11 +1,13 @@
 import { useEffect, useState } from "react";
-import { Upload, Save, Plus, X, Loader2 } from "lucide-react";
+import { Upload, Save, Plus, X, Loader2, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useBotSettings, BotSettings } from "@/hooks/useBotSettings";
 import { useImageUpload } from "@/hooks/useImageUpload";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
 
 const SOCIALS = ["instagram", "facebook", "youtube", "x", "linkedin"];
 

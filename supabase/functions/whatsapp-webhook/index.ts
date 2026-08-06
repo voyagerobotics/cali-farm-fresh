@@ -305,6 +305,68 @@ const SUPPORT_TEXT =
   "💬 *California Farms Support*\n\nOur team is right here. Please tell us what went wrong (you can send photos too) and we'll reply shortly.\n\n📞 Call/WhatsApp: +91 86000 11641\n📧 Email: californiafarmsindia@gmail.com\n🕘 Support hours: 8 AM – 8 PM IST\n\nType *MENU* anytime to continue shopping.";
 
 const IST_TZ = "Asia/Kolkata";
+
+/** Creates a support request (visible to admins) with the customer's order details attached. */
+async function createSupportTicket(
+  phone: string,
+  order: Record<string, any> | null,
+): Promise<string> {
+  const ref = `SUP-${new Date().toISOString().slice(0, 10).replace(/-/g, "")}-${
+    Math.random().toString(36).slice(2, 6).toUpperCase()
+  }`;
+  const items = Array.isArray(order?.order_items) ? order!.order_items : [];
+  const itemLines = items.map((it: any) => `• ${it.product_name} ×${it.quantity} — ₹${it.total_price}`).join("\n");
+  const note = [
+    `🆘 SUPPORT REQUEST ${ref}`,
+    `Raised from WhatsApp by +${phone}`,
+    order
+      ? [
+        `Order: #${order.order_number}`,
+        `Status: ${String(order.status).replace(/_/g, " ")} (locked for self-service edits)`,
+        `Payment: ${order.payment_status} • Total: ₹${order.total}`,
+        `Customer: ${order.delivery_name || "—"} • ${order.delivery_phone || phone}`,
+        `Address: ${order.delivery_address || "—"}`,
+        itemLines ? `Items:\n${itemLines}` : "",
+      ].filter(Boolean).join("\n")
+      : "No recent order found for this number.",
+  ].join("\n");
+
+  try {
+    await supabase.from("whatsapp_customer_notes").insert({ phone_number: phone, note });
+    await supabase
+      .from("whatsapp_conversations")
+      .update({ inbox_status: "open", is_starred: true, updated_at: new Date().toISOString() })
+      .eq("phone_number", phone);
+    if (order?.id) {
+      await logActivity({
+        order_id: order.id,
+        order_number: order.order_number,
+        phone_number: phone,
+        direction: "inbound",
+        event_type: "support_request",
+        body: note,
+        success: true,
+      });
+    }
+  } catch (e) {
+    console.error("support ticket creation failed", e);
+  }
+
+  return [
+    `🎫 *Support request created — ${ref}*`,
+    "",
+    order
+      ? `We've attached your order *#${order.order_number}* (${String(order.status).replace(/_/g, " ")}, ₹${order.total}) so our team already has everything they need.`
+      : "Our team has your number and chat history — just tell us what you need help with.",
+    "",
+    "⏱️ A team member will reply here, usually within 30 minutes during support hours.",
+    "",
+    "📞 +91 86000 11641\n📧 californiafarmsindia@gmail.com\n🕘 8 AM – 8 PM IST",
+    "",
+    "You can keep typing here — anything you send is added to this request.",
+  ].join("\n");
+}
+
 const istDay = (d: Date) =>
   d.toLocaleDateString("en-IN", { timeZone: IST_TZ, weekday: "short", day: "numeric", month: "short" });
 

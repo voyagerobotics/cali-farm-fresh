@@ -41,13 +41,40 @@ const BotInbox = () => {
   const bottomRef = useRef<HTMLDivElement>(null);
 
   const loadConvs = async () => {
-    const { data } = await supabase
-      .from("whatsapp_conversations")
-      .select("*")
-      .order("last_message_at", { ascending: false, nullsFirst: false });
-    setConvs((data as any[]) || []);
+    const [{ data }, { data: msgRows }] = await Promise.all([
+      supabase
+        .from("whatsapp_conversations")
+        .select("*")
+        .order("last_message_at", { ascending: false, nullsFirst: false }),
+      supabase
+        .from("whatsapp_messages")
+        .select("phone_number, message_text, created_at")
+        .order("created_at", { ascending: false })
+        .limit(2000),
+    ]);
+
+    const list = ((data as any[]) || []).map((c) => ({ ...c }));
+    const byPhone = new Map<string, any>(list.map((c) => [c.phone_number, c]));
+
+    // Backfill conversations that only exist in the message history,
+    // and fill in missing last-message info so nothing is hidden.
+    for (const m of (msgRows as any[]) || []) {
+      const existing = byPhone.get(m.phone_number);
+      if (!existing) {
+        const created = { phone_number: m.phone_number, last_message_at: m.created_at, last_message_text: m.message_text, unread_count: 0, inbox_status: "open" };
+        byPhone.set(m.phone_number, created);
+        list.push(created);
+      } else if (!existing.last_message_at) {
+        existing.last_message_at = m.created_at;
+        existing.last_message_text = existing.last_message_text || m.message_text;
+      }
+    }
+
+    list.sort((a, b) => new Date(b.last_message_at || 0).getTime() - new Date(a.last_message_at || 0).getTime());
+    setConvs(list as Conv[]);
     setLoading(false);
   };
+
 
   const loadAdmins = async () => {
     const { data: roles } = await supabase.from("user_roles").select("user_id").eq("role", "admin");

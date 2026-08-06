@@ -301,8 +301,11 @@ async function sendWhatsAppList(
 }
 
 // ─── Post-order actions: Contact support, Order summary & Reschedule delivery ───
+const SUPPORT_CONTACT =
+  "📞 Call/WhatsApp: +91 81497 12801\n📧 shradhatakalkhede15@gmail.com\n📧 californiafarmsindia@gmail.com\n🕘 Support hours: 8 AM – 8 PM IST";
+
 const SUPPORT_TEXT =
-  "💬 *California Farms Support*\n\nOur team is right here. Please tell us what went wrong (you can send photos too) and we'll reply shortly.\n\n📞 Call/WhatsApp: +91 86000 11641\n📧 Email: californiafarmsindia@gmail.com\n🕘 Support hours: 8 AM – 8 PM IST\n\nType *MENU* anytime to continue shopping.";
+  `💬 *California Farms Support*\n\nOur team is right here. Please tell us what went wrong (you can send photos too) and we'll reply shortly.\n\n${SUPPORT_CONTACT}\n\nType *MENU* anytime to continue shopping.`;
 
 const IST_TZ = "Asia/Kolkata";
 
@@ -310,7 +313,7 @@ const IST_TZ = "Asia/Kolkata";
 async function createSupportTicket(
   phone: string,
   order: Record<string, any> | null,
-): Promise<string> {
+): Promise<{ ref: string; body: string }> {
   const ref = `SUP-${new Date().toISOString().slice(0, 10).replace(/-/g, "")}-${
     Math.random().toString(36).slice(2, 6).toUpperCase()
   }`;
@@ -352,19 +355,21 @@ async function createSupportTicket(
     console.error("support ticket creation failed", e);
   }
 
-  return [
+  const body = [
     `🎫 *Support request created — ${ref}*`,
     "",
     order
       ? `We've attached your order *#${order.order_number}* (${String(order.status).replace(/_/g, " ")}, ₹${order.total}) so our team already has everything they need.`
       : "Our team has your number and chat history — just tell us what you need help with.",
     "",
+    "✍️ *Please describe your issue in a message below* (what happened, item name, etc.). You can also send a photo.",
+    "",
     "⏱️ A team member will reply here, usually within 30 minutes during support hours.",
     "",
-    "📞 +91 86000 11641\n📧 californiafarmsindia@gmail.com\n🕘 8 AM – 8 PM IST",
-    "",
-    "You can keep typing here — anything you send is added to this request.",
+    SUPPORT_CONTACT,
   ].join("\n");
+
+  return { ref, body };
 }
 
 const istDay = (d: Date) =>
@@ -541,6 +546,35 @@ async function handleOrderActions(
       .select("conversation_state, menu_context")
       .eq("phone_number", phone)
       .maybeSingle();
+    if (conv?.conversation_state === "awaiting_support_issue") {
+      const ctx = (conv.menu_context || {}) as Record<string, any>;
+      const issue = String(text).slice(0, 800);
+      if (lower === "menu" || lower === "cancel") {
+        await updateConversation(phone, { conversation_state: "idle", menu_context: {} });
+        return false;
+      }
+      await supabase.from("whatsapp_customer_notes").insert({
+        phone_number: phone,
+        note: `🆘 ISSUE DESCRIPTION for ${ctx.support_ref || "support request"}${ctx.support_order ? ` (Order #${ctx.support_order})` : ""}:\n${issue}`,
+      });
+      await supabase
+        .from("whatsapp_conversations")
+        .update({ inbox_status: "open", is_starred: true, updated_at: new Date().toISOString() })
+        .eq("phone_number", phone);
+      await updateConversation(phone, { conversation_state: "idle", menu_context: {} });
+      const msg = [
+        `✅ *Thanks — we've added your issue to ${ctx.support_ref || "your support request"}.*`,
+        "",
+        `_"${issue}"_`,
+        "",
+        "⏱️ Our team will reply here shortly. You can keep sending messages or photos and they'll be added to this request.",
+        "",
+        SUPPORT_CONTACT,
+      ].join("\n");
+      await sendWhatsAppButtons(phone, msg, [{ id: "menu", title: "🛍️ Keep shopping" }]);
+      await logMessage(phone, "outbound", msg);
+      return true;
+    }
     if (conv?.conversation_state === "awaiting_delivery_note") {
       const ctx = (conv.menu_context || {}) as Record<string, any>;
       if (lower === "skip" || lower === "no" || lower === "❌ skip note") {
@@ -570,7 +604,11 @@ async function handleOrderActions(
   if (lower.startsWith("support:") || lower === "support" || lower === "contact support" || lower === "💬 contact support") {
     const orderNumber = raw.includes(":") ? raw.split(":")[1] : null;
     const order = await findRecentOrder(phone, orderNumber);
-    const body = await createSupportTicket(phone, order);
+    const { ref, body } = await createSupportTicket(phone, order);
+    await updateConversation(phone, {
+      conversation_state: "awaiting_support_issue",
+      menu_context: { support_ref: ref, support_order: order?.order_number || null },
+    });
     await sendWhatsAppButtons(phone, body, [
       order ? { id: `summary:${order.order_number}`, title: "🧾 Order summary" } : { id: "orders", title: "📦 My Orders" },
       { id: "menu", title: "🛍️ Keep shopping" },

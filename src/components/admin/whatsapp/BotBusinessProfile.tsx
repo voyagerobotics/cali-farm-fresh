@@ -15,8 +15,27 @@ const BotBusinessProfile = () => {
   const { settings, isLoading, isSaving, save } = useBotSettings();
   const { uploadImage, isUploading } = useImageUpload();
   const [form, setForm] = useState<BotSettings | null>(null);
+  const [isSyncing, setIsSyncing] = useState(false);
+  const { toast } = useToast();
 
   useEffect(() => { if (settings) setForm(settings); }, [settings]);
+
+  const handleSync = async () => {
+    setIsSyncing(true);
+    const { data, error } = await supabase.functions.invoke("whatsapp-profile-sync", { body: {} });
+    setIsSyncing(false);
+    if (error) {
+      toast({ title: "Sync failed", description: error.message, variant: "destructive" });
+      return;
+    }
+    toast({
+      title: data?.ok ? "Synced to WhatsApp" : "Sync partially failed",
+      description: data?.ok
+        ? "Profile picture and business details are live on WhatsApp."
+        : "Check the logs for details.",
+      variant: data?.ok ? "default" : "destructive",
+    });
+  };
 
   if (isLoading || !form) {
     return <div className="flex justify-center py-16"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>;

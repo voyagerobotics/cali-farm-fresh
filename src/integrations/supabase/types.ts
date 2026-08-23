@@ -224,6 +224,81 @@ export type Database = {
         }
         Relationships: []
       }
+      farmer_enquiries: {
+        Row: {
+          created_at: string
+          email: string | null
+          full_name: string
+          id: string
+          interest: string | null
+          location: string | null
+          message: string | null
+          phone: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          email?: string | null
+          full_name: string
+          id?: string
+          interest?: string | null
+          location?: string | null
+          message?: string | null
+          phone: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          email?: string | null
+          full_name?: string
+          id?: string
+          interest?: string | null
+          location?: string | null
+          message?: string | null
+          phone?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      nav_links: {
+        Row: {
+          created_at: string
+          display_order: number
+          id: string
+          is_visible: boolean
+          label: string
+          link_type: string
+          link_value: string
+          open_in_new_tab: boolean
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          display_order?: number
+          id?: string
+          is_visible?: boolean
+          label: string
+          link_type?: string
+          link_value: string
+          open_in_new_tab?: boolean
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          display_order?: number
+          id?: string
+          is_visible?: boolean
+          label?: string
+          link_type?: string
+          link_value?: string
+          open_in_new_tab?: boolean
+          updated_at?: string
+        }
+        Relationships: []
+      }
       offline_customers: {
         Row: {
           address: string | null

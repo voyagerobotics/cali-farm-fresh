@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Package, ShoppingBag, BarChart3, LogOut, ArrowLeft, FolderTree, Settings, Activity, Users, Megaphone, Mail, GraduationCap, MessageSquare } from "lucide-react";
+import { Package, ShoppingBag, BarChart3, LogOut, ArrowLeft, FolderTree, Settings, Activity, Users, Megaphone, Mail, GraduationCap, MessageSquare, Sprout, Menu } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
 import { useAdminVerification } from "@/hooks/useAdminVerification";
@@ -15,8 +15,10 @@ import AdminBanners from "@/components/admin/AdminBanners";
 import AdminEmailLogs from "@/components/admin/AdminEmailLogs";
 import AdminFarmVisits from "@/components/admin/AdminFarmVisits";
 import AdminWhatsApp from "@/components/admin/AdminWhatsApp";
+import AdminNavLinks from "@/components/admin/AdminNavLinks";
+import AdminFarmerEnquiries from "@/components/admin/AdminFarmerEnquiries";
 
-type TabType = "analytics" | "orders" | "products" | "categories" | "customers" | "banners" | "emails" | "whatsapp" | "farm-visits" | "settings" | "logs";
+type TabType = "analytics" | "orders" | "products" | "categories" | "customers" | "banners" | "emails" | "whatsapp" | "farm-visits" | "farmers" | "navigation" | "settings" | "logs";
 
 
 const Admin = () => {
@@ -51,6 +53,8 @@ const Admin = () => {
     { id: "whatsapp" as const, label: "WhatsApp", icon: MessageSquare },
     { id: "farm-visits" as const, label: "Farm Visits", icon: GraduationCap },
 
+    { id: "farmers" as const, label: "Farmer Enquiries", icon: Sprout },
+    { id: "navigation" as const, label: "Navigation", icon: Menu },
     { id: "logs" as const, label: "Logs", icon: Activity },
     { id: "settings" as const, label: "Settings", icon: Settings },
   ];
@@ -78,12 +82,12 @@ const Admin = () => {
           </div>
 
           {/* Tabs */}
-          <div className="flex gap-1 mt-4 -mb-px">
+          <div className="flex gap-1 mt-4 -mb-px overflow-x-auto">
             {tabs.map((tab) => (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center gap-2 px-4 py-3 font-medium text-sm border-b-2 transition-colors ${
+                className={`flex items-center gap-2 px-4 py-3 whitespace-nowrap font-medium text-sm border-b-2 transition-colors ${
                   activeTab === tab.id
                     ? "border-primary text-primary"
                     : "border-transparent text-muted-foreground hover:text-foreground hover:border-border"
@@ -109,6 +113,8 @@ const Admin = () => {
         {activeTab === "whatsapp" && <AdminWhatsApp />}
 
         {activeTab === "farm-visits" && <AdminFarmVisits />}
+        {activeTab === "farmers" && <AdminFarmerEnquiries />}
+        {activeTab === "navigation" && <AdminNavLinks />}
         {activeTab === "logs" && <AdminLogs />}
         {activeTab === "settings" && <AdminSettings />}
       </div>

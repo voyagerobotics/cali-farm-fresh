@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
+import FarmerEnquiryForm from "@/components/farmers/FarmerEnquiryForm";
 import {
   FARMER_SOLUTIONS, FARMERS_PHONE, FARMERS_PHONE_DISPLAY, FARMERS_WHATSAPP,
 } from "@/data/farmerSolutions";
@@ -69,12 +70,14 @@ const SectionHeader = ({
   </div>
 );
 
+const scrollToEnquiry = () => {
+  document.getElementById("farmer-enquiry")?.scrollIntoView({ behavior: "smooth", block: "start" });
+};
+
 const EnquireButton = ({ label }: { label: string }) => (
-  <Button asChild size="lg" className="mt-2">
-    <a href={`tel:${FARMERS_PHONE}`}>
-      {label}
-      <ArrowRight className="w-4 h-4" />
-    </a>
+  <Button size="lg" className="mt-2" onClick={scrollToEnquiry}>
+    {label}
+    <ArrowRight className="w-4 h-4" />
   </Button>
 );
 
@@ -604,6 +607,24 @@ const Farmers = () => {
         </div>
       </section>
 
+      {/* ENQUIRY FORM */}
+      <section id="farmer-enquiry" className="py-16 md:py-24 bg-muted/40 scroll-mt-32">
+        <div className="container mx-auto px-4 max-w-3xl">
+          <div className="text-center mb-8">
+            <p className="text-xs md:text-sm font-semibold uppercase tracking-widest text-primary mb-2">
+              Talk to our farm team
+            </p>
+            <h2 className="font-heading text-2xl md:text-4xl font-bold text-foreground mb-3">
+              Send Us Your Farm Requirement
+            </h2>
+            <p className="text-muted-foreground">
+              Share a few details and our farm solutions team will get back to you within 24 hours.
+            </p>
+          </div>
+          <FarmerEnquiryForm />
+        </div>
+      </section>
+
       {/* FINAL CTA */}
       <section className="py-16 md:py-24 bg-primary text-primary-foreground">
         <div className="container mx-auto px-4 text-center max-w-3xl">
@@ -620,11 +641,9 @@ const Farmers = () => {
           <p className="text-primary-foreground/85 mb-8">Contact us to discuss your farm requirement.</p>
 
           <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 justify-center">
-            <Button size="lg" variant="secondary" asChild>
-              <a href={`tel:${FARMERS_PHONE}`}>
-                Enquire Now
-                <ArrowRight className="w-4 h-4" />
-              </a>
+            <Button size="lg" variant="secondary" onClick={scrollToEnquiry}>
+              Enquire Now
+              <ArrowRight className="w-4 h-4" />
             </Button>
             <Button size="lg" variant="heroOutline" asChild>
               <a href={`tel:${FARMERS_PHONE}`}>

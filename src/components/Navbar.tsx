@@ -7,6 +7,7 @@ import { useCart } from "@/contexts/CartContext";
 import CartDrawer from "./CartDrawer";
 import NotificationBell from "./NotificationBell";
 import FreeDeliveryBanner from "./FreeDeliveryBanner";
+import FarmersPromoBanner from "./FarmersPromoBanner";
 import { FARMER_SOLUTIONS, FARMERS_PHONE, FARMERS_PHONE_DISPLAY } from "@/data/farmerSolutions";
 
 const Navbar = () => {

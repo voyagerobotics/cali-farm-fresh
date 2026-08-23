@@ -260,6 +260,47 @@ const Navbar = () => {
                 >
                   Why Us
                 </button>
+                {/* Farmers accordion */}
+                <div className="border-y border-border/60 py-2">
+                  <button
+                    onClick={() => setIsFarmersOpen((o) => !o)}
+                    className="w-full flex items-center justify-between text-sm font-medium text-muted-foreground hover:text-primary transition-colors"
+                    aria-expanded={isFarmersOpen}
+                  >
+                    Farmers
+                    <ChevronDown
+                      className={`w-4 h-4 transition-transform ${isFarmersOpen ? "rotate-180" : ""}`}
+                    />
+                  </button>
+                  {isFarmersOpen && (
+                    <div className="mt-3 flex flex-col gap-1 animate-fade-in">
+                      <button
+                        onClick={() => { navigate("/farmers"); setIsMenuOpen(false); setIsFarmersOpen(false); }}
+                        className="text-left text-sm font-semibold text-primary py-1.5"
+                      >
+                        Farmers Solutions
+                      </button>
+                      {FARMER_SOLUTIONS.map((s) => (
+                        <button
+                          key={s.id}
+                          onClick={() => { navigate(`/farmers#${s.id}`); setIsMenuOpen(false); setIsFarmersOpen(false); }}
+                          className="flex items-start gap-2.5 text-left text-sm text-muted-foreground hover:text-primary transition-colors py-1.5"
+                        >
+                          <s.icon className="w-4 h-4 text-primary mt-0.5 flex-shrink-0" />
+                          <span className="leading-snug">{s.title}</span>
+                        </button>
+                      ))}
+                      <a
+                        href={`tel:${FARMERS_PHONE}`}
+                        className="flex items-center gap-2 text-xs text-muted-foreground py-1.5"
+                      >
+                        <Phone className="w-3.5 h-3.5" />
+                        Farmers Enquiries: {FARMERS_PHONE_DISPLAY}
+                      </a>
+                    </div>
+                  )}
+                </div>
+
                 <button
                   onClick={() => scrollToSection("contact")}
                   className="text-sm font-medium text-muted-foreground hover:text-primary transition-colors text-left"

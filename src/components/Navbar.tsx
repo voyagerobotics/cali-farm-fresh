@@ -12,6 +12,7 @@ import { FARMER_SOLUTIONS, FARMERS_PHONE, FARMERS_PHONE_DISPLAY } from "@/data/f
 const Navbar = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isCartOpen, setIsCartOpen] = useState(false);
+  const [isFarmersOpen, setIsFarmersOpen] = useState(false);
   const { user, isAdmin, signOut } = useAuth();
   const { itemCount } = useCart();
   const navigate = useNavigate();

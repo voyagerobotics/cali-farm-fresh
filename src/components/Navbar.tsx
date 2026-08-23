@@ -9,6 +9,7 @@ import NotificationBell from "./NotificationBell";
 import FreeDeliveryBanner from "./FreeDeliveryBanner";
 import FarmersPromoBanner from "./FarmersPromoBanner";
 import { FARMER_SOLUTIONS, FARMERS_PHONE, FARMERS_PHONE_DISPLAY } from "@/data/farmerSolutions";
+import { useNavLinks, type NavLink } from "@/hooks/useNavLinks";
 
 const Navbar = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -18,6 +19,7 @@ const Navbar = () => {
   const { itemCount } = useCart();
   const navigate = useNavigate();
   const location = useLocation();
+  const navLinks = useNavLinks();
 
   const isHomePage = location.pathname === "/";
 
@@ -34,6 +36,23 @@ const Navbar = () => {
     }
     setIsMenuOpen(false);
   };
+
+  const handleNavLink = (link: NavLink) => {
+    setIsMenuOpen(false);
+    if (link.link_type === "external") {
+      window.open(link.link_value, link.open_in_new_tab ? "_blank" : "_self", "noopener,noreferrer");
+      return;
+    }
+    if (link.link_type === "route") {
+      navigate(link.link_value.startsWith("/") ? link.link_value : `/${link.link_value}`);
+      window.scrollTo({ top: 0 });
+      return;
+    }
+    scrollToSection(link.link_value);
+  };
+
+  const beforeFarmers = navLinks.filter((l) => l.display_order < 4);
+  const afterFarmers = navLinks.filter((l) => l.display_order >= 4);
 
   const handleAuthClick = () => {
     if (user) {
@@ -68,24 +87,15 @@ const Navbar = () => {
 
             {/* Desktop Navigation */}
             <div className="hidden md:flex items-center gap-8">
-              <button
-                onClick={() => scrollToSection("about")}
-                className="text-sm font-medium text-muted-foreground hover:text-primary transition-colors"
-              >
-                About
-              </button>
-              <button
-                onClick={() => scrollToSection("products")}
-                className="text-sm font-medium text-muted-foreground hover:text-primary transition-colors"
-              >
-                Products
-              </button>
-              <button
-                onClick={() => scrollToSection("benefits")}
-                className="text-sm font-medium text-muted-foreground hover:text-primary transition-colors"
-              >
-                Why Us
-              </button>
+              {beforeFarmers.map((l) => (
+                <button
+                  key={l.id}
+                  onClick={() => handleNavLink(l)}
+                  className="text-sm font-medium text-muted-foreground hover:text-primary transition-colors"
+                >
+                  {l.label}
+                </button>
+              ))}
 
               {/* Farmers dropdown */}
               <div className="relative group">
@@ -132,12 +142,15 @@ const Navbar = () => {
                 </div>
               </div>
 
-              <button
-                onClick={() => scrollToSection("contact")}
-                className="text-sm font-medium text-muted-foreground hover:text-primary transition-colors"
-              >
-                Contact
-              </button>
+              {afterFarmers.map((l) => (
+                <button
+                  key={l.id}
+                  onClick={() => handleNavLink(l)}
+                  className="text-sm font-medium text-muted-foreground hover:text-primary transition-colors"
+                >
+                  {l.label}
+                </button>
+              ))}
             </div>
 
             {/* Right Side Actions */}
@@ -245,24 +258,15 @@ const Navbar = () => {
           {isMenuOpen && (
             <div className="md:hidden mt-4 pb-4 border-t border-border pt-4 animate-fade-in">
               <div className="flex flex-col gap-4">
-                <button
-                  onClick={() => scrollToSection("about")}
-                  className="text-sm font-medium text-muted-foreground hover:text-primary transition-colors text-left"
-                >
-                  About
-                </button>
-                <button
-                  onClick={() => scrollToSection("products")}
-                  className="text-sm font-medium text-muted-foreground hover:text-primary transition-colors text-left"
-                >
-                  Products
-                </button>
-                <button
-                  onClick={() => scrollToSection("benefits")}
-                  className="text-sm font-medium text-muted-foreground hover:text-primary transition-colors text-left"
-                >
-                  Why Us
-                </button>
+                {beforeFarmers.map((l) => (
+                  <button
+                    key={l.id}
+                    onClick={() => handleNavLink(l)}
+                    className="text-sm font-medium text-muted-foreground hover:text-primary transition-colors text-left"
+                  >
+                    {l.label}
+                  </button>
+                ))}
                 {/* Farmers accordion */}
                 <div className="border-y border-border/60 py-2">
                   <button
@@ -304,12 +308,15 @@ const Navbar = () => {
                   )}
                 </div>
 
-                <button
-                  onClick={() => scrollToSection("contact")}
-                  className="text-sm font-medium text-muted-foreground hover:text-primary transition-colors text-left"
-                >
-                  Contact
-                </button>
+                {afterFarmers.map((l) => (
+                  <button
+                    key={l.id}
+                    onClick={() => handleNavLink(l)}
+                    className="text-sm font-medium text-muted-foreground hover:text-primary transition-colors text-left"
+                  >
+                    {l.label}
+                  </button>
+                ))}
 
                 {user && (
                   <button

@@ -24,12 +24,24 @@ const useHead = () => {
     const meta = document.querySelector('meta[name="description"]');
     const prevDesc = meta?.getAttribute("content") ?? "";
     meta?.setAttribute("content", PAGE_DESC);
+
+    // Preload the hero image so it starts downloading before React paints
+    const preload = document.createElement("link");
+    preload.rel = "preload";
+    preload.as = "image";
+    preload.href = "/farmers/farmers-hero.webp";
+    preload.type = "image/webp";
+    preload.setAttribute("fetchpriority", "high");
+    document.head.appendChild(preload);
+
     return () => {
       document.title = prevTitle;
       meta?.setAttribute("content", prevDesc);
+      preload.remove();
     };
   }, []);
 };
+
 
 const SaplingChips = [
   "Dragon Fruit", "Strawberry", "Moringa", "Melia Dubia", "Mahogany", "Custard Apple", "Fig",
@@ -102,13 +114,19 @@ const Farmers = () => {
 
       {/* HERO */}
       <section className="relative pt-40 pb-20 md:pt-48 md:pb-28 overflow-hidden">
-        <img
-          src="/farmers/farmers-hero.jpg"
-          alt="Aerial view of an irrigated farm with crop rows and a farm pond"
-          width={1920}
-          height={1080}
-          className="absolute inset-0 w-full h-full object-cover"
-        />
+        <picture>
+          <source srcSet="/farmers/farmers-hero.webp" type="image/webp" />
+          <img
+            src="/farmers/farmers-hero.jpg"
+            alt="Aerial view of an irrigated farm with crop rows and a farm pond"
+            width={1440}
+            height={816}
+            loading="eager"
+            decoding="async"
+            fetchPriority="high"
+            className="absolute inset-0 w-full h-full object-cover bg-muted"
+          />
+        </picture>
         <div className="absolute inset-0 bg-gradient-to-r from-foreground/85 via-foreground/65 to-foreground/25" />
 
         <div className="relative z-10 container mx-auto px-4">

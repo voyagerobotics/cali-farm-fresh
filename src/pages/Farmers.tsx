@@ -24,12 +24,24 @@ const useHead = () => {
     const meta = document.querySelector('meta[name="description"]');
     const prevDesc = meta?.getAttribute("content") ?? "";
     meta?.setAttribute("content", PAGE_DESC);
+
+    // Preload the hero image so it starts downloading before React paints
+    const preload = document.createElement("link");
+    preload.rel = "preload";
+    preload.as = "image";
+    preload.href = "/farmers/farmers-hero.webp";
+    preload.type = "image/webp";
+    preload.setAttribute("fetchpriority", "high");
+    document.head.appendChild(preload);
+
     return () => {
       document.title = prevTitle;
       meta?.setAttribute("content", prevDesc);
+      preload.remove();
     };
   }, []);
 };
+
 
 const SaplingChips = [
   "Dragon Fruit", "Strawberry", "Moringa", "Melia Dubia", "Mahogany", "Custard Apple", "Fig",

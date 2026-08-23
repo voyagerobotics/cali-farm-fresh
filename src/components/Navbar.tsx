@@ -82,6 +82,52 @@ const Navbar = () => {
               >
                 Why Us
               </button>
+
+              {/* Farmers dropdown */}
+              <div className="relative group">
+                <button
+                  onClick={() => navigate("/farmers")}
+                  className="flex items-center gap-1 text-sm font-medium text-muted-foreground hover:text-primary transition-colors"
+                >
+                  Farmers
+                  <ChevronDown className="w-3.5 h-3.5 transition-transform group-hover:rotate-180" />
+                </button>
+                <div className="invisible opacity-0 translate-y-1 group-hover:visible group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-200 absolute left-1/2 -translate-x-1/2 top-full pt-4 z-50">
+                  <div className="w-[340px] rounded-2xl border border-border bg-popover shadow-lg p-2">
+                    <button
+                      onClick={() => navigate("/farmers")}
+                      className="w-full text-left px-3 py-2.5 rounded-xl hover:bg-accent transition-colors"
+                    >
+                      <span className="block text-sm font-semibold text-foreground">Farmers Solutions</span>
+                      <span className="block text-xs text-muted-foreground">
+                        Grow Better. Protect Better. Farm Smarter.
+                      </span>
+                    </button>
+                    <div className="h-px bg-border my-1.5" />
+                    {FARMER_SOLUTIONS.map((s) => (
+                      <button
+                        key={s.id}
+                        onClick={() => navigate(`/farmers#${s.id}`)}
+                        className="w-full flex items-start gap-3 px-3 py-2 rounded-xl hover:bg-accent transition-colors text-left"
+                      >
+                        <span className="mt-0.5 inline-flex items-center justify-center w-7 h-7 rounded-lg bg-primary/10 text-primary flex-shrink-0">
+                          <s.icon className="w-4 h-4" />
+                        </span>
+                        <span className="text-sm text-foreground leading-snug">{s.title}</span>
+                      </button>
+                    ))}
+                    <div className="h-px bg-border my-1.5" />
+                    <a
+                      href={`tel:${FARMERS_PHONE}`}
+                      className="flex items-center gap-2 px-3 py-2 text-xs text-muted-foreground hover:text-primary transition-colors"
+                    >
+                      <Phone className="w-3.5 h-3.5" />
+                      Farmers Enquiries: {FARMERS_PHONE_DISPLAY}
+                    </a>
+                  </div>
+                </div>
+              </div>
+
               <button
                 onClick={() => scrollToSection("contact")}
                 className="text-sm font-medium text-muted-foreground hover:text-primary transition-colors"

@@ -1,4 +1,4 @@
-import { Leaf, Phone, Menu, X, ShoppingCart, User, LogOut, Package, ShoppingBag } from "lucide-react";
+import { Leaf, Phone, Menu, X, ShoppingCart, User, LogOut, Package, ShoppingBag, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
@@ -7,6 +7,7 @@ import { useCart } from "@/contexts/CartContext";
 import CartDrawer from "./CartDrawer";
 import NotificationBell from "./NotificationBell";
 import FreeDeliveryBanner from "./FreeDeliveryBanner";
+import { FARMER_SOLUTIONS, FARMERS_PHONE, FARMERS_PHONE_DISPLAY } from "@/data/farmerSolutions";
 
 const Navbar = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);

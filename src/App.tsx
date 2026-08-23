@@ -22,6 +22,7 @@ import ContactUs from "./pages/ContactUs";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
 import MyPreOrders from "./pages/MyPreOrders";
 import SchoolVisits from "./pages/SchoolVisits";
+import Farmers from "./pages/Farmers";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient({
@@ -65,6 +66,7 @@ const App = () => (
                 <Route path="/contact" element={<ContactUs />} />
                 <Route path="/privacy-policy" element={<PrivacyPolicy />} />
                 <Route path="/school-visits" element={<SchoolVisits />} />
+                <Route path="/farmers" element={<Farmers />} />
                 <Route path="*" element={<NotFound />} />
               </Routes>
             </BrowserRouter>

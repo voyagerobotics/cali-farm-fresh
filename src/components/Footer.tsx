@@ -2,6 +2,7 @@ import { Leaf, Instagram, Facebook, Phone, Mail, MapPin, Youtube, MessageCircle,
 import { useNavigate } from "react-router-dom";
 import { useSiteSettings } from "@/hooks/useSiteSettings";
 import { useSocialLinks } from "@/hooks/useSocialLinks";
+import { FARMER_SOLUTIONS, FARMERS_PHONE, FARMERS_PHONE_DISPLAY } from "@/data/farmerSolutions";
 
 const Footer = () => {
   const currentYear = new Date().getFullYear();
@@ -40,7 +41,7 @@ const Footer = () => {
   return (
     <footer className="bg-foreground text-background py-12">
       <div className="container mx-auto px-4">
-        <div className="grid md:grid-cols-4 gap-8 mb-8">
+        <div className="grid sm:grid-cols-2 lg:grid-cols-5 gap-8 mb-8">
           {/* Brand */}
           <div>
             <div className="flex items-center gap-2 mb-4">
@@ -145,6 +146,37 @@ const Footer = () => {
                 </button>
               </li>
             </ul>
+          </div>
+
+          {/* Farmers */}
+          <div>
+            <h4 className="font-heading font-semibold text-lg mb-4">Farmers</h4>
+            <ul className="space-y-2">
+              <li>
+                <button
+                  onClick={() => navigate("/farmers")}
+                  className="text-background/70 hover:text-secondary transition-colors text-sm text-left"
+                >
+                  Farmers Solutions
+                </button>
+              </li>
+              {FARMER_SOLUTIONS.map((s) => (
+                <li key={s.id}>
+                  <button
+                    onClick={() => navigate(`/farmers#${s.id}`)}
+                    className="text-background/70 hover:text-secondary transition-colors text-sm text-left"
+                  >
+                    {s.title}
+                  </button>
+                </li>
+              ))}
+            </ul>
+            <p className="text-xs text-background/60 mt-4">
+              Farmers Enquiries:{" "}
+              <a href={`tel:${FARMERS_PHONE}`} className="text-secondary hover:underline">
+                {FARMERS_PHONE_DISPLAY}
+              </a>
+            </p>
           </div>
 
           {/* Contact Info */}

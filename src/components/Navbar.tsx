@@ -1,4 +1,4 @@
-import { Leaf, Phone, Menu, X, ShoppingCart, User, LogOut, Package, ShoppingBag } from "lucide-react";
+import { Leaf, Phone, Menu, X, ShoppingCart, User, LogOut, Package, ShoppingBag, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
@@ -7,10 +7,12 @@ import { useCart } from "@/contexts/CartContext";
 import CartDrawer from "./CartDrawer";
 import NotificationBell from "./NotificationBell";
 import FreeDeliveryBanner from "./FreeDeliveryBanner";
+import { FARMER_SOLUTIONS, FARMERS_PHONE, FARMERS_PHONE_DISPLAY } from "@/data/farmerSolutions";
 
 const Navbar = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isCartOpen, setIsCartOpen] = useState(false);
+  const [isFarmersOpen, setIsFarmersOpen] = useState(false);
   const { user, isAdmin, signOut } = useAuth();
   const { itemCount } = useCart();
   const navigate = useNavigate();
@@ -82,6 +84,52 @@ const Navbar = () => {
               >
                 Why Us
               </button>
+
+              {/* Farmers dropdown */}
+              <div className="relative group">
+                <button
+                  onClick={() => navigate("/farmers")}
+                  className="flex items-center gap-1 text-sm font-medium text-muted-foreground hover:text-primary transition-colors"
+                >
+                  Farmers
+                  <ChevronDown className="w-3.5 h-3.5 transition-transform group-hover:rotate-180" />
+                </button>
+                <div className="invisible opacity-0 translate-y-1 group-hover:visible group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-200 absolute left-1/2 -translate-x-1/2 top-full pt-4 z-50">
+                  <div className="w-[340px] rounded-2xl border border-border bg-popover shadow-lg p-2">
+                    <button
+                      onClick={() => navigate("/farmers")}
+                      className="w-full text-left px-3 py-2.5 rounded-xl hover:bg-accent transition-colors"
+                    >
+                      <span className="block text-sm font-semibold text-foreground">Farmers Solutions</span>
+                      <span className="block text-xs text-muted-foreground">
+                        Grow Better. Protect Better. Farm Smarter.
+                      </span>
+                    </button>
+                    <div className="h-px bg-border my-1.5" />
+                    {FARMER_SOLUTIONS.map((s) => (
+                      <button
+                        key={s.id}
+                        onClick={() => navigate(`/farmers#${s.id}`)}
+                        className="w-full flex items-start gap-3 px-3 py-2 rounded-xl hover:bg-accent transition-colors text-left"
+                      >
+                        <span className="mt-0.5 inline-flex items-center justify-center w-7 h-7 rounded-lg bg-primary/10 text-primary flex-shrink-0">
+                          <s.icon className="w-4 h-4" />
+                        </span>
+                        <span className="text-sm text-foreground leading-snug">{s.title}</span>
+                      </button>
+                    ))}
+                    <div className="h-px bg-border my-1.5" />
+                    <a
+                      href={`tel:${FARMERS_PHONE}`}
+                      className="flex items-center gap-2 px-3 py-2 text-xs text-muted-foreground hover:text-primary transition-colors"
+                    >
+                      <Phone className="w-3.5 h-3.5" />
+                      Farmers Enquiries: {FARMERS_PHONE_DISPLAY}
+                    </a>
+                  </div>
+                </div>
+              </div>
+
               <button
                 onClick={() => scrollToSection("contact")}
                 className="text-sm font-medium text-muted-foreground hover:text-primary transition-colors"
@@ -213,6 +261,47 @@ const Navbar = () => {
                 >
                   Why Us
                 </button>
+                {/* Farmers accordion */}
+                <div className="border-y border-border/60 py-2">
+                  <button
+                    onClick={() => setIsFarmersOpen((o) => !o)}
+                    className="w-full flex items-center justify-between text-sm font-medium text-muted-foreground hover:text-primary transition-colors"
+                    aria-expanded={isFarmersOpen}
+                  >
+                    Farmers
+                    <ChevronDown
+                      className={`w-4 h-4 transition-transform ${isFarmersOpen ? "rotate-180" : ""}`}
+                    />
+                  </button>
+                  {isFarmersOpen && (
+                    <div className="mt-3 flex flex-col gap-1 animate-fade-in">
+                      <button
+                        onClick={() => { navigate("/farmers"); setIsMenuOpen(false); setIsFarmersOpen(false); }}
+                        className="text-left text-sm font-semibold text-primary py-1.5"
+                      >
+                        Farmers Solutions
+                      </button>
+                      {FARMER_SOLUTIONS.map((s) => (
+                        <button
+                          key={s.id}
+                          onClick={() => { navigate(`/farmers#${s.id}`); setIsMenuOpen(false); setIsFarmersOpen(false); }}
+                          className="flex items-start gap-2.5 text-left text-sm text-muted-foreground hover:text-primary transition-colors py-1.5"
+                        >
+                          <s.icon className="w-4 h-4 text-primary mt-0.5 flex-shrink-0" />
+                          <span className="leading-snug">{s.title}</span>
+                        </button>
+                      ))}
+                      <a
+                        href={`tel:${FARMERS_PHONE}`}
+                        className="flex items-center gap-2 text-xs text-muted-foreground py-1.5"
+                      >
+                        <Phone className="w-3.5 h-3.5" />
+                        Farmers Enquiries: {FARMERS_PHONE_DISPLAY}
+                      </a>
+                    </div>
+                  )}
+                </div>
+
                 <button
                   onClick={() => scrollToSection("contact")}
                   className="text-sm font-medium text-muted-foreground hover:text-primary transition-colors text-left"

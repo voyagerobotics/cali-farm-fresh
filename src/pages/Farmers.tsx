@@ -11,7 +11,6 @@ import Footer from "@/components/Footer";
 import {
   FARMER_SOLUTIONS, FARMERS_PHONE, FARMERS_PHONE_DISPLAY, FARMERS_WHATSAPP,
 } from "@/data/farmerSolutions";
-import farmersHero from "/farmers/farmers-hero.jpg";
 
 const PAGE_TITLE = "Farmers Solutions | Zomical | California Farms India";
 const PAGE_DESC =
@@ -101,7 +100,7 @@ const Farmers = () => {
       {/* HERO */}
       <section className="relative pt-40 pb-20 md:pt-48 md:pb-28 overflow-hidden">
         <img
-          src={farmersHero}
+          src="/farmers/farmers-hero.jpg"
           alt="Aerial view of an irrigated farm with crop rows and a farm pond"
           width={1920}
           height={1080}

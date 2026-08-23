@@ -51,7 +51,22 @@ const FarmerEnquiryForm = ({ defaultInterest }: { defaultInterest?: string }) =>
       toast.error("Could not submit your enquiry. Please call us instead.");
       return;
     }
-    setReference(`FRM-${(data?.id ?? "").slice(0, 8).toUpperCase()}`);
+    const newId = data?.id ?? "";
+    supabase.functions
+      .invoke("send-farmer-enquiry", {
+        body: {
+          enquiryId: newId,
+          fullName: form.full_name.trim(),
+          phone: form.phone.trim(),
+          email: form.email.trim() || undefined,
+          location: form.location.trim() || undefined,
+          interest: form.interest || undefined,
+          message: form.message.trim() || undefined,
+        },
+      })
+      .catch((err) => console.error("Enquiry notification failed:", err));
+
+    setReference(`FRM-${newId.slice(0, 8).toUpperCase()}`);
     toast.success("Enquiry submitted. Our farm team will call you shortly.");
   };
 

@@ -15,30 +15,21 @@ import {
 
 const PAGE_TITLE = "Farmers Solutions | Zomical | California Farms India";
 const PAGE_DESC =
-  "Explore Zomical's farming solutions including quality saplings, biological weed management, vermicompost, biofertilizers, pond plants, farm automation, mulching, weedmat and ultrasonic crop-protection systems.";
+  "Saplings, biological weed management, vermicompost, biofertilizers, pond plants, farm automation, mulching and ultrasonic crop protection for Indian farmers. Talk to our farm experts.";
 
-const useHead = () => {
+const useHeroPreload = () => {
   useEffect(() => {
-    const prevTitle = document.title;
-    document.title = PAGE_TITLE;
-    const meta = document.querySelector('meta[name="description"]');
-    const prevDesc = meta?.getAttribute("content") ?? "";
-    meta?.setAttribute("content", PAGE_DESC);
-
     // Preload the hero image so it starts downloading before React paints
     const preload = document.createElement("link");
     preload.rel = "preload";
     preload.as = "image";
-    preload.href = "/farmers/farmers-hero.webp";
+    preload.href = "/img/farmers/farmers-hero.webp";
     preload.type = "image/webp";
+    preload.setAttribute("imagesrcset", "/img/farmers/farmers-hero-768.webp 768w, /img/farmers/farmers-hero.webp 1440w");
+    preload.setAttribute("imagesizes", "100vw");
     preload.setAttribute("fetchpriority", "high");
     document.head.appendChild(preload);
-
-    return () => {
-      document.title = prevTitle;
-      meta?.setAttribute("content", prevDesc);
-      preload.remove();
-    };
+    return () => preload.remove();
   }, []);
 };
 

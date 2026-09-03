@@ -85,7 +85,27 @@ const EnquireButton = ({ label }: { label: string }) => (
 );
 
 const Farmers = () => {
-  useHead();
+  useSeo({
+    title: PAGE_TITLE,
+    description: PAGE_DESC,
+    path: "/farmers",
+    image: "/img/farmers/farmers-hero.jpg",
+    jsonLd: {
+      "@context": "https://schema.org",
+      "@type": "Service",
+      name: "Farmers Solutions by California Farms India",
+      description: PAGE_DESC,
+      areaServed: "IN",
+      provider: {
+        "@type": "Organization",
+        name: "California Farms India",
+        url: "https://zomical.com",
+        telephone: FARMERS_PHONE,
+      },
+      url: "https://zomical.com/farmers",
+    },
+  });
+  useHeroPreload();
   const location = useLocation();
 
   useEffect(() => {
@@ -106,9 +126,18 @@ const Farmers = () => {
       {/* HERO */}
       <section className="relative pt-40 pb-20 md:pt-48 md:pb-28 overflow-hidden">
         <picture>
-          <source srcSet="/farmers/farmers-hero.webp" type="image/webp" />
+          <source
+            type="image/avif"
+            srcSet="/img/farmers/farmers-hero-768.avif 768w, /img/farmers/farmers-hero.avif 1440w"
+            sizes="100vw"
+          />
+          <source
+            type="image/webp"
+            srcSet="/img/farmers/farmers-hero-768.webp 768w, /img/farmers/farmers-hero.webp 1440w"
+            sizes="100vw"
+          />
           <img
-            src="/farmers/farmers-hero.jpg"
+            src="/img/farmers/farmers-hero.jpg"
             alt="Aerial view of an irrigated farm with crop rows and a farm pond"
             width={1440}
             height={816}

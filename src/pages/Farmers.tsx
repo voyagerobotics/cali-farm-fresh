@@ -12,33 +12,25 @@ import FarmerEnquiryForm from "@/components/farmers/FarmerEnquiryForm";
 import {
   FARMER_SOLUTIONS, FARMERS_PHONE, FARMERS_PHONE_DISPLAY, FARMERS_WHATSAPP,
 } from "@/data/farmerSolutions";
+import { useSeo } from "@/hooks/useSeo";
 
 const PAGE_TITLE = "Farmers Solutions | Zomical | California Farms India";
 const PAGE_DESC =
-  "Explore Zomical's farming solutions including quality saplings, biological weed management, vermicompost, biofertilizers, pond plants, farm automation, mulching, weedmat and ultrasonic crop-protection systems.";
+  "Saplings, biological weed management, vermicompost, biofertilizers, pond plants, farm automation, mulching and ultrasonic crop protection for Indian farmers. Talk to our farm experts.";
 
-const useHead = () => {
+const useHeroPreload = () => {
   useEffect(() => {
-    const prevTitle = document.title;
-    document.title = PAGE_TITLE;
-    const meta = document.querySelector('meta[name="description"]');
-    const prevDesc = meta?.getAttribute("content") ?? "";
-    meta?.setAttribute("content", PAGE_DESC);
-
     // Preload the hero image so it starts downloading before React paints
     const preload = document.createElement("link");
     preload.rel = "preload";
     preload.as = "image";
-    preload.href = "/farmers/farmers-hero.webp";
+    preload.href = "/img/farmers/farmers-hero.webp";
     preload.type = "image/webp";
+    preload.setAttribute("imagesrcset", "/img/farmers/farmers-hero-768.webp 768w, /img/farmers/farmers-hero.webp 1440w");
+    preload.setAttribute("imagesizes", "100vw");
     preload.setAttribute("fetchpriority", "high");
     document.head.appendChild(preload);
-
-    return () => {
-      document.title = prevTitle;
-      meta?.setAttribute("content", prevDesc);
-      preload.remove();
-    };
+    return () => preload.remove();
   }, []);
 };
 
@@ -94,7 +86,27 @@ const EnquireButton = ({ label }: { label: string }) => (
 );
 
 const Farmers = () => {
-  useHead();
+  useSeo({
+    title: PAGE_TITLE,
+    description: PAGE_DESC,
+    path: "/farmers",
+    image: "/img/farmers/farmers-hero.jpg",
+    jsonLd: {
+      "@context": "https://schema.org",
+      "@type": "Service",
+      name: "Farmers Solutions by California Farms India",
+      description: PAGE_DESC,
+      areaServed: "IN",
+      provider: {
+        "@type": "Organization",
+        name: "California Farms India",
+        url: "https://zomical.com",
+        telephone: FARMERS_PHONE,
+      },
+      url: "https://zomical.com/farmers",
+    },
+  });
+  useHeroPreload();
   const location = useLocation();
 
   useEffect(() => {
@@ -115,9 +127,18 @@ const Farmers = () => {
       {/* HERO */}
       <section className="relative pt-40 pb-20 md:pt-48 md:pb-28 overflow-hidden">
         <picture>
-          <source srcSet="/farmers/farmers-hero.webp" type="image/webp" />
+          <source
+            type="image/avif"
+            srcSet="/img/farmers/farmers-hero-768.avif 768w, /img/farmers/farmers-hero.avif 1440w"
+            sizes="100vw"
+          />
+          <source
+            type="image/webp"
+            srcSet="/img/farmers/farmers-hero-768.webp 768w, /img/farmers/farmers-hero.webp 1440w"
+            sizes="100vw"
+          />
           <img
-            src="/farmers/farmers-hero.jpg"
+            src="/img/farmers/farmers-hero.jpg"
             alt="Aerial view of an irrigated farm with crop rows and a farm pond"
             width={1440}
             height={816}

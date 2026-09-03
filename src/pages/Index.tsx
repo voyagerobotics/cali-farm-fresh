@@ -18,6 +18,20 @@ const SectionFallback = () => <div className="min-h-[200px]" aria-hidden="true" 
 
 const Index = () => {
   usePageTracking();
+  useSeo({
+    title: "California Farms India | Fresh Farm Vegetables & Fruits in Nagpur",
+    description:
+      "Order chemical-free vegetables, fruits, herbs and seeds harvested fresh from our Nagpur farm. Home delivery twice a week, free above ₹399.",
+    path: "/",
+    jsonLd: {
+      "@context": "https://schema.org",
+      "@type": "Organization",
+      name: "California Farms India",
+      url: "https://zomical.com",
+      email: "californiafarmsindia@gmail.com",
+      areaServed: "Nagpur, India",
+    },
+  });
 
   return (
     <div className="min-h-screen bg-background">

@@ -14,11 +14,11 @@ import { supabase } from "@/integrations/supabase/client";
 import { useFarmVisitSettings } from "@/hooks/useFarmVisitSettings";
 
 const GALLERY = [
-  { src: "/school-visits/school-visit-1.jpg", caption: "Learning Beyond the Classroom" },
-  { src: "/school-visits/school-visit-2.jpg", caption: "Inside the Dragon Fruit Orchard" },
-  { src: "/school-visits/school-visit-3.jpg", caption: "Kids Exploring Nature & Farming" },
-  { src: "/school-visits/school-visit-4.jpg", caption: "Hands-on with Crops & Flowers" },
-  { src: "/school-visits/school-visit-5.jpg", caption: "Live Farm Talks with Experts" },
+  { src: "/img/school-visits/school-visit-1.jpg", caption: "Learning Beyond the Classroom" },
+  { src: "/img/school-visits/school-visit-2.jpg", caption: "Inside the Dragon Fruit Orchard" },
+  { src: "/img/school-visits/school-visit-3.jpg", caption: "Kids Exploring Nature & Farming" },
+  { src: "/img/school-visits/school-visit-4.jpg", caption: "Hands-on with Crops & Flowers" },
+  { src: "/img/school-visits/school-visit-5.jpg", caption: "Live Farm Talks with Experts" },
 ];
 
 

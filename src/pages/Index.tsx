@@ -2,6 +2,7 @@ import { lazy, Suspense } from "react";
 import Navbar from "@/components/Navbar";
 import HeroSection from "@/components/HeroSection";
 import { usePageTracking } from "@/hooks/useAnalytics";
+import { useSeo } from "@/hooks/useSeo";
 
 // Defer below-the-fold sections so they don't block LCP / INP
 const PromotionalBanners = lazy(() => import("@/components/PromotionalBanners"));

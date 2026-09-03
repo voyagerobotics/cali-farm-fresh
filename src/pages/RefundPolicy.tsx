@@ -12,7 +12,7 @@ const RefundPolicy = () => {
       <Navbar />
 
       {/* Hero Section */}
-      <section className="relative pt-24 pb-16 md:pt-32 md:pb-20 bg-gradient-to-br from-primary/10 via-background to-secondary/10">
+      <section className="relative pt-40 pb-16 md:pb-20 bg-gradient-to-br from-primary/10 via-background to-secondary/10">
         <div className="container mx-auto px-4">
           <Button
             variant="ghost"

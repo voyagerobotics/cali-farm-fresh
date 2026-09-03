@@ -12,6 +12,7 @@ import FarmerEnquiryForm from "@/components/farmers/FarmerEnquiryForm";
 import {
   FARMER_SOLUTIONS, FARMERS_PHONE, FARMERS_PHONE_DISPLAY, FARMERS_WHATSAPP,
 } from "@/data/farmerSolutions";
+import { useSeo } from "@/hooks/useSeo";
 
 const PAGE_TITLE = "Farmers Solutions | Zomical | California Farms India";
 const PAGE_DESC =
